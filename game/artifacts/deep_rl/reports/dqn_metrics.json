@@ -1,0 +1,14 @@
+{
+  "model": "DQN",
+  "training_episodes": 3,
+  "evaluation_episodes": 1000,
+  "average_reward_per_episode": 1500.0,
+  "learning_rate": 0.0005,
+  "gamma": 0.85,
+  "checkpoint_path": "artifacts\\deep_rl\\checkpoints\\best_scrum_model.pth",
+  "plot_path": "artifacts\\deep_rl\\plots\\dqn_training_curve.png",
+  "log_path": "artifacts\\deep_rl\\reports\\logs.csv",
+  "final_epsilon": 0.99999525,
+  "mean_training_reward": -47666.666666666664,
+  "mean_training_loss": null
+}

@@ -29,12 +29,18 @@ The RL agents learn a Q-table over a discretized version of the game state.
   Tabular SARSA agent.
 - [game/mc_agent.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/mc_agent.py)
   Tabular Monte Carlo agent.
+- [game/dqn_agent.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/dqn_agent.py)
+  PyTorch DQN agent with replay buffer and MLP Q-network.
 - [game/train_q_learning.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/train_q_learning.py)
   Train and evaluate Q-Learning.
 - [game/train_sarsa.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/train_sarsa.py)
   Train and evaluate SARSA, and save the final production model.
 - [game/train_mc.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/train_mc.py)
   Train and evaluate Monte Carlo.
+- [game/train_dqn.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/train_dqn.py)
+  Train the deep Q-network agent and save checkpoints.
+- [game/dashboard.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/dashboard.py)
+  Streamlit dashboard for live DQN monitoring and demo playback.
 - [game/compare_models.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/compare_models.py)
   Compare baseline, Q-Learning, SARSA, and Monte Carlo in one run.
 - [game/evaluate_robustness.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/evaluate_robustness.py)
@@ -188,6 +194,40 @@ This script is the current production SARSA training run. It:
 py train_mc.py
 ```
 
+### Train DQN
+
+```powershell
+py train_dqn.py
+```
+
+This trains a PyTorch DQN with:
+- replay buffer size `100000`
+- learning rate `0.0005`
+- gamma `0.85`
+- `500000` training episodes
+- slow epsilon decay over the first `400000` episodes
+- checkpoint saving every `10000` episodes to `best_scrum_model.pth`
+- live CSV logging every `100` episodes to `artifacts/deep_rl/reports/logs.csv`
+
+### Live Dashboard
+
+In a second terminal:
+
+```powershell
+cd game
+streamlit run dashboard.py
+```
+
+The dashboard reads:
+- `artifacts/deep_rl/reports/logs.csv`
+- `artifacts/deep_rl/checkpoints/best_scrum_model.pth`
+
+It shows:
+- latest training metrics
+- reward and rolling-average charts
+- recent loss and replay-buffer growth
+- a live greedy demo using the latest DQN checkpoint
+
 ### Compare All Models
 
 ```powershell
@@ -236,6 +276,12 @@ Generated files are organized as follows:
 
 - `game/artifacts/models/`
   Saved Q-tables from training and comparison runs.
+- `game/artifacts/deep_rl/checkpoints/`
+  DQN model checkpoints such as `best_scrum_model.pth`.
+- `game/artifacts/deep_rl/plots/`
+  Deep-RL training curves.
+- `game/artifacts/deep_rl/reports/`
+  Deep-RL metrics, run summaries, and `logs.csv` for the dashboard.
 - `game/artifacts/plots/`
   Training curves and model comparison plots.
 - `game/artifacts/reports/`
@@ -263,7 +309,9 @@ Important sources include:
 
 ## Notes
 
-This is a tabular RL prototype, not a neural-network-based model.
+This repository now contains both:
+- tabular RL agents
+- a PyTorch deep RL baseline using DQN
 
 The current environment is a classical-setup baseline. It captures the core Scrum Game mechanics, but future work can make it more configurable for:
 - different board layouts
