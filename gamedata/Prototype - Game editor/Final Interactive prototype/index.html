@@ -1,0 +1,617 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>GameConfig Editor — Interactive Prototype (V26)</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="topbar">
+    <div class="topbar__inner">
+      <div class="brand" aria-label="Unknown Data — Scrum Game">
+        <span class="brand__mark" aria-hidden="true"></span>
+        <div class="brand__text">
+          <div class="brand__name">Unknown Data</div>
+          <div class="brand__sub">Scrum Game — GameConfig Editor (Interactive Prototype)</div>
+        </div>
+      </div>
+
+      <nav class="topnav" aria-label="Primary navigation">
+        <a href="#" class="active" data-route="editor">GameConfig Editor</a>
+        <a href="#" data-route="history">Version history</a>
+        <a href="#" data-route="queue">Review Queue</a>
+        <a href="#" data-route="sim">Simulation</a>
+      </nav>
+
+      <div class="userchip" role="button" tabindex="0" aria-haspopup="menu" aria-label="User menu (prototype)">
+        Admin ▾
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="page">
+    <section class="pagehead">
+      <h1>GameConfig Editor</h1>
+    </section>
+
+    <!-- SUBMENU TABS -->
+    <section class="tabs" role="tablist" aria-label="Template configuration tabs">
+      <button class="tab active" role="tab" aria-selected="true" data-tab="start">Start</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="basic">Basic</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="player">Player</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="product">Product</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="layout">Layout</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="refinements">Refinements</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="incident">Incident</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="validate">Validate</button>
+    </section>
+
+    <section class="statusbar" aria-label="Prototype status">
+      <div class="status-left">
+        <button class="btn btn-ghost" id="btnToggleProgress" aria-controls="progressAside" aria-expanded="true"
+          type="button">
+          Progress ▾
+        </button>
+        <div class="kv">
+          <div class="k">Template</div>
+          <div class="v" id="uiSelectedTemplate">—</div>
+        </div>
+        <div class="kv">
+          <div class="k">Boardname</div>
+          <div class="v" id="uiBoardName">—</div>
+        </div>
+      </div>
+      <div class="status-right">
+        <button class="btn" id="btnValidateTop">Validate</button>
+        <button class="btn btn-primary" id="btnSaveTop" disabled>Make final (disabled until valid)</button>
+      </div>
+    </section>
+
+    <div class="op-progress" id="opProgress" hidden aria-live="polite">
+      <div class="op-progress__label" id="opProgressLabel">Working…</div>
+      <div class="op-progress__track" aria-hidden="true">
+        <div class="op-progress__bar" id="opProgressBar"></div>
+      </div>
+    </div>
+
+    <section class="workspace">
+      <aside class="side" id="progressAside">
+        <div class="card" id="progressCard">
+          <h2>Progress overview</h2>
+          <p class="muted">Status across tabs.</p>
+
+          <div class="step" id="stepTemplate">
+            <span class="dot done" aria-hidden="true"></span>
+            <div>
+              <div class="step-title">Template selected</div>
+              <div class="step-sub">Defaults prefilled.</div>
+            </div>
+            <span class="chip chip-green" id="chipTemplate">Complete</span>
+          </div>
+
+          <div class="step" id="stepBasic">
+            <span class="dot doing" id="dotBasic" aria-hidden="true"></span>
+            <div>
+              <div class="step-title">Basic setup</div>
+              <div class="step-sub">Players, products, sprints and costs.</div>
+            </div>
+            <span class="chip chip-amber" id="chipBasic">In progress</span>
+          </div>
+
+          <div class="step" id="stepLayout">
+            <span class="dot todo" id="dotLayout" aria-hidden="true"></span>
+            <div>
+              <div class="step-title">Layout matrix</div>
+              <div class="step-sub">Products × Sprints values & features.</div>
+            </div>
+            <span class="chip chip-red" id="chipLayout">To do</span>
+          </div>
+
+          <div class="step" id="stepValidate">
+            <span class="dot todo" id="dotValidate" aria-hidden="true"></span>
+            <div>
+              <div class="step-title">Validate & save</div>
+              <div class="step-sub">Check constraints and save.</div>
+            </div>
+            <span class="chip chip-red" id="chipValidate">To do</span>
+          </div>
+        </div>
+      </aside>
+
+      <section class="content" aria-label="Tab content">
+
+        <!-- START -->
+        <section class="panel active" data-panel="start" role="tabpanel">
+          <div class="card">
+            <h2>Template</h2>
+            <p class="muted">Defaults are applied immediately.</p>
+
+            <div class="form-grid">
+              <div class="field">
+                <label for="templateSelect">Choose template to make a copy from:</label>
+                <select id="templateSelect" class="input">
+                  <option value="" disabled>Select…</option>
+                  <option value="classical">Classical setup v1.00</option>
+                  <option value="simsetup">Sim setup v1.00</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Available templates</h2>
+            <div class="tablewrap" role="region" aria-label="Available templates table" tabindex="0">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Template name</th>
+                    <th>Rating</th>
+                    <th>Aviable for</th>
+                    <th class="num">Players</th>
+                    <th class="num">Products</th>
+                    <th class="num">Sprints</th>
+                    <th>Notes</th>
+                    <th>Owner</th>
+                    <th>Release date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Classical setup v1.00</td>
+                    <td>100/100</td>
+                    <td>Simulation, physical, rl</td>
+                    <td class="num">4</td>
+                    <td class="num">7</td>
+                    <td class="num">4</td>
+                    <td>Classic game good balance for scrum</td>
+                    <td>Micha</td>
+                    <td>10/02/26 19:10:15</td>
+                  </tr>
+                  <tr>
+                    <td>Sim setup v1.00</td>
+                    <td>90/100</td>
+                    <td>simulation</td>
+                    <td class="num">8</td>
+                    <td class="num">5</td>
+                    <td class="num">7</td>
+                    <td>Entrepreneurs that dare</td>
+                    <td>micha</td>
+                    <td>12/02/26 20:10:15</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- BASIC -->
+        <section class="panel" data-panel="basic" role="tabpanel">
+          <div class="card">
+            <h2>Players</h2>
+            <div class="form-grid">
+              <div class="field">
+                <label for="playersCount">How many players are playing this game</label>
+                <input id="playersCount" class="input" type="number" inputmode="numeric" min="1" max="12" />
+                <div class="help">Minimal 1, maximal 12.</div>
+                <div class="error" id="err_playersCount" aria-live="polite"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Board and setup variables</h2>
+            <div class="form-grid">
+              <div class="field">
+                <label for="boardId">Unique generated boardname id</label>
+                <input id="boardId" class="input" type="text" readonly />
+                <div class="help">Prototype: read-only generated value.</div>
+              </div>
+
+              <div class="field">
+                <label for="boardName">Boardname from the setup</label>
+                <input id="boardName" class="input" type="text" minlength="4" maxlength="64" />
+                <div class="help">Chars minimal 4, maximal 64.</div>
+                <div class="error" id="err_boardName" aria-live="polite"></div>
+              </div>
+
+              <div class="field span-2">
+                <label for="boardDescription">Board description</label>
+                <textarea id="boardDescription" class="input" rows="3" maxlength="255"></textarea>
+                <div class="help">Chars minimal 0, maximal 255.</div>
+                <div class="error" id="err_boardDescription" aria-live="polite"></div>
+              </div>
+
+              <div class="field">
+                <label for="productsCount">Number of products</label>
+                <input id="productsCount" class="input" type="number" inputmode="numeric" min="4" max="12" />
+                <div class="help">Minimal 4, maximal 12.</div>
+                <div class="error" id="err_productsCount" aria-live="polite"></div>
+              </div>
+
+              <div class="field">
+                <label for="sprintsPerProduct">Sprints per product</label>
+                <input id="sprintsPerProduct" class="input" type="number" inputmode="numeric" min="4" max="12" />
+                <div class="help">Minimal 4, maximal 12.</div>
+                <div class="error" id="err_sprintsPerProduct" aria-live="polite"></div>
+              </div>
+
+              <div class="field">
+                <label for="tokensPerPlayer">Game Length (Sprint Tokens per Player)</label>
+                <input id="tokensPerPlayer" class="input" type="number" inputmode="numeric" min="4" max="32" />
+                <div class="help">Minimal 4, maximal 32.</div>
+                <div class="error" id="err_tokensPerPlayer" aria-live="polite"></div>
+              </div>
+
+              <div class="field">
+                <label for="startingMoney">Starting Money (€)</label>
+                <input id="startingMoney" class="input" type="number" inputmode="numeric" min="0" max="250000"
+                  step="100" />
+                <div class="help">Minimal 0, maximal 250.000.</div>
+                <div class="error" id="err_startingMoney" aria-live="polite"></div>
+              </div>
+
+              <div class="field">
+                <label for="roundsPerPlayer">Game Length (game rounds per player)</label>
+                <input id="roundsPerPlayer" class="input" type="number" inputmode="numeric" min="4" max="32" />
+                <div class="help">Minimal 4, maximal 32.</div>
+                <div class="error" id="err_roundsPerPlayer" aria-live="polite"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Costs and financial variables</h2>
+            <div class="form-grid">
+              <div class="field">
+                <label for="ringValue">Value of 1 Ring (€)</label>
+                <input id="ringValue" class="input" type="number" inputmode="numeric" min="0" max="250000" step="100" />
+                <div class="help">5.000. Minimal 0, maximal 250.000.</div>
+
+              </div>
+
+              <div class="field">
+                <label for="costContinue">Cost to Continue (stay same product, no switching) (€)</label>
+                <input id="costContinue" class="input" type="number" inputmode="numeric" min="0" max="250000"
+                  step="100" />
+                <div class="help">0. Minimal 0, maximal 250.000.</div>
+
+              </div>
+
+              <div class="field">
+                <label for="costSwitchMid">Cost to Switch (after sprint one and before ending the last sprint)
+                  (€)</label>
+                <input id="costSwitchMid" class="input" type="number" inputmode="numeric" min="0" max="250000"
+                  step="100" />
+                <div class="help">5.000. Minimal 0, maximal 250.000.</div>
+
+              </div>
+
+              <div class="field">
+                <label for="costSwitchAfter">Cost to Switch (after the last sprint) (€)</label>
+                <input id="costSwitchAfter" class="input" type="number" inputmode="numeric" min="0" max="250000"
+                  step="100" />
+                <div class="help">0. Minimal 0, maximal 250.000.</div>
+
+              </div>
+
+              <div class="field">
+                <label for="mandatoryLoan">Mandatory Loan Amount (€)</label>
+                <input id="mandatoryLoan" class="input" type="number" inputmode="numeric" min="0" max="250000"
+                  step="100" />
+                <div class="help">Minimal 0, maximal 250.000.</div>
+
+              </div>
+
+              <div class="field">
+                <label for="loanInterest">Loan Interest (per turn) (€)</label>
+                <input id="loanInterest" class="input" type="number" inputmode="numeric" min="0" max="250000"
+                  step="100" />
+                <div class="help">Minimal 0, maximal 250.000.</div>
+
+              </div>
+
+              <div class="field">
+                <label for="penaltyNeg">Penalty Multiplier (for negative net results) (€)</label>
+                <input id="penaltyNeg" class="input" type="number" inputmode="numeric" min="0" max="250000"
+                  step="100" />
+                <div class="help">Minimal 0, maximal 250.000.</div>
+
+              </div>
+
+              <div class="field">
+                <label for="penaltyPos">Penalty Multiplier (for positive net results) (€)</label>
+                <input id="penaltyPos" class="input" type="number" inputmode="numeric" min="0" max="250000"
+                  step="100" />
+                <div class="help">Minimal 0, maximal 250.000.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Scrum mechanics</h2>
+            <div class="form-grid">
+              <div class="field">
+                <label for="dailyScrumsPerSprint">Daily Scrums per Sprint</label>
+                <input id="dailyScrumsPerSprint" class="input" type="number" inputmode="numeric" min="4" max="12" />
+                <div class="help">Minimal 4, maximal 12.</div>
+              </div>
+
+              <div class="field">
+                <label for="dailyScrumTarget">Daily Scrum Target Number</label>
+                <input id="dailyScrumTarget" class="input" type="number" inputmode="numeric" min="4" max="12" />
+                <div class="help">Minimal 4, maximal 12.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PLAYER -->
+        <section class="panel" data-panel="player" role="tabpanel">
+          <div class="card">
+            <h2>Players table</h2>
+            <p class="muted">Table size depends on the player amount selected in Basic.</p>
+
+            <div class="tablewrap" role="region" aria-label="Players table" tabindex="0">
+              <table class="table" id="playersTable">
+                <thead>
+                  <tr>
+                    <th class="num num-left">Player number</th>
+                    <th>Player name</th>
+                    <th>Player color</th>
+                    <th>Strategy</th>
+                    <th>Difficulty</th>
+                  </tr>
+                </thead>
+                <tbody id="playersTbody"></tbody>
+              </table>
+            </div>
+
+            <div class="hint">Constraints: name (4–32 chars), color (#000000–#FFFFFF), strategy
+              (scrum/waterfall/random), difficulty (0.0–1.0).</div>
+          </div>
+        </section>
+
+        <!-- PRODUCT -->
+        <section class="panel" data-panel="product" role="tabpanel">
+          <div class="card">
+            <h2>Products table</h2>
+            <p class="muted">Table size depends on the product amount selected in Basic.</p>
+
+            <div class="tablewrap" role="region" aria-label="Products table" tabindex="0">
+              <table class="table" id="productsTable">
+                <thead>
+                  <tr>
+                    <th class="num">Product number</th>
+                    <th>Product name</th>
+                    <th>Product color</th>
+                    <th>Product description</th>
+                  </tr>
+                </thead>
+                <tbody id="productsTbody"></tbody>
+              </table>
+            </div>
+
+            <div class="hint">Constraints: name (4–32 chars), color (#000000–#FFFFFF), description (0–128 chars).</div>
+          </div>
+        </section>
+
+        <!-- LAYOUT -->
+        <section class="panel" data-panel="layout" role="tabpanel">
+          <div class="card layout-selected">
+            <h2>Selected cell</h2>
+            <p class="muted">Click a cell in the board grid to edit value and features.</p>
+
+            <div class="form-grid form-grid--layout-selected">
+              <div class="field">
+                <label for="cellProduct">Product</label>
+                <input id="cellProduct" class="input" type="text" readonly />
+              </div>
+
+              <div class="field">
+                <label for="cellSprint">Sprint #</label>
+                <input id="cellSprint" class="input" type="text" readonly />
+              </div>
+
+              <div class="field">
+                <label for="cellValue">Value amount</label>
+                <input id="cellValue" class="input" type="number" inputmode="numeric" min="0" max="32" />
+              </div>
+
+              <div class="field">
+                <label for="cellFeatures">Feature amount</label>
+                <input id="cellFeatures" class="input" type="number" inputmode="numeric" min="0" max="32" />
+              </div>
+
+              <div class="row form-grid--layout-selected__actions">
+                <button class="btn btn-primary" id="btnApplyCell" type="button">Apply</button>
+                <button class="btn" id="btnResetCell" type="button">Reset cell</button>
+                <span class="hint">Edits create a staged change entry below.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Board grid</h2>
+            <p class="muted">Rows are sprints, columns are products.</p>
+
+            <div class="boardgrid-wrap" role="region" aria-label="Board grid" tabindex="0">
+              <div id="boardGrid" class="boardgrid"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Layout changes</h2>
+            <p class="muted">List with changes made on product fields. Delete restores previous amounts.</p>
+
+            <div class="tablewrap" role="region" aria-label="Layout changes table" tabindex="0">
+              <table class="table" id="layoutChangesTable">
+                <thead>
+                  <tr>
+                    <th class="num">Change #</th>
+                    <th>Product name</th>
+                    <th class="num">Sprint #</th>
+                    <th class="num">Value amount</th>
+                    <th class="num">Feature amount</th>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Date time</th>
+                    <th class="num">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="layoutChangesTbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- REFINEMENTS -->
+        <section class="panel" data-panel="refinements" role="tabpanel">
+          <div class="card">
+            <h2>Refinement cards</h2>
+            <div class="form-grid">
+              <div class="field">
+                <label for="refinementCards">How many different refinement cards in this game</label>
+                <input id="refinementCards" class="input" type="number" inputmode="numeric" min="1" max="32" />
+                <div class="help">Minimal 1, maximal 32.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Refinement settings</h2>
+            <p class="muted">Controls the D20 mechanics that change future sprints.</p>
+
+            <div class="form-grid">
+              <div class="field">
+                <label for="refinementsActive">Refinements Active</label>
+                <select id="refinementsActive" class="input">
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="refinementModel">Refinement Logic Model</label>
+                <select id="refinementModel" class="input">
+                  <option value="Standard (ID 301)">Standard (ID 301)</option>
+                  <option value="Chaos (Custom)">Chaos (Custom)</option>
+                </select>
+                <div class="help">Standard matches the physical board game.</div>
+              </div>
+
+              <div class="field">
+                <label for="refRollIncreaseMin">roll 1 to 2 (increase)</label>
+                <div class="row">
+                  <input id="refRollIncreaseMin" class="input" type="number" inputmode="numeric" min="1" max="10" />
+                  <span class="sep">to</span>
+                  <input id="refRollIncreaseMax" class="input" type="number" inputmode="numeric" min="1" max="10" />
+                </div>
+                <div class="help">Minimal 1, maximal 10.</div>
+              </div>
+
+              <div class="field">
+                <label for="refRollDecreaseMin">roll 19 to 20 (decrease)</label>
+                <div class="row">
+                  <input id="refRollDecreaseMin" class="input" type="number" inputmode="numeric" min="11" max="20" />
+                  <span class="sep">to</span>
+                  <input id="refRollDecreaseMax" class="input" type="number" inputmode="numeric" min="11" max="20" />
+                </div>
+                <div class="help">Minimal 11, maximal 20.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- INCIDENT -->
+        <section class="panel" data-panel="incident" role="tabpanel">
+
+          <div class="card">
+            <h2>Incident cards</h2>
+            <div class="form-grid">
+              <div class="field">
+                <label for="incidentCards">How many different incident cards in this game</label>
+                <input id="incidentCards" class="input" type="number" inputmode="numeric" min="1" max="32" />
+                <div class="help">Minimal 1, maximal 32.</div>
+                <div class="error" id="err_incidentCards" aria-live="polite"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Incident settings</h2>
+            <p class="muted">After each round, exactly one Incident card is resolved globally. Incidents affect sprint value (rings), never features.</p>
+
+            <div class="form-grid">
+              <div class="field">
+                <label for="incidentsActive">Incidents Active</label>
+                <select id="incidentsActive" class="input">
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+                <div class="error" id="err_incidentsActive" aria-live="polite"></div>
+              </div>
+
+              <div class="field">
+                <label for="incidentFrequency">Incident Frequency (Severity)</label>
+                <select id="incidentFrequency" class="input">
+                  <option value="Low">Low</option>
+                  <option value="Normal">Normal</option>
+                  <option value="High">High</option>
+                </select>
+                <div class="help">In digital: controls impact severity. In physical: an incident happens after each round.</div>
+                <div class="error" id="err_incidentFrequency" aria-live="polite"></div>
+              </div>
+
+              <div class="field">
+                <label for="allowPlayerSpecificIncidents">Allow Player-Specific Incidents</label>
+                <select id="allowPlayerSpecificIncidents" class="input">
+                  <option value="No">No</option>
+                  <option value="Yes">Yes</option>
+                </select>
+                <div class="help">If 'No', only global incidents occur. If 'Yes', player-specific incidents are
+                  included.</div>
+                <div class="error" id="err_allowPlayerSpecificIncidents" aria-live="polite"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- VALIDATE -->
+        <section class="panel" data-panel="validate" role="tabpanel">
+          <div class="card">
+            <h2>Validate and save boardgame settings</h2>
+            <p class="muted">Click “Validate”. If validation is true, the Save button becomes available.</p>
+
+            <div class="row">
+              <button class="btn" id="btnValidate">Validate</button>
+              <button class="btn btn-primary" id="btnSave" disabled>Make final</button>
+              <button class="btn" id="btnDownloadJson">Download config JSON</button>
+            </div>
+
+            <div class="hr"></div>
+
+            <div class="validation" aria-live="polite">
+              <h3>Result</h3>
+              <div id="validationResult" class="muted">Not validated yet.</div>
+              <ul id="validationList" class="val-list"></ul>
+            </div>
+          </div>
+        </section>
+
+      </section>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="muted small">Prototype V25 — No backend. Local state only.</div>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+
+</html>
