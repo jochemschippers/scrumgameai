@@ -3,8 +3,7 @@
 ## Baseline Performance
 
 The baseline agent uses a simple heuristic policy:
-- If money is low and no loan is active, take a loan.
-- Otherwise, continue the sprint.
+- Always continue the sprint.
 
 This baseline is valid because it represents a non-learning decision rule that a human could design without reinforcement learning. It provides a minimum benchmark that the learned agents should aim to outperform.
 
@@ -19,8 +18,9 @@ This project compares four policies:
 - Q-Learning agent
 - SARSA agent
 - Monte Carlo agent
+- DQN agent
 
-The three RL models satisfy the requirement to compare at least three learning approaches.
+The project exceeds the requirement to compare at least three learning approaches.
 
 ## Model Choice Justification
 
@@ -61,6 +61,19 @@ Cons:
 - Must wait until the episode ends before learning
 - Can have high variance
 
+### DQN
+
+DQN was selected as the deep reinforcement learning extension of the project. Instead of storing Q-values in a lookup table, it uses a neural network to approximate action values from the game state.
+
+Pros:
+- Can use richer state features than a small tabular lookup
+- Supports replay memory and target networks for more stable learning
+- Performed best in the final project run
+
+Cons:
+- More complex to train and debug
+- Requires more computation time than the tabular agents
+
 ## Implementation Explanation
 
 The Scrum Game environment follows a Gym-style structure with:
@@ -86,11 +99,14 @@ The current implementation uses:
 - `gamma = 0.95`
 - `epsilon` decayed from `1.0` to `0.05`
 - `25,000` training episodes for each RL model
+- DQN uses learning rate `0.0005`, gamma `0.85`, replay memory `100000`, and `500,000` training episodes
 
 Tuning rationale:
 - The learning rate was reduced from `0.1` to `0.05` after the Q-Learning training curve showed late-stage instability.
 - Training episodes were increased from `10,000` to `25,000` to give the policy more time to stabilize.
 - The epsilon floor of `0.05` preserves some exploration during training while still allowing convergence toward greedy behavior.
+- SARSA discount factor tuning identified `gamma = 0.85` as the strongest tested value.
+- DQN was trained longer because the neural network needed far more interaction data than the tabular agents.
 
 ## Strict Evaluation Isolation
 
@@ -110,6 +126,7 @@ Key robustness considerations:
 - Reward variance should be reported, not just average reward
 - A single run can be misleading if it was unusually lucky or unlucky
 - The best practice is to repeat training with multiple random seeds and compare the mean and spread of the results
+- In this project, tabular robustness was measured across five seeds, while DQN was selected based on its strongest final evaluation run and dashboard behavior.
 
 ## Overfitting / Underfitting Discussion
 
@@ -139,6 +156,11 @@ Saved model artifacts are written to the `artifacts/models/` folder:
 - `sarsa_q_table.json`
 - `mc_q_table.json`
 
+Deep RL artifacts are written to:
+- `artifacts/deep_rl/checkpoints/best_scrum_model.pth`
+- `artifacts/deep_rl/plots/dqn_training_curve.png`
+- `artifacts/deep_rl/reports/dqn_metrics.json`
+
 Saved plots are written to the `artifacts/plots/` folder:
 - `q_learning_training_curve.png`
 - `sarsa_training_curve.png`
@@ -159,3 +181,15 @@ This generates:
 - `artifacts/reports/model_comparison_summary.md`
 
 Those files can be used directly in the report for the comparison table and discussion section.
+
+## Final Selected Model
+
+The final selected model is the DQN agent.
+
+Reason:
+- It achieved the strongest final evaluation result in the project run, with an average reward of about `-14210.50`.
+- It outperformed the earlier tabular agents on the current environment.
+- The strategy heatmap and dashboard behavior showed more coherent board awareness than the earlier switching-heavy policies.
+
+Final deployment artifact:
+- `artifacts/deep_rl/checkpoints/best_scrum_model.pth`

@@ -2,7 +2,7 @@
 
 This repository contains a headless Reinforcement Learning prototype for the digital Scrum Game NPC.
 
-The project builds a Gym-style environment for the game, trains several tabular RL agents, compares them against a heuristic baseline, and exports a final SARSA model for demo play.
+The project builds a Gym-style environment for the game, trains several tabular RL agents and a PyTorch DQN, compares them against a heuristic baseline, and uses DQN as the final selected model for demo play.
 
 ## What This Project Does
 
@@ -49,6 +49,8 @@ The RL agents learn a Q-table over a discretized version of the game state.
   Grid search for the best SARSA discount factor.
 - [game/play_final_game.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/play_final_game.py)
   Demo script that loads the final SARSA model and plays one full game.
+- [game/play_best_dqn_game.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/play_best_dqn_game.py)
+  Demo script that loads `best_scrum_model.pth` and plays one full greedy DQN game.
 
 ## How The Environment Works
 
@@ -209,6 +211,8 @@ This trains a PyTorch DQN with:
 - checkpoint saving every `10000` episodes to `best_scrum_model.pth`
 - live CSV logging every `100` episodes to `artifacts/deep_rl/reports/logs.csv`
 
+The current final selected model is DQN. In the latest recorded run it achieved an evaluation reward of approximately `-14210.50`, outperforming the earlier tabular agents.
+
 ### Live Dashboard
 
 In a second terminal:
@@ -259,7 +263,7 @@ py tune_sarsa.py
 This runs a grid search over:
 - `gamma = [0.85, 0.90, 0.95, 0.99]`
 
-### Demo The Final Model
+### Demo The Final SARSA Model
 
 ```powershell
 py play_final_game.py
@@ -269,6 +273,14 @@ This loads `final_sarsa_model.json` and plays one full greedy demo game with:
 - `epsilon = 0`
 - no random exploration
 - turn-by-turn printed summaries
+
+### Demo The Final DQN Model
+
+```powershell
+py play_best_dqn_game.py
+```
+
+This loads `artifacts/deep_rl/checkpoints/best_scrum_model.pth` and plays one full greedy DQN demo game.
 
 ## Saved Outputs
 
@@ -291,10 +303,11 @@ Generated files are organized as follows:
 
 ## Current Final Model
 
-The current final production demo model is:
-- [final_sarsa_model.json](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/final_sarsa_model.json)
+The current final selected production model is:
+- [best_scrum_model.pth](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/artifacts/deep_rl/checkpoints/best_scrum_model.pth)
 
-It is trained from the SARSA agent and intended for project demonstration.
+The earlier tabular SARSA export remains available as a baseline demo artifact:
+- [final_sarsa_model.json](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/final_sarsa_model.json)
 
 ## Data Sources
 

@@ -1,5 +1,6 @@
 model,model_type,average_reward_per_episode,reward_std_dev,best_episode_reward,worst_episode_reward,episodes_evaluated,q_table_size,artifact_path,plot_path
-Baseline,Heuristic,-73868.0,81760.47,57000,-241000,1000,N/A,N/A,N/A
-Q-Learning,TD Off-Policy,-18732.0,23621.39,-5000,-212000,1000,159,artifacts\models\q_learning_q_table.json,artifacts/plots/q_learning_training_curve.png
-SARSA,TD On-Policy,-15664.0,27673.73,20000,-187000,1000,98,artifacts\models\sarsa_q_table.json,artifacts/plots/sarsa_training_curve.png
-Monte Carlo,Full-Episode,-16778.0,26615.23,10000,-160000,1000,86,artifacts\models\mc_q_table.json,artifacts/plots/mc_training_curve.png
+Baseline,Heuristic,-65810.0,84221.37,69000,-235000,1000,N/A,N/A,N/A
+Q-Learning,TD Off-Policy,1500.0,0.0,1500,1500,1000,151,artifacts\models\q_learning_q_table.json,artifacts/plots/q_learning_training_curve.png
+SARSA,TD On-Policy,1500.0,0.0,1500,1500,1000,102,artifacts\models\sarsa_q_table.json,artifacts/plots/sarsa_training_curve.png
+Monte Carlo,Full-Episode,1500.0,0.0,1500,1500,1000,88,artifacts\models\mc_q_table.json,artifacts/plots/mc_training_curve.png
+DQN,Deep RL,-13559.0,77325.77,79000,-250000,1000,N/A,artifacts/deep_rl/checkpoints/best_scrum_model.pth,artifacts/deep_rl/plots/dqn_training_curve.png

@@ -1,10 +1,14 @@
 import random
 import statistics
+from pathlib import Path
 
 import matplotlib.pyplot as plt
+import torch
 
 from baseline_agent import evaluate_baseline_agent
+from dqn_agent import DQNAgent, encode_state
 from model_utils import save_metrics_csv, save_metrics_json, save_q_table, save_text_report
+from scrum_game_env import ScrumGameEnv
 from train_mc import evaluate_mc_agent, train_mc_agent
 from train_q_learning import evaluate_q_learning_agent, train_q_learning_agent
 from train_sarsa import evaluate_sarsa_agent, train_sarsa_agent
@@ -58,6 +62,7 @@ def build_report_summary(rows):
     """Create a report-ready Markdown summary of the comparison results."""
     sorted_rows = sorted(rows, key=lambda row: row["average_reward_per_episode"], reverse=True)
     best_model = sorted_rows[0]
+    dqn_row = next((row for row in rows if row["model"] == "DQN"), None)
 
     lines = [
         "# Model Comparison Summary",
@@ -88,12 +93,14 @@ def build_report_summary(rows):
             "- Q-Learning: alpha=0.05, gamma=0.95, epsilon decayed from 1.0 to 0.05 over 25,000 training episodes.",
             "- SARSA: alpha=0.05, gamma=0.95, epsilon decayed from 1.0 to 0.05 over 25,000 training episodes.",
             "- Monte Carlo: alpha=0.05, gamma=0.95, epsilon decayed from 1.0 to 0.05 over 25,000 training episodes.",
+            "- DQN: learning_rate=0.0005, gamma=0.85, replay_buffer=100,000, epsilon decayed slowly over 400,000 of 500,000 training episodes.",
             "- Baseline: no learning, fixed heuristic policy.",
             "",
             "## Model Choice Justification",
             "- Q-Learning was included as a standard off-policy temporal-difference baseline.",
             "- SARSA was included because its on-policy updates can produce safer behavior in stochastic environments.",
             "- Monte Carlo was included to compare full-episode return learning against temporal-difference methods.",
+            "- DQN was included to test whether a neural network with replay memory could learn a stronger policy than the tabular methods.",
             "- The heuristic baseline was included to show whether learned behavior outperformed a simple rule-based policy.",
             "",
             "## Robustness And Limitations",
@@ -112,11 +119,68 @@ def build_report_summary(rows):
         ]
     )
 
+    if dqn_row is not None:
+        lines.extend(
+            [
+                "",
+                "## Selected Deployment Model",
+                "- The final selected deployment model for the project is DQN.",
+                f"- The saved deployment artifact is `{dqn_row['artifact_path']}`.",
+                "- DQN was selected because it is the final deep-RL production model with dashboard support, checkpointing, and a dedicated demo runner.",
+            ]
+        )
+
     return "\n".join(lines)
 
 
+def load_dqn_checkpoint(checkpoint_path="artifacts/deep_rl/checkpoints/best_scrum_model.pth"):
+    """Load the trained DQN checkpoint if it exists."""
+    checkpoint_file = Path(checkpoint_path)
+    if not checkpoint_file.exists():
+        return None
+
+    agent = DQNAgent(
+        state_dim=8,
+        num_actions=2,
+        learning_rate=0.0005,
+        gamma=0.85,
+    )
+    state_dict = torch.load(checkpoint_file, map_location=agent.device)
+    agent.policy_network.load_state_dict(state_dict)
+    agent.target_network.load_state_dict(state_dict)
+    agent.policy_network.eval()
+    agent.target_network.eval()
+    return agent
+
+
+def evaluate_dqn_checkpoint(agent, num_episodes=1000, seed=42):
+    """Evaluate a loaded DQN checkpoint greedily."""
+    random.seed(seed)
+    torch.manual_seed(seed)
+
+    env = ScrumGameEnv()
+    rewards = []
+
+    for episode in range(num_episodes):
+        state = env.reset(seed=seed + episode)
+        state_vector = encode_state(state, env)
+        done = False
+        cumulative_reward = 0
+
+        while not done:
+            action = agent.choose_action(state_vector, epsilon=0.0)
+            next_state, reward, done, info = env.step(action)
+            state_vector = encode_state(next_state, env)
+            cumulative_reward += reward
+
+        rewards.append(cumulative_reward)
+
+    average_reward = sum(rewards) / len(rewards)
+    return rewards, average_reward
+
+
 def main():
-    """Train and compare the baseline, Q-Learning, SARSA, and Monte Carlo agents."""
+    """Train and compare the baseline, tabular agents, and the saved DQN model."""
     results = []
 
     random.seed(42)
@@ -186,6 +250,23 @@ def main():
         )
     )
 
+    dqn_checkpoint_path = "artifacts/deep_rl/checkpoints/best_scrum_model.pth"
+    dqn_plot_path = "artifacts/deep_rl/plots/dqn_training_curve.png"
+    dqn_agent = load_dqn_checkpoint(dqn_checkpoint_path)
+    dqn_average = None
+    if dqn_agent is not None:
+        dqn_eval_rewards, dqn_average = evaluate_dqn_checkpoint(dqn_agent, num_episodes=1000, seed=42)
+        results.append(
+            summarize_rewards(
+                "DQN",
+                dqn_eval_rewards,
+                model_type="Deep RL",
+                q_table_size="N/A",
+                artifact_path=dqn_checkpoint_path,
+                plot_path=dqn_plot_path,
+            )
+        )
+
     comparison_plot_path = save_comparison_plot(results)
     report_summary = build_report_summary(results)
 
@@ -196,6 +277,7 @@ def main():
             "q_learning_average_reward": q_average,
             "sarsa_average_reward": sarsa_average,
             "mc_average_reward": mc_average,
+            "dqn_average_reward": dqn_average,
             "comparison_plot_path": comparison_plot_path,
             "results": results,
         },
