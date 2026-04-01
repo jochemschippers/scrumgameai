@@ -35,6 +35,8 @@ def initialize_training_log(log_path):
                 "rolling_average_reward",
                 "mean_recent_loss",
                 "replay_buffer_size",
+                "average_loan_duration",
+                "bankruptcy_count",
             ]
         )
 
@@ -47,6 +49,8 @@ def append_training_log(
     rolling_average_reward,
     mean_recent_loss,
     replay_buffer_size,
+    average_loan_duration,
+    bankruptcy_count,
 ):
     """Append one summarized training record for the dashboard."""
     with log_path.open("a", encoding="utf-8", newline="") as file:
@@ -59,6 +63,8 @@ def append_training_log(
                 rolling_average_reward,
                 mean_recent_loss,
                 replay_buffer_size,
+                average_loan_duration,
+                bankruptcy_count,
             ]
         )
 
@@ -171,6 +177,8 @@ def train_dqn_agent(
 
     training_rewards = []
     training_losses = []
+    episode_loan_durations = []
+    bankruptcy_flags = []
     checkpoint_path = checkpoint_dir / "best_scrum_model.pth"
 
     for episode in range(1, num_episodes + 1):
@@ -178,6 +186,7 @@ def train_dqn_agent(
         state_vector = encode_state(state, env)
         done = False
         cumulative_reward = 0
+        bankruptcy_this_episode = 0
 
         epsilon = epsilon_by_episode(episode - 1)
 
@@ -195,11 +204,18 @@ def train_dqn_agent(
             cumulative_reward += reward
             state_vector = next_state_vector
 
+            if done and info.get("terminal_reason") == "bankruptcy":
+                bankruptcy_this_episode = 1
+
         training_rewards.append(cumulative_reward)
+        episode_loan_durations.append(env.turns_with_loan)
+        bankruptcy_flags.append(bankruptcy_this_episode)
 
         if episode % 100 == 0:
             recent_rewards = training_rewards[-100:]
             recent_losses = training_losses[-100:] if training_losses else []
+            recent_loan_durations = episode_loan_durations[-100:]
+            recent_bankruptcies = bankruptcy_flags[-100:]
             append_training_log(
                 log_path=log_path,
                 episode=episode,
@@ -208,6 +224,8 @@ def train_dqn_agent(
                 rolling_average_reward=sum(recent_rewards) / len(recent_rewards),
                 mean_recent_loss=(sum(recent_losses) / len(recent_losses)) if recent_losses else 0.0,
                 replay_buffer_size=len(agent.replay_buffer),
+                average_loan_duration=(sum(recent_loan_durations) / len(recent_loan_durations)) if recent_loan_durations else 0.0,
+                bankruptcy_count=sum(recent_bankruptcies),
             )
 
         if episode % checkpoint_interval == 0:
