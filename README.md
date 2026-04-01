@@ -1,334 +1,98 @@
 # Scrum Game AI
 
-This repository contains a headless Reinforcement Learning prototype for the digital Scrum Game NPC.
+This repository contains two clearly separated versions of the Scrum Game AI project:
 
-The project builds a Gym-style environment for the game, trains several tabular RL agents and a PyTorch DQN, compares them against a heuristic baseline, and uses DQN as the final selected model for demo play.
+- `game/v1_assignment/`
+  The clean assignment-safe version with tabular RL models and report outputs.
+- `game/v2_deep_rl/`
+  The advanced PyTorch DQN version with dashboard tooling and deep-RL experiments.
 
-## What This Project Does
+The split is intentional. The assignment work stays stable and easy to explain, while the deep-RL work can evolve without turning `game/` into one long flat list of unrelated scripts.
 
-The code simulates the Scrum Game as a turn-based environment with:
-- a fixed classical `7 x 4` board
-- real money values from the game data
-- 5 Daily Scrum dice resolution per sprint
-- automatic mandatory loans
-- two actions:
-  - `0` = Continue Sprint
-  - `1` = Switch Product
+## Context From `gamedata/`
 
-The RL agents learn a Q-table over a discretized version of the game state.
+The environment logic is based on the project material in `gamedata/`, especially:
+- the interactive prototype in `gamedata/Prototype - Game editor/Final Interactive prototype/`
+- the simulation setup PDF
+- the data analysis report
+- the Big Data & AI notes
 
-## Project Structure
+Those files define the classical board assumptions used in the simulator:
+- fixed `7 x 4` board
+- `25000` starting money
+- `5000` ring value
+- `5000` switch cost
+- `50000` mandatory loan
+- `5000` loan interest
+- 5 Daily Scrums per sprint
 
-- [game/scrum_game_env.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/scrum_game_env.py)
-  Gym-style environment and `discretize_state(state)` helper.
-- [game/baseline_agent.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/baseline_agent.py)
-  Simple non-learning baseline agent.
-- [game/q_learning_agent.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/q_learning_agent.py)
-  Tabular Q-Learning agent.
-- [game/sarsa_agent.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/sarsa_agent.py)
-  Tabular SARSA agent.
-- [game/mc_agent.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/mc_agent.py)
-  Tabular Monte Carlo agent.
-- [game/dqn_agent.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/dqn_agent.py)
-  PyTorch DQN agent with replay buffer and MLP Q-network.
-- [game/train_q_learning.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/train_q_learning.py)
-  Train and evaluate Q-Learning.
-- [game/train_sarsa.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/train_sarsa.py)
-  Train and evaluate SARSA, and save the final production model.
-- [game/train_mc.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/train_mc.py)
-  Train and evaluate Monte Carlo.
-- [game/train_dqn.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/train_dqn.py)
-  Train the deep Q-network agent and save checkpoints.
-- [game/dashboard.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/dashboard.py)
-  Streamlit dashboard for live DQN monitoring and demo playback.
-- [game/compare_models.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/compare_models.py)
-  Compare baseline, Q-Learning, SARSA, and Monte Carlo in one run.
-- [game/evaluate_robustness.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/evaluate_robustness.py)
-  Evaluate all models across multiple random seeds.
-- [game/tune_sarsa.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/tune_sarsa.py)
-  Grid search for the best SARSA discount factor.
-- [game/play_final_game.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/play_final_game.py)
-  Demo script that loads the final SARSA model and plays one full game.
-- [game/play_best_dqn_game.py](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/play_best_dqn_game.py)
-  Demo script that loads `best_scrum_model.pth` and plays one full greedy DQN game.
+## Repository Layout
 
-## How The Environment Works
+- `gamedata/`
+  Source material, PDFs, and the prototype app used to shape the simulator assumptions.
+- `game/README.md`
+  Short navigation guide for the code workspace.
+- `game/v1_assignment/`
+  Baseline, Q-Learning, SARSA, Monte Carlo, comparison scripts, report notes, and tabular artifacts.
+- `game/v2_deep_rl/`
+  DQN agent, DQN trainer, Streamlit dashboard, deep-RL notes, and neural-network artifacts.
+- `lesson.md`
+  Assignment and environment instructions.
+- `agent.md`
+  Coding standards and project guidance.
 
-The environment follows the standard Gym structure:
-- `__init__`
-- `reset()`
-- `step(action)`
+## Quick Start
 
-The state contains:
-- `current_money`
-- `current_product`
-- `current_sprint`
-- `features_required`
-- `sprint_value`
-- `loan_active`
-- `interest_due`
-
-### Board
-
-The current environment uses the classical fixed board:
-- `7` products
-- `4` sprints per product
-- `6` turns per episode
-
-Each board cell has:
-- a fixed feature count
-- a fixed sprint value in rings, converted to money with `ring_value = 5000`
-
-### Dice Resolution
-
-Each sprint is resolved with exactly `5` Daily Scrums:
-- `1 feature` -> `1 x D20`
-- `2 features` -> `2 x D10`
-- `3+ features` -> `3 x D6`
-
-For each Daily Scrum:
-- roll the dice
-- sum the result
-- compare against target `12`
-- accumulate the difference
-
-Sprint outcome:
-- `net <= 0` -> success
-- `net > 0` -> failure
-
-### Economy
-
-Classical default values:
-- starting money: `25000`
-- switch cost: `5000`
-- ring value: `5000`
-- mandatory loan amount: `50000`
-- loan interest: `5000`
-
-Loans are automatic. The agent cannot actively choose them.
-
-## How The Agents Work
-
-All learning agents use:
-- a dictionary-based Q-table
-- a discretized state tuple as the table key
-- epsilon-greedy action selection
-
-Action space:
-- `0` = Continue Sprint
-- `1` = Switch Product
-
-### Baseline Agent
-
-The baseline is intentionally simple:
-- always returns action `0`
-- never learns
-
-### Q-Learning
-
-Q-Learning is an off-policy temporal-difference method.
-
-It updates:
-```text
-Q(s, a) <- Q(s, a) + alpha * [reward + gamma * max(Q(s')) - Q(s, a)]
-```
-
-### SARSA
-
-SARSA is an on-policy temporal-difference method.
-
-It updates:
-```text
-Q(s, a) <- Q(s, a) + alpha * [reward + gamma * Q(s', a') - Q(s, a)]
-```
-
-### Monte Carlo
-
-Monte Carlo updates after the full episode finishes.
-
-It learns from the discounted return of complete state-action-reward histories.
-
-## Training And Evaluation Rules
-
-This project uses strict RL evaluation isolation:
-- training episodes are used for learning
-- evaluation episodes are used only for measurement
-- during evaluation, `epsilon = 0`
-- during evaluation, `learn()` is never called
-
-This avoids data leakage between training and evaluation.
-
-## How To Run
-
-Run all commands from the `game` folder:
+Assignment track:
 
 ```powershell
-cd game
-```
-
-### Baseline
-
-```powershell
-py baseline_agent.py
-```
-
-### Train Q-Learning
-
-```powershell
-py train_q_learning.py
-```
-
-### Train SARSA
-
-```powershell
-py train_sarsa.py
-```
-
-This script is the current production SARSA training run. It:
-- trains for `100000` episodes
-- uses `gamma = 0.85`
-- evaluates the final policy
-- saves `final_sarsa_model.json`
-
-### Train Monte Carlo
-
-```powershell
-py train_mc.py
-```
-
-### Train DQN
-
-```powershell
-py train_dqn.py
-```
-
-This trains a PyTorch DQN with:
-- replay buffer size `100000`
-- learning rate `0.0005`
-- gamma `0.85`
-- `500000` training episodes
-- slow epsilon decay over the first `400000` episodes
-- checkpoint saving every `10000` episodes to `best_scrum_model.pth`
-- live CSV logging every `100` episodes to `artifacts/deep_rl/reports/logs.csv`
-
-The current final selected model is DQN. In the latest recorded run it achieved an evaluation reward of approximately `-14210.50`, outperforming the earlier tabular agents.
-
-### Live Dashboard
-
-In a second terminal:
-
-```powershell
-cd game
-streamlit run dashboard.py
-```
-
-The dashboard reads:
-- `artifacts/deep_rl/reports/logs.csv`
-- `artifacts/deep_rl/checkpoints/best_scrum_model.pth`
-
-It shows:
-- latest training metrics
-- reward and rolling-average charts
-- recent loss and replay-buffer growth
-- a live greedy demo using the latest DQN checkpoint
-
-### Compare All Models
-
-```powershell
+cd game\v1_assignment
 py compare_models.py
 ```
 
-This generates:
-- `artifacts/reports/model_comparison.csv`
-- `artifacts/reports/model_comparison.json`
-- `artifacts/reports/model_comparison_summary.md`
-- `artifacts/plots/model_comparison.png`
-
-### Robustness Evaluation
+Deep-RL track:
 
 ```powershell
-py evaluate_robustness.py
-```
-
-This trains and evaluates all models across multiple seeds and reports:
-- mean average reward
-- standard deviation across seeds
-
-### Tune SARSA
-
-```powershell
-py tune_sarsa.py
-```
-
-This runs a grid search over:
-- `gamma = [0.85, 0.90, 0.95, 0.99]`
-
-### Demo The Final SARSA Model
-
-```powershell
-py play_final_game.py
-```
-
-This loads `final_sarsa_model.json` and plays one full greedy demo game with:
-- `epsilon = 0`
-- no random exploration
-- turn-by-turn printed summaries
-
-### Demo The Final DQN Model
-
-```powershell
+cd game\v2_deep_rl
 py play_best_dqn_game.py
 ```
 
-This loads `artifacts/deep_rl/checkpoints/best_scrum_model.pth` and plays one full greedy DQN demo game.
+## v1 Assignment Track
 
-## Saved Outputs
+Use `game/v1_assignment` if you need the deliverable-friendly version.
 
-Generated files are organized as follows:
+Main scripts:
+- `compare_models.py`
+  Compares Baseline, Q-Learning, SARSA, and Monte Carlo.
+- `evaluate_robustness.py`
+  Runs multi-seed tabular robustness checks.
+- `train_sarsa.py`
+  Long-haul SARSA training plus saved model export.
+- `play_final_game.py`
+  Demo runner for the saved SARSA model.
 
-- `game/artifacts/models/`
-  Saved Q-tables from training and comparison runs.
-- `game/artifacts/deep_rl/checkpoints/`
-  DQN model checkpoints such as `best_scrum_model.pth`.
-- `game/artifacts/deep_rl/plots/`
-  Deep-RL training curves.
-- `game/artifacts/deep_rl/reports/`
-  Deep-RL metrics, run summaries, and `logs.csv` for the dashboard.
-- `game/artifacts/plots/`
-  Training curves and model comparison plots.
-- `game/artifacts/reports/`
-  CSV, JSON, and Markdown summaries for the report.
-- `game/docs/`
-  Project notes and report support material.
+Artifacts are stored inside `game/v1_assignment/artifacts/`.
 
-## Current Final Model
+## v2 Deep RL Track
 
-The current final selected production model is:
-- [best_scrum_model.pth](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/artifacts/deep_rl/checkpoints/best_scrum_model.pth)
+Use `game/v2_deep_rl` if you want the stronger experimental agent and dashboard tooling.
 
-The earlier tabular SARSA export remains available as a baseline demo artifact:
-- [final_sarsa_model.json](/c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/final_sarsa_model.json)
+Main scripts:
+- `train_dqn.py`
+  Trains the DQN with replay memory and checkpointing.
+- `dashboard.py`
+  Streamlit dashboard for live training diagnostics.
+- `play_best_dqn_game.py`
+  Greedy DQN demo runner.
 
-## Data Sources
+Artifacts are stored inside `game/v2_deep_rl/artifacts/`.
 
-The simulator and game constants were based on the files in:
-- `gamedata/`
+## Notes On Separation
 
-Important sources include:
-- physical boardgame rule example
-- simulation setup variables
-- interactive game editor prototype
-- project analysis and planning documents
+The two version folders intentionally keep separate:
+- environment copies
+- model code
+- reports
+- saved artifacts
 
-## Notes
-
-This repository now contains both:
-- tabular RL agents
-- a PyTorch deep RL baseline using DQN
-
-The current environment is a classical-setup baseline. It captures the core Scrum Game mechanics, but future work can make it more configurable for:
-- different board layouts
-- incidents
-- refinements
-- difficulty profiles
-- API integration
+That makes it easier to present the assignment work without mixing it with the later deep-RL branch.

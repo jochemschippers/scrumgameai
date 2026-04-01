@@ -1,0 +1,4 @@
+episode,average_reward,bankruptcy_rate,average_ending_money,average_loan_duration
+10000,-14445.0,0.25,33220.0,0.03
+20000,-19075.0,0.27,30430.0,0.0
+30000,-35350.0,0.35,20990.0,0.04

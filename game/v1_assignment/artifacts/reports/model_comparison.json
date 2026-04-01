@@ -1,0 +1,52 @@
+{
+  "results": [
+    {
+      "model": "Baseline",
+      "model_type": "Heuristic",
+      "average_reward_per_episode": -65810.0,
+      "reward_std_dev": 84221.37,
+      "best_episode_reward": 69000,
+      "worst_episode_reward": -235000,
+      "episodes_evaluated": 1000,
+      "q_table_size": "N/A",
+      "artifact_path": "N/A",
+      "plot_path": "N/A"
+    },
+    {
+      "model": "Q-Learning",
+      "model_type": "TD Off-Policy",
+      "average_reward_per_episode": 1500.0,
+      "reward_std_dev": 0.0,
+      "best_episode_reward": 1500,
+      "worst_episode_reward": 1500,
+      "episodes_evaluated": 1000,
+      "q_table_size": 151,
+      "artifact_path": "artifacts\\models\\q_learning_q_table.json",
+      "plot_path": "artifacts/plots/q_learning_training_curve.png"
+    },
+    {
+      "model": "SARSA",
+      "model_type": "TD On-Policy",
+      "average_reward_per_episode": 1500.0,
+      "reward_std_dev": 0.0,
+      "best_episode_reward": 1500,
+      "worst_episode_reward": 1500,
+      "episodes_evaluated": 1000,
+      "q_table_size": 96,
+      "artifact_path": "artifacts\\models\\sarsa_q_table.json",
+      "plot_path": "artifacts/plots/sarsa_training_curve.png"
+    },
+    {
+      "model": "Monte Carlo",
+      "model_type": "Full-Episode",
+      "average_reward_per_episode": 1500.0,
+      "reward_std_dev": 0.0,
+      "best_episode_reward": 1500,
+      "worst_episode_reward": 1500,
+      "episodes_evaluated": 1000,
+      "q_table_size": 88,
+      "artifact_path": "artifacts\\models\\mc_q_table.json",
+      "plot_path": "artifacts/plots/mc_training_curve.png"
+    }
+  ]
+}

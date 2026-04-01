@@ -1,0 +1,21 @@
+{
+  "model": "Double DQN",
+  "training_episodes": 30,
+  "evaluation_episodes": 1000,
+  "average_reward_per_episode": -15000.0,
+  "average_ending_money": 20000.0,
+  "bankruptcy_rate": 0.0,
+  "average_loan_duration": 0.0,
+  "learning_rate": 0.0005,
+  "gamma": 0.85,
+  "state_dim": 65,
+  "num_actions": 8,
+  "checkpoint_path": "artifacts\\checkpoints\\best_scrum_model.pth",
+  "plot_path": "artifacts\\plots\\dqn_training_curve.png",
+  "log_path": "artifacts\\reports\\logs.csv",
+  "evaluation_log_path": "artifacts\\reports\\evaluation_history.csv",
+  "final_epsilon": 0.9999387777777777,
+  "mean_training_reward": -19066.666666666668,
+  "mean_training_loss": 8039.020040309176,
+  "best_intermediate_evaluation_reward": -15000.0
+}
