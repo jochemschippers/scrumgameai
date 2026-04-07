@@ -26,6 +26,7 @@ def load_training_log():
         "average_loan_duration": 0.0,
         "bankruptcy_count": 0.0,
         "average_ending_money": 0.0,
+        "invalid_action_count": 0.0,
     }
     for column_name, fallback_value in fallback_columns.items():
         if column_name not in training_log.columns:
@@ -127,6 +128,8 @@ def build_strategy_map(agent, current_money=25000):
                     "win_probability": state["win_probability"],
                     "expected_value": state["expected_value"],
                     "remaining_turns": state["remaining_turns"],
+                    "incident_active": state["incident_active"],
+                    "current_incident_id": state["current_incident_id"],
                 }
             )
 
@@ -154,6 +157,7 @@ def render_strategy_heatmap(strategy_df):
                 alt.Tooltip("q_continue:Q", format=".2f"),
                 alt.Tooltip("win_probability:Q", format=".3f"),
                 alt.Tooltip("expected_value:Q", format=".2f"),
+                "current_incident_id",
             ],
         )
         .properties(height=300)
@@ -261,6 +265,24 @@ def render_action_frequency_chart(training_log):
             color=alt.Color("Action:N"),
         )
         .properties(height=300)
+    )
+    st.altair_chart(chart, use_container_width=True)
+
+
+def render_invalid_action_chart(training_log):
+    """Render invalid action counts over time."""
+    if "invalid_action_count" not in training_log.columns:
+        st.info("No invalid action counts found in the training log yet.")
+        return
+
+    chart = (
+        alt.Chart(training_log)
+        .mark_line(color="#ff6b6b")
+        .encode(
+            x=alt.X("episode:Q", title="Episode"),
+            y=alt.Y("invalid_action_count:Q", title="Invalid Actions per 100 Episodes"),
+        )
+        .properties(height=240)
     )
     st.altair_chart(chart, use_container_width=True)
 
@@ -427,23 +449,47 @@ else:
     st.subheader("Per-Action Frequency")
     render_action_frequency_chart(training_log)
 
+    st.subheader("Invalid Actions")
+    render_invalid_action_chart(training_log)
+
 if evaluation_log is not None and not evaluation_log.empty:
-    st.subheader("Evaluation Over Time")
-    evaluation_chart = (
-        alt.Chart(evaluation_log)
-        .transform_fold(
-            ["average_reward", "average_ending_money", "bankruptcy_rate"],
-            as_=["metric", "value"],
+    eval_col1, eval_col2 = st.columns(2)
+    with eval_col1:
+        st.subheader("Evaluation Reward And Ending Money")
+        reward_chart = (
+            alt.Chart(evaluation_log)
+            .transform_fold(
+                ["average_reward", "average_ending_money"],
+                as_=["metric", "value"],
+            )
+            .mark_line()
+            .encode(
+                x=alt.X("episode:Q", title="Checkpoint Episode"),
+                y=alt.Y("value:Q", title="Reward / Ending Money"),
+                color=alt.Color("metric:N", title="Metric"),
+            )
+            .properties(height=280)
         )
-        .mark_line()
-        .encode(
-            x=alt.X("episode:Q", title="Checkpoint Episode"),
-            y=alt.Y("value:Q", title="Evaluation Metric"),
-            color=alt.Color("metric:N", title="Metric"),
+        st.altair_chart(reward_chart, use_container_width=True)
+
+    with eval_col2:
+        st.subheader("Evaluation Risk Metrics")
+        risk_columns = [column for column in ["bankruptcy_rate", "invalid_action_rate", "average_loan_duration"] if column in evaluation_log.columns]
+        risk_chart = (
+            alt.Chart(evaluation_log)
+            .transform_fold(
+                risk_columns,
+                as_=["metric", "value"],
+            )
+            .mark_line()
+            .encode(
+                x=alt.X("episode:Q", title="Checkpoint Episode"),
+                y=alt.Y("value:Q", title="Risk Metric"),
+                color=alt.Color("metric:N", title="Metric"),
+            )
+            .properties(height=280)
         )
-        .properties(height=300)
-    )
-    st.altair_chart(evaluation_chart, use_container_width=True)
+        st.altair_chart(risk_chart, use_container_width=True)
 
 if checkpoint_error is not None:
     st.error(

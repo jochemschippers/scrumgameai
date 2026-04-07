@@ -162,8 +162,13 @@ def encode_state(state, env):
     is_last_sprint = float(state["is_last_sprint"])
     debt_ratio = min(max(float(state["debt_ratio"]), 0.0), 2.0) / 2.0
     switch_is_free = float(state["switch_is_free"])
-    current_incident_delta = float(state["current_incident_delta"]) / max(env.max_abs_incident_delta, 1)
-    current_refinement_bonus = float(state["current_refinement_bonus"]) / max(env.max_refinement_bonus, 1)
+    incident_active = float(state["incident_active"])
+    current_incident_id = float(state["current_incident_id"]) / 500.0
+    current_incident_scope = float(state["current_incident_scope"])
+    current_incident_delta = float(state["current_incident_delta"]) / max(env.max_visible_sprint_value, 1)
+    current_refinement_delta = (
+        float(state["current_refinement_delta"]) + env.max_refinement_reference
+    ) / max(env.max_refinement_reference * 2, 1)
     current_product_completed = float(state["current_product_completed"])
 
     vector = [
@@ -180,8 +185,11 @@ def encode_state(state, env):
         is_last_sprint,
         debt_ratio,
         switch_is_free,
+        incident_active,
+        current_incident_id,
+        current_incident_scope,
         current_incident_delta,
-        current_refinement_bonus,
+        current_refinement_delta,
         current_product_completed,
     ]
 
@@ -204,6 +212,12 @@ def encode_state(state, env):
         vector.append(float(completed_flag))
 
     for incident_delta in state["target_incident_deltas"]:
-        vector.append(float(incident_delta) / max(env.max_abs_incident_delta, 1))
+        vector.append(float(incident_delta) / max(env.max_visible_sprint_value, 1))
+
+    for refinement_delta in state["target_refinement_deltas"]:
+        vector.append((float(refinement_delta) + env.max_refinement_reference) / max(env.max_refinement_reference * 2, 1))
+
+    for incident_flag in state["target_incident_flags"]:
+        vector.append(float(incident_flag))
 
     return vector

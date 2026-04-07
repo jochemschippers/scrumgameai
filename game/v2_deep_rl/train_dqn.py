@@ -38,6 +38,7 @@ def initialize_training_log(log_path, num_actions):
                 "average_loan_duration",
                 "bankruptcy_count",
                 "average_ending_money",
+                "invalid_action_count",
             ]
             + [f"action_{action_id}_count" for action_id in range(num_actions)]
         )
@@ -54,6 +55,7 @@ def initialize_evaluation_log(log_path):
                 "bankruptcy_rate",
                 "average_ending_money",
                 "average_loan_duration",
+                "invalid_action_rate",
             ]
         )
 
@@ -69,6 +71,7 @@ def append_training_log(
     average_loan_duration,
     bankruptcy_count,
     average_ending_money,
+    invalid_action_count,
     action_counts,
 ):
     """Append one summarized training record for the dashboard."""
@@ -85,6 +88,7 @@ def append_training_log(
                 average_loan_duration,
                 bankruptcy_count,
                 average_ending_money,
+                invalid_action_count,
             ]
             + list(action_counts)
         )
@@ -101,6 +105,7 @@ def append_evaluation_log(log_path, episode, metrics):
                 metrics["bankruptcy_rate"],
                 metrics["average_ending_money"],
                 metrics["average_loan_duration"],
+                metrics["invalid_action_rate"],
             ]
         )
 
@@ -151,6 +156,7 @@ def evaluate_dqn_agent(agent, num_episodes=1000, seed=1042):
     bankruptcy_count = 0
     loan_durations = []
     action_counts = [0] * env.num_actions
+    invalid_action_count = 0
 
     for episode in range(num_episodes):
         state = env.reset(seed=seed + episode)
@@ -163,6 +169,8 @@ def evaluate_dqn_agent(agent, num_episodes=1000, seed=1042):
             action_counts[action] += 1
             next_state, reward, done, info = env.step(action)
             next_state_vector = encode_state(next_state, env)
+            if info.get("invalid_action"):
+                invalid_action_count += 1
 
             cumulative_reward += reward
             state_vector = next_state_vector
@@ -183,6 +191,7 @@ def evaluate_dqn_agent(agent, num_episodes=1000, seed=1042):
         "average_ending_money": sum(ending_monies) / len(ending_monies),
         "bankruptcy_rate": bankruptcy_count / len(evaluation_rewards),
         "average_loan_duration": sum(loan_durations) / len(loan_durations),
+        "invalid_action_rate": invalid_action_count / max(sum(action_counts), 1),
         "action_counts": action_counts,
     }
 
@@ -244,6 +253,7 @@ def train_dqn_agent(
     bankruptcy_flags = []
     ending_monies = []
     recent_action_counts = []
+    invalid_action_flags = []
 
     best_average_reward = float("-inf")
     best_checkpoint_path = checkpoint_dir / "best_scrum_model.pth"
@@ -254,6 +264,7 @@ def train_dqn_agent(
         done = False
         cumulative_reward = 0
         bankruptcy_this_episode = 0
+        invalid_actions_this_episode = 0
         episode_action_counts = [0] * num_actions
 
         epsilon = epsilon_by_episode(episode - 1)
@@ -264,6 +275,8 @@ def train_dqn_agent(
 
             next_state, reward, done, info = env.step(action)
             next_state_vector = encode_state(next_state, env)
+            if info.get("invalid_action"):
+                invalid_actions_this_episode += 1
 
             agent.store_transition(state_vector, action, reward, next_state_vector, done)
             loss = agent.train_step()
@@ -282,6 +295,7 @@ def train_dqn_agent(
         bankruptcy_flags.append(bankruptcy_this_episode)
         ending_monies.append(env.current_money)
         recent_action_counts.append(episode_action_counts)
+        invalid_action_flags.append(invalid_actions_this_episode)
 
         if episode % 100 == 0:
             recent_rewards = training_rewards[-100:]
@@ -289,6 +303,7 @@ def train_dqn_agent(
             recent_loan_durations = episode_loan_durations[-100:]
             recent_bankruptcies = bankruptcy_flags[-100:]
             recent_ending_monies = ending_monies[-100:]
+            recent_invalid_actions = invalid_action_flags[-100:]
             block_action_counts = [0] * num_actions
             for action_counts in recent_action_counts[-100:]:
                 for action_id, count in enumerate(action_counts):
@@ -305,6 +320,7 @@ def train_dqn_agent(
                 average_loan_duration=(sum(recent_loan_durations) / len(recent_loan_durations)) if recent_loan_durations else 0.0,
                 bankruptcy_count=sum(recent_bankruptcies),
                 average_ending_money=(sum(recent_ending_monies) / len(recent_ending_monies)) if recent_ending_monies else 0.0,
+                invalid_action_count=sum(recent_invalid_actions),
                 action_counts=block_action_counts,
             )
 
@@ -358,6 +374,7 @@ def train_dqn_agent(
             "average_ending_money": final_evaluation["average_ending_money"],
             "bankruptcy_rate": final_evaluation["bankruptcy_rate"],
             "average_loan_duration": final_evaluation["average_loan_duration"],
+            "invalid_action_rate": final_evaluation["invalid_action_rate"],
             "learning_rate": learning_rate,
             "gamma": gamma,
             "state_dim": state_dim,
