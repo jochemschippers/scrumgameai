@@ -1,0 +1,11 @@
+{
+  "pid": 5320,
+  "started_at_epoch": 1775584688.1325886,
+  "command": [
+    "C:\\Users\\joche\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+    "C:\\Users\\joche\\OneDrive\\Documenten\\GitClones\\scrumgameai\\game\\v2_deep_rl\\train_dqn.py"
+  ],
+  "stdout_log": "C:\\Users\\joche\\OneDrive\\Documenten\\GitClones\\scrumgameai\\game\\v2_deep_rl\\artifacts\\runs\\run_2026-04-07_1958\\reports\\training_stdout.log",
+  "run_name": "run_2026-04-07_1958",
+  "job_type": "training"
+}

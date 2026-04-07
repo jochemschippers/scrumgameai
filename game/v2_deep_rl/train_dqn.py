@@ -1,4 +1,6 @@
+import argparse
 import csv
+from datetime import datetime
 from pathlib import Path
 import random
 
@@ -10,17 +12,54 @@ from model_utils import save_metrics_json
 from scrum_game_env import ScrumGameEnv
 
 
+BASE_DIR = Path(__file__).resolve().parent
+ARTIFACTS_DIR = BASE_DIR / "artifacts"
+RUNS_DIR = ARTIFACTS_DIR / "runs"
+
+
 def ensure_deep_rl_directories():
     """Create the deep-RL artifact folders used by training."""
-    checkpoint_dir = Path("artifacts/checkpoints")
-    plot_dir = Path("artifacts/plots")
-    report_dir = Path("artifacts/reports")
+    checkpoint_dir = BASE_DIR / "artifacts" / "checkpoints"
+    plot_dir = BASE_DIR / "artifacts" / "plots"
+    report_dir = BASE_DIR / "artifacts" / "reports"
 
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     plot_dir.mkdir(parents=True, exist_ok=True)
     report_dir.mkdir(parents=True, exist_ok=True)
 
     return checkpoint_dir, plot_dir, report_dir
+
+
+def create_timestamped_run_directory():
+    """Create a unique timestamped run directory under artifacts/runs."""
+    RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    base_name = datetime.now().strftime("run_%Y-%m-%d_%H%M")
+    candidate = RUNS_DIR / base_name
+    suffix = 1
+    while candidate.exists():
+        candidate = RUNS_DIR / f"{base_name}_{suffix:02d}"
+        suffix += 1
+    return candidate
+
+
+def resolve_output_directories(run_dir=None):
+    """Resolve either the legacy flat artifact directories or a timestamped run folder."""
+    if run_dir is None:
+        checkpoint_dir, plot_dir, report_dir = ensure_deep_rl_directories()
+        return checkpoint_dir, plot_dir, report_dir, None
+
+    run_path = Path(run_dir)
+    if not run_path.is_absolute():
+        run_path = BASE_DIR / run_path
+
+    checkpoint_dir = run_path / "checkpoints"
+    plot_dir = run_path / "plots"
+    report_dir = run_path / "reports"
+
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    plot_dir.mkdir(parents=True, exist_ok=True)
+    report_dir.mkdir(parents=True, exist_ok=True)
+    return checkpoint_dir, plot_dir, report_dir, run_path
 
 
 def initialize_training_log(log_path, num_actions):
@@ -220,12 +259,14 @@ def train_dqn_agent(
     evaluation_interval=10000,
     evaluation_episodes=100,
     seed=42,
+    run_dir=None,
+    run_notes="",
 ):
     """Train a Double DQN agent on the advanced Scrum Game environment."""
     random.seed(seed)
     torch.manual_seed(seed)
 
-    checkpoint_dir, plot_dir, report_dir = ensure_deep_rl_directories()
+    checkpoint_dir, plot_dir, report_dir, run_path = resolve_output_directories(run_dir)
 
     env = ScrumGameEnv()
     initial_state = env.reset(seed=seed)
@@ -236,6 +277,24 @@ def train_dqn_agent(
     evaluation_log_path = report_dir / "evaluation_history.csv"
     initialize_training_log(log_path, num_actions)
     initialize_evaluation_log(evaluation_log_path)
+
+    if run_path is not None:
+        save_metrics_json(
+            {
+                "run_name": run_path.name,
+                "run_path": str(run_path),
+                "created_at": datetime.now().isoformat(),
+                "training_episodes": num_episodes,
+                "learning_rate": learning_rate,
+                "gamma": gamma,
+                "checkpoint_interval": checkpoint_interval,
+                "evaluation_interval": evaluation_interval,
+                "evaluation_episodes": evaluation_episodes,
+                "seed": seed,
+                "run_notes": run_notes,
+            },
+            str(run_path / "run_metadata.json"),
+        )
 
     agent = DQNAgent(
         state_dim=state_dim,
@@ -387,6 +446,8 @@ def train_dqn_agent(
             "mean_training_reward": sum(training_rewards) / len(training_rewards),
             "mean_training_loss": (sum(training_losses) / len(training_losses)) if training_losses else None,
             "best_intermediate_evaluation_reward": best_average_reward,
+            "run_notes": run_notes,
+            "run_path": str(run_path) if run_path is not None else None,
         },
         str(report_dir / "dqn_metrics.json"),
     )
@@ -394,9 +455,35 @@ def train_dqn_agent(
     return best_agent, training_rewards, final_evaluation, best_checkpoint_path, plot_path, log_path, evaluation_log_path
 
 
+def parse_args():
+    """Parse CLI options for dashboard-driven and manual runs."""
+    parser = argparse.ArgumentParser(description="Train the advanced Double DQN Scrum Game agent.")
+    parser.add_argument("--run-dir", default=None, help="Optional timestamped run directory path.")
+    parser.add_argument("--episodes", type=int, default=500000, help="Number of training episodes.")
+    parser.add_argument("--evaluation-episodes", type=int, default=100, help="Episodes per periodic checkpoint evaluation.")
+    parser.add_argument("--checkpoint-interval", type=int, default=10000, help="Checkpoint save interval.")
+    parser.add_argument("--evaluation-interval", type=int, default=10000, help="Periodic evaluation interval.")
+    parser.add_argument("--seed", type=int, default=42, help="Training seed.")
+    parser.add_argument("--learning-rate", type=float, default=0.0005, help="Optimizer learning rate.")
+    parser.add_argument("--gamma", type=float, default=0.85, help="Discount factor.")
+    parser.add_argument("--notes", default="", help="Optional run notes saved with the artifacts.")
+    return parser.parse_args()
+
+
 def main():
     """Train the advanced Double DQN agent with the requested production hyperparameters."""
-    _, training_rewards, final_evaluation, checkpoint_path, plot_path, log_path, evaluation_log_path = train_dqn_agent()
+    args = parse_args()
+    _, training_rewards, final_evaluation, checkpoint_path, plot_path, log_path, evaluation_log_path = train_dqn_agent(
+        num_episodes=args.episodes,
+        learning_rate=args.learning_rate,
+        gamma=args.gamma,
+        checkpoint_interval=args.checkpoint_interval,
+        evaluation_interval=args.evaluation_interval,
+        evaluation_episodes=args.evaluation_episodes,
+        seed=args.seed,
+        run_dir=args.run_dir,
+        run_notes=args.notes,
+    )
 
     print(f"Training episodes completed: {len(training_rewards)}")
     print(f"Evaluation episodes completed: {len(final_evaluation['rewards'])}")

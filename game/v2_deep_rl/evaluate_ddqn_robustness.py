@@ -1,7 +1,27 @@
+import argparse
+from datetime import datetime
+from pathlib import Path
 import statistics
 
 from model_utils import save_metrics_csv, save_metrics_json, save_text_report
 from train_dqn import evaluate_dqn_agent, train_dqn_agent
+
+
+BASE_DIR = Path(__file__).resolve().parent
+ROBUSTNESS_DIR = BASE_DIR / "artifacts" / "robustness"
+
+
+def create_robustness_output_dir():
+    """Create a unique output folder for one robustness batch."""
+    ROBUSTNESS_DIR.mkdir(parents=True, exist_ok=True)
+    base_name = datetime.now().strftime("robustness_%Y-%m-%d_%H%M")
+    candidate = ROBUSTNESS_DIR / base_name
+    suffix = 1
+    while candidate.exists():
+        candidate = ROBUSTNESS_DIR / f"{base_name}_{suffix:02d}"
+        suffix += 1
+    candidate.mkdir(parents=True, exist_ok=True)
+    return candidate
 
 
 def evaluate_across_seeds(
@@ -56,13 +76,15 @@ def summarize_results(results):
     }
 
 
-def build_report_text(results, summary):
+def build_report_text(results, summary, train_episodes, evaluation_episodes):
     """Create a Markdown robustness summary."""
     lines = [
         "# DDQN Robustness Evaluation",
         "",
         "## Protocol",
         f"- Seeds: {summary['seeds']}",
+        f"- Training episodes per seed: {train_episodes}",
+        f"- Evaluation episodes per seed: {evaluation_episodes}",
         "- Each seed trains a fresh advanced DDQN model.",
         "- Evaluation is performed after training with a separate fixed evaluation seed offset.",
         "",
@@ -107,27 +129,44 @@ def print_summary(summary):
     print(f"Mean Invalid Action Rate: {summary['mean_invalid_action_rate']:.4f}")
 
 
+def parse_args():
+    """Parse CLI options for robustness evaluation."""
+    parser = argparse.ArgumentParser(description="Run the 5-seed DDQN robustness evaluation.")
+    parser.add_argument("--episodes", type=int, default=500000, help="Training episodes per seed.")
+    parser.add_argument("--evaluation-episodes", type=int, default=1000, help="Evaluation episodes per seed.")
+    return parser.parse_args()
+
+
 def main():
     """Run the five-seed DDQN robustness protocol and save report artifacts."""
+    args = parse_args()
     seeds = [42, 123, 999, 2026, 31415]
-    results = evaluate_across_seeds(seeds=seeds)
+    results = evaluate_across_seeds(
+        seeds=seeds,
+        train_episodes=args.episodes,
+        evaluation_episodes=args.evaluation_episodes,
+    )
     summary = summarize_results(results)
-    report_text = build_report_text(results, summary)
+    report_text = build_report_text(results, summary, args.episodes, args.evaluation_episodes)
+    output_dir = create_robustness_output_dir()
+    csv_path = output_dir / "ddqn_robustness.csv"
+    json_path = output_dir / "ddqn_robustness.json"
+    report_path = output_dir / "ddqn_robustness.md"
 
-    save_metrics_csv(results, "artifacts/reports/ddqn_robustness.csv")
+    save_metrics_csv(results, str(csv_path))
     save_metrics_json(
         {
             "summary": summary,
             "per_seed_results": results,
         },
-        "artifacts/reports/ddqn_robustness.json",
+        str(json_path),
     )
-    save_text_report(report_text, "artifacts/reports/ddqn_robustness.md")
+    save_text_report(report_text, str(report_path))
 
     print_summary(summary)
-    print("Saved robustness CSV to: artifacts/reports/ddqn_robustness.csv")
-    print("Saved robustness JSON to: artifacts/reports/ddqn_robustness.json")
-    print("Saved robustness Markdown to: artifacts/reports/ddqn_robustness.md")
+    print(f"Saved robustness CSV to: {csv_path}")
+    print(f"Saved robustness JSON to: {json_path}")
+    print(f"Saved robustness Markdown to: {report_path}")
 
 
 if __name__ == "__main__":
