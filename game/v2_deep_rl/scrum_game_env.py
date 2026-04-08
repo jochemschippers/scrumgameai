@@ -1,86 +1,86 @@
+from __future__ import annotations
+
 import random
 
-from cards import IncidentDeck, build_classical_incident_cards
-from refinements import StandardRefinementModel301
+from cards import IncidentDeck, build_incident_cards
+from config_manager import GameConfig, compute_rule_signature, load_game_config, normalize_product_key
+from refinements import ConfiguredRefinementModel
 
 
 class ScrumGameEnv:
-    """Advanced Gym-style environment for the deep-RL Scrum Game branch."""
+    """Config-driven Gym-style environment for the deep-RL Scrum Game branch."""
 
     def __init__(
         self,
+        game_config: GameConfig | None = None,
+        game_config_path=None,
         classical_setup=True,
-        incidents_active=True,
-        refinements_active=True,
-        players_count=1,
-        allow_player_specific_incidents=False,
+        incidents_active=None,
+        refinements_active=None,
+        players_count=None,
+        allow_player_specific_incidents=None,
     ):
+        base_config = game_config or load_game_config(game_config_path)
+        self.game_config = self._apply_legacy_overrides(
+            base_config,
+            incidents_active=incidents_active,
+            refinements_active=refinements_active,
+            players_count=players_count,
+            allow_player_specific_incidents=allow_player_specific_incidents,
+        )
+        self.rule_signature = compute_rule_signature(self.game_config)
         self.classical_setup = classical_setup
-        self.incidents_active = incidents_active
-        self.refinements_active = refinements_active
-        self.players_count = players_count
-        self.allow_player_specific_incidents = allow_player_specific_incidents
 
-        # Classical defaults from the prototype and manuals.
-        self.products_count = 7
-        self.sprints_per_product = 4
-        self.max_turns = 6
+        self.incidents_active = self.game_config.incident.active
+        self.refinements_active = self.game_config.refinement.active
+        self.players_count = self.game_config.players_count
+        self.allow_player_specific_incidents = self.game_config.incident.allow_player_specific_incidents
+
+        self.products_count = self.game_config.products_count
+        self.sprints_per_product = self.game_config.sprints_per_product
+        self.max_turns = self.game_config.max_turns
         self.num_actions = 1 + self.products_count
 
-        self.product_names = [
-            "Yellow",
-            "Blue",
-            "Red",
-            "Orange",
-            "Green",
-            "Purple",
-            "Black",
-        ]
+        self.product_names = list(self.game_config.product_names)
+        self.product_lookup = {
+            normalize_product_key(name): index + 1 for index, name in enumerate(self.product_names)
+        }
 
-        self.starting_money = 25000
-        self.ring_value = 5000
-        self.cost_continue = 0
-        self.cost_switch_mid = 5000
-        self.cost_switch_after = 0
-        self.mandatory_loan_amount = 50000
-        self.loan_interest = 5000
-        self.penalty_negative = 1000
-        self.penalty_positive = 5000
+        self.starting_money = self.game_config.starting_money
+        self.ring_value = self.game_config.ring_value
+        self.cost_continue = self.game_config.cost_continue
+        self.cost_switch_mid = self.game_config.cost_switch_mid
+        self.cost_switch_after = self.game_config.cost_switch_after
+        self.mandatory_loan_amount = self.game_config.mandatory_loan_amount
+        self.loan_interest = self.game_config.loan_interest
+        self.penalty_negative = self.game_config.penalty_negative
+        self.penalty_positive = self.game_config.penalty_positive
 
-        self.daily_scrums_per_sprint = 5
-        self.daily_scrum_target = 12
+        self.daily_scrums_per_sprint = self.game_config.daily_scrums_per_sprint
+        self.daily_scrum_target = self.game_config.daily_scrum_target
 
-        self.board_ring_values = [
-            [4, 2, 1, 1],
-            [5, 3, 2, 1],
-            [6, 4, 3, 2],
-            [5, 3, 2, 1],
-            [4, 3, 2, 1],
-            [5, 3, 2, 1],
-            [7, 4, 3, 2],
-        ]
-        self.board_features = [
-            [3, 3, 2, 1],
-            [2, 2, 1, 1],
-            [1, 1, 1, 1],
-            [2, 2, 2, 1],
-            [3, 2, 2, 1],
-            [2, 2, 1, 1],
-            [1, 1, 1, 1],
-        ]
+        self.board_ring_values = [list(row) for row in self.game_config.board_ring_values]
+        self.board_features = [list(row) for row in self.game_config.board_features]
 
+        self.dice_rules = sorted(self.game_config.dice_rules, key=lambda rule: rule.min_features)
+        self.incident_draw_probability = self.game_config.incident.draw_probability
+        self.incident_severity_multiplier = self.game_config.incident.severity_multiplier
+
+        self.max_refinement_reference = max(6, self.max_turns, self.sprints_per_product)
         self.max_base_sprint_value = max(max(row) for row in self.board_ring_values) * self.ring_value
-        self.max_visible_sprint_value = 100000
-        self.max_interest_reference = self.loan_interest * 6
-        self.max_refinement_reference = 6
+        self.max_visible_sprint_value = max(self._compute_visible_value_reference(), 1)
+        self.max_interest_reference = max(self.loan_interest * max(self.max_turns, 1), 1)
+        self.max_feature_reference = max(
+            max(max(row) for row in self.board_features) + self.max_refinement_reference,
+            1,
+        )
 
-        self.refinement_engine = StandardRefinementModel301(self.product_names)
-        self.incident_cards = build_classical_incident_cards(self.product_names)
-        self.incident_deck = IncidentDeck(self.incident_cards)
+        self.refinement_engine = ConfiguredRefinementModel(self.game_config.refinement)
+        self.incident_cards = build_incident_cards(self.game_config)
+        self.incident_deck = self._build_incident_deck()
 
         self.win_probability_lookup = self._build_win_probability_lookup()
 
-        # Episode bookkeeping.
         self.current_money = self.starting_money
         self.current_product = 1
         self.turn_count = 0
@@ -90,7 +90,6 @@ class ScrumGameEnv:
         self.loan_active = False
         self.interest_due = 0
 
-        # Product-level progress and modifiers.
         self.product_next_sprints = [1] * self.products_count
         self.refinement_feature_deltas = [
             [0 for _ in range(self.sprints_per_product)] for _ in range(self.products_count)
@@ -102,7 +101,6 @@ class ScrumGameEnv:
             [None for _ in range(self.sprints_per_product)] for _ in range(self.products_count)
         ]
 
-        # Current visible observation fields.
         self.current_sprint = 1
         self.features_required = 0
         self.sprint_value = 0
@@ -116,7 +114,6 @@ class ScrumGameEnv:
         self.current_refinement_delta = 0
         self.current_incident_delta = 0
 
-        # Current visible incident state.
         self.incident_active = 0
         self.current_incident_id = 0
         self.current_incident_name = "None"
@@ -124,8 +121,46 @@ class ScrumGameEnv:
 
         self._refresh_observation_fields()
 
+    def _apply_legacy_overrides(
+        self,
+        base_config: GameConfig,
+        incidents_active=None,
+        refinements_active=None,
+        players_count=None,
+        allow_player_specific_incidents=None,
+    ) -> GameConfig:
+        payload = base_config.to_dict()
+        if incidents_active is not None:
+            payload["incident"]["active"] = bool(incidents_active)
+        if refinements_active is not None:
+            payload["refinement"]["active"] = bool(refinements_active)
+        if players_count is not None:
+            payload["players_count"] = int(players_count)
+        if allow_player_specific_incidents is not None:
+            payload["incident"]["allow_player_specific_incidents"] = bool(
+                allow_player_specific_incidents
+            )
+        return GameConfig.from_dict(payload)
+
+    def _build_incident_deck(self):
+        return IncidentDeck(self.incident_cards) if self.incident_cards else None
+
+    def _compute_visible_value_reference(self):
+        candidate_values = [self.max_base_sprint_value]
+        for card in self.game_config.incident.cards:
+            if card.set_value_money is not None:
+                candidate_values.append(
+                    int(round(card.set_value_money * self.game_config.incident.severity_multiplier))
+                )
+            if card.delta_money:
+                candidate_values.append(
+                    self.max_base_sprint_value
+                    + abs(int(round(card.delta_money * self.game_config.incident.severity_multiplier)))
+                )
+        return max(candidate_values)
+
     def reset(self, seed=None):
-        """Reset the environment to the classical starting state."""
+        """Reset the environment to the configured starting state."""
         if seed is not None:
             random.seed(seed)
 
@@ -149,7 +184,7 @@ class ScrumGameEnv:
             [None for _ in range(self.sprints_per_product)] for _ in range(self.products_count)
         ]
 
-        self.incident_deck = IncidentDeck(build_classical_incident_cards(self.product_names))
+        self.incident_deck = self._build_incident_deck()
         self.incident_active = 0
         self.current_incident_id = 0
         self.current_incident_name = "None"
@@ -164,7 +199,7 @@ class ScrumGameEnv:
 
         Actions:
         - 0: Continue with the currently selected product and play that sprint
-        - 1..7: Switch to Product N, pay the relevant cost, and play that sprint
+        - 1..N: Switch to Product N, pay the relevant cost, and play that sprint
         """
         if action not in range(self.num_actions):
             raise ValueError(f"Action must be in [0, {self.num_actions - 1}].")
@@ -179,10 +214,12 @@ class ScrumGameEnv:
             "loan_triggered": False,
             "invalid_action": False,
             "interest_paid": 0,
+            "continue_cost_paid": 0,
             "switch_cost_paid": 0,
             "incident_triggered": False,
             "incident_card_id": 0,
             "incident_card_name": "None",
+            "incident_card_description": "",
             "refinement_roll": None,
             "refinement_effect": "none",
             "selected_product": self.current_product if action == 0 else action,
@@ -203,6 +240,9 @@ class ScrumGameEnv:
                 info["invalid_action_reason"] = "continue_on_completed_product"
                 result = "Invalid"
             else:
+                continue_cost = self._apply_required_payment(self.cost_continue, info)
+                self.current_money -= continue_cost
+                info["continue_cost_paid"] = continue_cost
                 result = self._resolve_sprint_for_product(self.current_product, info)
                 played_product = self.current_product
         else:
@@ -220,7 +260,9 @@ class ScrumGameEnv:
                 info["invalid_action_reason"] = "switch_to_completed_product"
                 result = "Invalid"
             else:
-                switch_cost = self.cost_switch_after if self.current_product_completed else self.cost_switch_mid
+                switch_cost = (
+                    self.cost_switch_after if self.current_product_completed else self.cost_switch_mid
+                )
                 switch_cost = self._apply_required_payment(switch_cost, info)
                 self.current_money -= switch_cost
                 info["switch_cost_paid"] = switch_cost
@@ -234,10 +276,16 @@ class ScrumGameEnv:
             info["refinement_roll"] = refinement_result["roll"]
             info["refinement_effect"] = refinement_result["effect"]
             info["refinement_changes"] = refinement_result["future_sprints_changed"]
+            info["refinement_future_sprints_changed"] = refinement_result["future_sprints_changed"]
         else:
             info["refinement_changes"] = []
+            info["refinement_future_sprints_changed"] = []
 
-        if self.incidents_active:
+        if (
+            self.incidents_active
+            and self.incident_deck is not None
+            and random.random() <= self.incident_draw_probability
+        ):
             incident_card = self.incident_deck.draw()
             incident_card.apply_effect(self)
             self.incident_active = 1
@@ -247,6 +295,7 @@ class ScrumGameEnv:
             info["incident_triggered"] = True
             info["incident_card_id"] = incident_card.card_id
             info["incident_card_name"] = incident_card.name
+            info["incident_card_description"] = incident_card.description
         else:
             self.incident_active = 0
             self.current_incident_id = 0
@@ -321,8 +370,15 @@ class ScrumGameEnv:
             return "Continue"
         return f"Switch to {self.product_names[action - 1]}"
 
-    def build_reference_state(self, product_id, sprint_id, current_money=25000, loan_active=False, interest_due=0):
-        """Build a synthetic reference observation for dashboard visualizations."""
+    def build_reference_state(
+        self,
+        product_id,
+        sprint_id,
+        current_money=25000,
+        loan_active=False,
+        interest_due=0,
+    ):
+        """Build a synthetic reference observation for dashboards and demos."""
         target_product_id = max(1, min(self.products_count, int(product_id)))
         target_sprint_id = max(1, min(self.sprints_per_product, int(sprint_id)))
 
@@ -356,6 +412,8 @@ class ScrumGameEnv:
 
     def is_sprint_future(self, product_id, sprint_id, future_only=True):
         """Return whether a sprint is still available for incident/refinement effects."""
+        if sprint_id < 1 or sprint_id > self.sprints_per_product:
+            return False
         next_sprint = self.product_next_sprints[product_id - 1]
         if next_sprint > self.sprints_per_product:
             return False
@@ -455,7 +513,9 @@ class ScrumGameEnv:
             target_is_completed.append(int(product_state["completed"]))
             target_incident_deltas.append(product_state["incident_delta"])
             target_refinement_deltas.append(product_state["refinement_delta"])
-            target_incident_flags.append(int(product_state["incident_delta"] != 0 or product_state["incident_override_active"]))
+            target_incident_flags.append(
+                int(product_state["incident_delta"] != 0 or product_state["incident_override_active"])
+            )
 
         return {
             "current_money": self.current_money,
@@ -541,24 +601,23 @@ class ScrumGameEnv:
 
     def _get_win_probability_for_features(self, features_required):
         """Map effective feature count to the corresponding success probability."""
-        if features_required <= 1:
-            return self.win_probability_lookup[1]
-        if features_required == 2:
-            return self.win_probability_lookup[2]
-        return self.win_probability_lookup[3]
+        bounded_features = max(1, min(features_required, self.max_feature_reference))
+        return self.win_probability_lookup[bounded_features]
 
     def _encode_incident_scope(self, incident_card):
         """Encode incident scope as a normalized float for the network."""
         if incident_card.effect_type == "adjust_specific_sprint_globally":
             return 1.0
-        return len(incident_card.target_products) / max(self.products_count, 1)
+        if not incident_card.target_product_keys:
+            return 0.0
+        return len(incident_card.target_product_keys) / max(self.products_count, 1)
 
     def _is_product_complete(self, product_id):
         """Return whether a product has already cleared its last sprint."""
         return self.product_next_sprints[product_id - 1] > self.sprints_per_product
 
     def _play_daily_scrums(self, features_required):
-        """Resolve the exact classical 5 Daily Scrum mechanic."""
+        """Resolve the configured Daily Scrum dice mechanic."""
         dice_count, dice_sides = self._get_dice_setup(features_required)
         daily_scrums = []
         net_result = 0
@@ -582,34 +641,34 @@ class ScrumGameEnv:
         return {"daily_scrums": daily_scrums, "net_result": net_result}
 
     def _get_dice_setup(self, features_required):
-        """Map feature count to the correct classical dice set."""
-        if features_required <= 1:
-            return 1, 20
-        if features_required == 2:
-            return 2, 10
-        return 3, 6
+        """Map feature count to the configured dice regime."""
+        for rule in self.dice_rules:
+            if rule.matches(features_required):
+                return rule.dice_count, rule.dice_sides
+        last_rule = self.dice_rules[-1]
+        return last_rule.dice_count, last_rule.dice_sides
 
     def _build_win_probability_lookup(self):
-        """Precompute exact 5-scrum success probabilities for each dice regime."""
+        """Precompute exact success probabilities for the configured dice regimes."""
         lookup = {}
-        for feature_key in (1, 2, 3):
-            dice_count, dice_sides = self._get_dice_setup(feature_key)
+        for feature_count in range(1, self.max_feature_reference + 1):
+            dice_count, dice_sides = self._get_dice_setup(feature_count)
             single_scrum_distribution = self._single_scrum_sum_distribution(dice_count, dice_sides)
 
-            five_scrum_distribution = {0: 1.0}
+            multi_scrum_distribution = {0: 1.0}
             for _ in range(self.daily_scrums_per_sprint):
-                five_scrum_distribution = self._convolve_distributions(
-                    five_scrum_distribution,
+                multi_scrum_distribution = self._convolve_distributions(
+                    multi_scrum_distribution,
                     single_scrum_distribution,
                 )
 
             success_threshold = self.daily_scrums_per_sprint * self.daily_scrum_target
             success_probability = sum(
                 probability
-                for total_roll, probability in five_scrum_distribution.items()
+                for total_roll, probability in multi_scrum_distribution.items()
                 if total_roll <= success_threshold
             )
-            lookup[feature_key] = success_probability
+            lookup[feature_count] = success_probability
         return lookup
 
     def _single_scrum_sum_distribution(self, dice_count, dice_sides):

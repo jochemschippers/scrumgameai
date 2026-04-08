@@ -12,9 +12,23 @@ import time
 import altair as alt
 import pandas as pd
 import streamlit as st
-import torch
 
-from dqn_agent import DQNAgent, encode_state
+from checkpoint_utils import load_agent_from_checkpoint
+from config_manager import compute_rule_signature, load_game_config
+from dqn_agent import encode_state
+from match_runner import (
+    HeuristicController,
+    HumanController,
+    ModelController,
+    RandomController,
+    all_seats_done,
+    build_match_log_dataframe,
+    build_standings_dataframe,
+    play_round,
+    run_full_auto_match,
+    start_parallel_match,
+    valid_actions_for_state,
+)
 from scrum_game_env import ScrumGameEnv
 from train_dqn import create_timestamped_run_directory
 
@@ -110,7 +124,16 @@ def tail_log(file_path, max_lines=20):
         return ""
 
 
-def launch_training_process(episode_count=500000, run_notes=""):
+def launch_training_process(
+    episode_count=500000,
+    run_notes="",
+    game_config_path="",
+    training_config_path="",
+    learning_rate=None,
+    gamma=None,
+    seed=None,
+    evaluation_episodes=None,
+):
     """Start the DDQN trainer as an asynchronous background process."""
     ensure_runtime_dirs()
     active_process = get_training_process_state()
@@ -138,19 +161,30 @@ def launch_training_process(episode_count=500000, run_notes=""):
         else:
             popen_kwargs["start_new_session"] = True
 
-        process = subprocess.Popen(
-            [
-                choose_python_command(),
-                str(BASE_DIR / "train_dqn.py"),
-                "--run-dir",
-                str(run_dir),
-                "--episodes",
-                str(int(episode_count)),
-                "--notes",
-                run_notes or "",
-            ],
-            **popen_kwargs,
-        )
+        command = [
+            choose_python_command(),
+            str(BASE_DIR / "train_dqn.py"),
+            "--run-dir",
+            str(run_dir),
+            "--episodes",
+            str(int(episode_count)),
+            "--notes",
+            run_notes or "",
+        ]
+        if game_config_path:
+            command.extend(["--game-config", str(game_config_path)])
+        if training_config_path:
+            command.extend(["--training-config", str(training_config_path)])
+        if learning_rate is not None:
+            command.extend(["--learning-rate", str(learning_rate)])
+        if gamma is not None:
+            command.extend(["--gamma", str(gamma)])
+        if seed is not None:
+            command.extend(["--seed", str(int(seed))])
+        if evaluation_episodes is not None:
+            command.extend(["--evaluation-episodes", str(int(evaluation_episodes))])
+
+        process = subprocess.Popen(command, **popen_kwargs)
 
     time.sleep(0.5)
     if process.poll() is not None:
@@ -162,7 +196,7 @@ def launch_training_process(episode_count=500000, run_notes=""):
     process_state = {
         "pid": process.pid,
         "started_at_epoch": time.time(),
-        "command": [choose_python_command(), str(BASE_DIR / "train_dqn.py")],
+        "command": command,
         "stdout_log": str(stdout_path),
         "run_name": run_dir.name,
         "job_type": "training",
@@ -317,7 +351,7 @@ def load_evaluation_log():
     return pd.read_csv(EVALUATION_LOG_PATH)
 
 
-def build_empty_training_log():
+def build_empty_training_log(game_config=None):
     """Create an empty training-log dataframe so the dashboard layout stays visible."""
     base_columns = [
         "episode",
@@ -331,7 +365,10 @@ def build_empty_training_log():
         "average_ending_money",
         "invalid_action_count",
     ]
-    action_columns = [f"action_{action_id}_count" for action_id in range(ScrumGameEnv().num_actions)]
+    action_columns = [
+        f"action_{action_id}_count"
+        for action_id in range(ScrumGameEnv(game_config=game_config).num_actions)
+    ]
     return pd.DataFrame(columns=base_columns + action_columns)
 
 
@@ -349,6 +386,14 @@ def build_empty_evaluation_log():
     )
 
 
+def load_source_game_config(selected_source):
+    """Load the game config associated with the selected run source."""
+    config_path = selected_source.get("game_config_path")
+    if config_path and Path(config_path).exists():
+        return load_game_config(config_path)
+    return load_game_config()
+
+
 def list_run_sources():
     """List the legacy flat artifacts and all timestamped run folders."""
     sources = [
@@ -360,7 +405,9 @@ def list_run_sources():
             "log_path": REPORTS_DIR / "logs.csv",
             "evaluation_log_path": REPORTS_DIR / "evaluation_history.csv",
             "metrics_path": REPORTS_DIR / "dqn_metrics.json",
-            "notes_path": None,
+            "notes_path": REPORTS_DIR / "run_metadata.json",
+            "game_config_path": ARTIFACTS_DIR / "game_config.json",
+            "training_config_path": ARTIFACTS_DIR / "training_config.json",
         }
     ]
 
@@ -376,6 +423,8 @@ def list_run_sources():
                 "evaluation_log_path": run_dir / "reports" / "evaluation_history.csv",
                 "metrics_path": run_dir / "reports" / "dqn_metrics.json",
                 "notes_path": run_dir / "run_metadata.json",
+                "game_config_path": run_dir / "game_config.json",
+                "training_config_path": run_dir / "training_config.json",
             }
         )
 
@@ -397,32 +446,23 @@ def list_checkpoints():
     return best_first
 
 
-def load_dqn_policy(checkpoint_path):
+def load_dqn_policy(checkpoint_path, game_config=None):
     """Load a selected DDQN checkpoint into a greedy policy."""
     checkpoint_path = Path(checkpoint_path)
     if not checkpoint_path.is_absolute():
         checkpoint_path = BASE_DIR / checkpoint_path
     if not checkpoint_path.exists():
-        return None, None
-
-    env = ScrumGameEnv()
-    state_dim = len(encode_state(env.reset(seed=42), env))
-    agent = DQNAgent(
-        state_dim=state_dim,
-        num_actions=env.num_actions,
-        learning_rate=0.0005,
-        gamma=0.85,
-    )
+        return None, None, None, None
 
     try:
-        state_dict = torch.load(checkpoint_path, map_location=agent.device)
-        agent.policy_network.load_state_dict(state_dict)
-        agent.target_network.load_state_dict(state_dict)
-        agent.policy_network.eval()
-        agent.target_network.eval()
-        return agent, None
-    except RuntimeError as error:
-        return None, str(error)
+        agent, env, metadata = load_agent_from_checkpoint(
+            checkpoint_path,
+            game_config=game_config,
+            strict_signature=game_config is not None,
+        )
+        return agent, env, metadata, None
+    except Exception as error:
+        return None, None, None, str(error)
 
 
 def action_label(action_id):
@@ -439,9 +479,9 @@ def action_short_label(action_id):
     return f"P{action_id}"
 
 
-def build_strategy_map(agent, current_money=25000):
+def build_strategy_map(agent, game_config, current_money=25000):
     """Create a heatmap-ready board dataframe from the current DDQN policy."""
-    env = ScrumGameEnv()
+    env = ScrumGameEnv(game_config=game_config)
     cells = []
 
     for product_id in range(1, env.products_count + 1):
@@ -461,7 +501,7 @@ def build_strategy_map(agent, current_money=25000):
 
             cells.append(
                 {
-                    "product": f"Product {product_id}",
+                    "product": env.product_names[product_id - 1],
                     "product_id": product_id,
                     "sprint": f"Sprint {sprint_id}",
                     "sprint_id": sprint_id,
@@ -484,12 +524,14 @@ def build_strategy_map(agent, current_money=25000):
 
 def render_strategy_heatmap(strategy_df):
     """Render the 7 x 4 board heatmap with preferred actions."""
+    product_sort = strategy_df["product"].drop_duplicates().tolist()
+    sprint_sort = strategy_df["sprint"].drop_duplicates().tolist()
     heatmap = (
         alt.Chart(strategy_df)
         .mark_rect()
         .encode(
-            x=alt.X("product:N", sort=[f"Product {index}" for index in range(1, 8)], title="Current Product"),
-            y=alt.Y("sprint:N", sort=[f"Sprint {index}" for index in range(1, 5)], title="Current Sprint"),
+            x=alt.X("product:N", sort=product_sort, title="Current Product"),
+            y=alt.Y("sprint:N", sort=sprint_sort, title="Current Sprint"),
             color=alt.Color("confidence:Q", scale=alt.Scale(scheme="yellowgreenblue"), title="Policy Confidence"),
             tooltip=[
                 "product",
@@ -509,8 +551,8 @@ def render_strategy_heatmap(strategy_df):
         alt.Chart(strategy_df)
         .mark_text(fontSize=16, fontWeight="bold")
         .encode(
-            x=alt.X("product:N", sort=[f"Product {index}" for index in range(1, 8)]),
-            y=alt.Y("sprint:N", sort=[f"Sprint {index}" for index in range(1, 5)]),
+            x=alt.X("product:N", sort=product_sort),
+            y=alt.Y("sprint:N", sort=sprint_sort),
             text="label:N",
         )
     )
@@ -526,12 +568,14 @@ def render_switch_target_heatmap(strategy_df):
         st.info("The selected checkpoint currently prefers Continue on all reference cells.")
         return
 
+    product_sort = switch_df["product"].drop_duplicates().tolist()
+    sprint_sort = switch_df["sprint"].drop_duplicates().tolist()
     heatmap = (
         alt.Chart(switch_df)
         .mark_rect()
         .encode(
-            x=alt.X("product:N", sort=[f"Product {index}" for index in range(1, 8)], title="Current Product"),
-            y=alt.Y("sprint:N", sort=[f"Sprint {index}" for index in range(1, 5)], title="Current Sprint"),
+            x=alt.X("product:N", sort=product_sort, title="Current Product"),
+            y=alt.Y("sprint:N", sort=sprint_sort, title="Current Sprint"),
             color=alt.Color("preferred_action_id:Q", scale=alt.Scale(scheme="teals"), title="Preferred Switch Target"),
             tooltip=[
                 "product",
@@ -547,8 +591,8 @@ def render_switch_target_heatmap(strategy_df):
         alt.Chart(switch_df)
         .mark_text(fontSize=16, fontWeight="bold")
         .encode(
-            x=alt.X("product:N", sort=[f"Product {index}" for index in range(1, 8)]),
-            y=alt.Y("sprint:N", sort=[f"Sprint {index}" for index in range(1, 5)]),
+            x=alt.X("product:N", sort=product_sort),
+            y=alt.Y("sprint:N", sort=sprint_sort),
             text="label:N",
         )
     )
@@ -625,9 +669,9 @@ def render_invalid_action_chart(training_log):
     st.altair_chart(chart, use_container_width=True)
 
 
-def run_live_demo(agent, seed=42):
+def run_live_demo(agent, game_config, seed=42):
     """Play one greedy rollout with the selected DDQN checkpoint."""
-    env = ScrumGameEnv()
+    env = ScrumGameEnv(game_config=game_config)
     state = env.reset(seed=seed)
     state_vector = encode_state(state, env)
     done = False
@@ -663,18 +707,143 @@ def run_live_demo(agent, seed=42):
     return pd.DataFrame(steps), total_reward
 
 
-def find_best_demo_seed(agent, search_count=20):
+def find_best_demo_seed(agent, game_config, search_count=20):
     """Search a small range of seeds and return the strongest demo rollout."""
     best_seed = 0
     best_reward = float("-inf")
 
     for seed in range(search_count):
-        _, total_reward = run_live_demo(agent, seed=seed)
+        _, total_reward = run_live_demo(agent, game_config=game_config, seed=seed)
         if total_reward > best_reward:
             best_reward = total_reward
             best_seed = seed
 
     return best_seed, best_reward
+
+
+def clear_match_state():
+    """Drop any existing interactive match state from the Streamlit session."""
+    for key in ("parallel_match_state", "parallel_match_key"):
+        if key in st.session_state:
+            del st.session_state[key]
+
+
+def controller_from_label(label, agent):
+    """Create one match controller from a dashboard label."""
+    if label == "Checkpoint Expert":
+        return ModelController(agent=agent, profile_name="expert", display_name="Checkpoint Expert")
+    if label == "Checkpoint Balanced":
+        return ModelController(agent=agent, profile_name="balanced", display_name="Checkpoint Balanced")
+    if label == "Checkpoint Beginner":
+        return ModelController(agent=agent, profile_name="beginner", display_name="Checkpoint Beginner")
+    if label == "Heuristic":
+        return HeuristicController(display_name="Heuristic AI")
+    if label == "Random":
+        return RandomController(display_name="Random AI")
+    raise ValueError(f"Unknown controller label: {label}")
+
+
+def render_play_match_section(agent, game_config, checkpoint_identifier):
+    """Render the parallel human-vs-AI / AI-vs-AI playable area."""
+    st.subheader("Play Match")
+    st.caption(
+        "This match mode runs one seat per controller on the same ruleset. "
+        "Each seat plays its own copy of the board, which keeps the current single-player DDQN usable."
+    )
+
+    match_seed = st.number_input("Match seed", min_value=0, value=42, step=1, key="parallel_match_seed")
+    include_human = st.checkbox("Include Human Seat", value=True, key="parallel_match_human")
+    opponent_labels = st.multiselect(
+        "Opponents",
+        ["Checkpoint Expert", "Checkpoint Balanced", "Checkpoint Beginner", "Heuristic", "Random"],
+        default=["Checkpoint Expert", "Heuristic"],
+        key="parallel_match_opponents",
+    )
+
+    match_key = f"{checkpoint_identifier}:{compute_rule_signature(game_config)}:{match_seed}:{include_human}:{','.join(opponent_labels)}"
+    if st.session_state.get("parallel_match_key") and st.session_state["parallel_match_key"] != match_key:
+        clear_match_state()
+
+    start_col, reset_col, auto_col = st.columns(3)
+    with start_col:
+        if st.button("Start New Match", use_container_width=True):
+            controllers = []
+            if include_human:
+                controllers.append(HumanController(display_name="Human"))
+            controllers.extend(controller_from_label(label, agent) for label in opponent_labels)
+
+            if not controllers:
+                st.warning("Select at least one seat before starting a match.")
+            else:
+                match_state = start_parallel_match(
+                    game_config=game_config,
+                    controllers=controllers,
+                    base_seed=int(match_seed),
+                )
+                if not include_human:
+                    match_state = run_full_auto_match(match_state)
+                st.session_state["parallel_match_state"] = match_state
+                st.session_state["parallel_match_key"] = match_key
+                st.rerun()
+    with reset_col:
+        if st.button("Reset Match", use_container_width=True):
+            clear_match_state()
+            st.rerun()
+    with auto_col:
+        if st.button("Auto Finish AI Match", use_container_width=True):
+            match_state = st.session_state.get("parallel_match_state")
+            if match_state is not None:
+                human_active = any(
+                    seat["controller"].controller_type == "human" and not seat["done"]
+                    for seat in match_state["seats"]
+                )
+                if human_active:
+                    st.warning("Human seats still need manual actions before the match can auto-finish.")
+                else:
+                    st.session_state["parallel_match_state"] = run_full_auto_match(match_state)
+                    st.rerun()
+
+    match_state = st.session_state.get("parallel_match_state")
+    if not match_state:
+        st.info("Start a match to compare a human seat and multiple AI controllers on the current ruleset.")
+        return
+
+    standings = build_standings_dataframe(match_state)
+    st.dataframe(standings, use_container_width=True, hide_index=True)
+
+    human_seat = next(
+        (
+            seat for seat in match_state["seats"]
+            if seat["controller"].controller_type == "human" and not seat["done"]
+        ),
+        None,
+    )
+
+    if human_seat is not None:
+        valid_actions = valid_actions_for_state(human_seat["env"], human_seat["state"])
+        action_labels = {
+            action_id: human_seat["env"].action_name(action_id)
+            for action_id in valid_actions
+        }
+        selected_label = st.selectbox(
+            "Human Action",
+            list(action_labels.values()),
+            key=f"parallel_human_action_{len(human_seat['steps'])}",
+        )
+        selected_action = next(
+            action_id for action_id, label in action_labels.items() if label == selected_label
+        )
+        if st.button("Play Next Round", use_container_width=True):
+            st.session_state["parallel_match_state"] = play_round(
+                match_state,
+                human_action=selected_action,
+            )
+            st.rerun()
+    elif all_seats_done(match_state):
+        st.success("Match complete.")
+
+    match_log = build_match_log_dataframe(match_state)
+    st.dataframe(match_log, use_container_width=True, hide_index=True)
 
 
 def render_server_controls():
@@ -730,6 +899,12 @@ def render_server_controls_v2():
 
     st.sidebar.text_input("Run Notes", key="run_notes")
     st.sidebar.number_input("Episode Count", min_value=1000, step=1000, key="episode_count")
+    st.sidebar.text_input("Game Config Path", key="game_config_path")
+    st.sidebar.text_input("Training Config Path", key="training_config_path")
+    st.sidebar.number_input("Learning Rate Override", min_value=0.00001, step=0.0001, format="%.5f", key="learning_rate_override")
+    st.sidebar.number_input("Gamma Override", min_value=0.1, max_value=0.9999, step=0.01, format="%.4f", key="gamma_override")
+    st.sidebar.number_input("Seed Override", min_value=0, step=1, key="seed_override")
+    st.sidebar.number_input("Eval Episodes Override", min_value=10, step=10, key="evaluation_episodes_override")
 
     launch_disabled = active_process is not None
     if st.sidebar.button("Launch 500k Episode Training", use_container_width=True, disabled=launch_disabled):
@@ -737,6 +912,12 @@ def render_server_controls_v2():
             success, message, run_name = launch_training_process(
                 episode_count=st.session_state["episode_count"],
                 run_notes=st.session_state["run_notes"],
+                game_config_path=st.session_state["game_config_path"],
+                training_config_path=st.session_state["training_config_path"],
+                learning_rate=st.session_state["learning_rate_override"],
+                gamma=st.session_state["gamma_override"],
+                seed=st.session_state["seed_override"],
+                evaluation_episodes=st.session_state["evaluation_episodes_override"],
             )
             if success and run_name:
                 st.session_state["selected_source"] = run_name
@@ -783,6 +964,18 @@ if "run_notes" not in st.session_state:
     st.session_state["run_notes"] = ""
 if "episode_count" not in st.session_state:
     st.session_state["episode_count"] = 500000
+if "game_config_path" not in st.session_state:
+    st.session_state["game_config_path"] = ""
+if "training_config_path" not in st.session_state:
+    st.session_state["training_config_path"] = ""
+if "learning_rate_override" not in st.session_state:
+    st.session_state["learning_rate_override"] = 0.0005
+if "gamma_override" not in st.session_state:
+    st.session_state["gamma_override"] = 0.85
+if "seed_override" not in st.session_state:
+    st.session_state["seed_override"] = 42
+if "evaluation_episodes_override" not in st.session_state:
+    st.session_state["evaluation_episodes_override"] = 100
 if "selected_source" not in st.session_state:
     st.session_state["selected_source"] = "Current Artifacts"
 
@@ -799,6 +992,8 @@ selected_source_label = st.sidebar.selectbox(
 )
 st.session_state["selected_source"] = selected_source_label
 selected_source = source_lookup[selected_source_label]
+selected_game_config = load_source_game_config(selected_source)
+selected_rule_signature = compute_rule_signature(selected_game_config)
 
 checkpoint_options = list_checkpoints() if selected_source["checkpoints_dir"] == CHECKPOINT_DIR else sorted(selected_source["checkpoints_dir"].glob("*.pth"))
 checkpoint_labels = [checkpoint.name for checkpoint in checkpoint_options]
@@ -865,7 +1060,10 @@ if training_log is not None:
             training_log[column_name] = fallback_value
 
 evaluation_log = load_evaluation_log() if selected_source["evaluation_log_path"] == EVALUATION_LOG_PATH else (pd.read_csv(selected_source["evaluation_log_path"]) if selected_source["evaluation_log_path"].exists() else None)
-agent, checkpoint_error = load_dqn_policy(selected_checkpoint_path)
+agent, policy_env, checkpoint_metadata, checkpoint_error = load_dqn_policy(
+    selected_checkpoint_path,
+    game_config=selected_game_config,
+)
 
 has_training_log = training_log is not None and not training_log.empty
 if not has_training_log:
@@ -873,7 +1071,7 @@ if not has_training_log:
         "No training log found yet. Launch training from the sidebar or run `py train_dqn.py` "
         "to start logging to `artifacts/reports/logs.csv`."
     )
-    training_log = build_empty_training_log()
+    training_log = build_empty_training_log(game_config=selected_game_config)
 else:
     latest = training_log.iloc[-1]
 
@@ -887,6 +1085,10 @@ else:
     debt_col1.metric("Average Loan Duration", f"{latest['average_loan_duration']:.2f}")
     debt_col2.metric("Bankruptcy Count / 100", int(latest["bankruptcy_count"]))
     debt_col3.metric("Average Ending Money", f"{latest['average_ending_money']:.2f}")
+
+st.caption(
+    f"Active rule signature: `{selected_rule_signature}`"
+)
 
 if not has_training_log:
     metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
@@ -1010,13 +1212,27 @@ with eval_col2:
 
 if checkpoint_error is not None:
     st.error(
-        "The selected checkpoint is incompatible with the latest network shape. "
-        "Use a new checkpoint from the advanced 8-action DDQN training run."
+        "The selected checkpoint is incompatible with the selected game config or network shape. "
+        "Use a checkpoint trained for the same rule signature."
     )
 elif agent is None:
     st.info("No compatible DDQN checkpoint found yet. Strategy maps and live demo will appear after training saves one.")
 else:
-    strategy_df = build_strategy_map(agent, current_money=int(reference_money))
+    if checkpoint_metadata and checkpoint_metadata.get("legacy_checkpoint"):
+        st.warning(
+            "The selected checkpoint is a legacy file without embedded rule metadata. "
+            "Compatibility is being inferred from the current environment shape only."
+        )
+    if checkpoint_metadata and checkpoint_metadata.get("checkpoint_rule_signature"):
+        st.caption(
+            f"Checkpoint rule signature: `{checkpoint_metadata['checkpoint_rule_signature']}`"
+        )
+
+    strategy_df = build_strategy_map(
+        agent,
+        game_config=selected_game_config,
+        current_money=int(reference_money),
+    )
 
     st.subheader("Strategy Heatmap")
     render_strategy_heatmap(strategy_df)
@@ -1029,13 +1245,27 @@ else:
 
     st.subheader("Live Demo")
     if scan_demo_seeds:
-        best_seed, best_seed_reward = find_best_demo_seed(agent, search_count=int(demo_search_count))
+        best_seed, best_seed_reward = find_best_demo_seed(
+            agent,
+            game_config=selected_game_config,
+            search_count=int(demo_search_count),
+        )
         st.caption(f"Best seed in 0..{int(demo_search_count) - 1}: {best_seed} (reward {best_seed_reward:.2f})")
         demo_seed = best_seed
 
-    demo_table, total_demo_reward = run_live_demo(agent, seed=int(demo_seed))
+    demo_table, total_demo_reward = run_live_demo(
+        agent,
+        game_config=selected_game_config,
+        seed=int(demo_seed),
+    )
     st.metric("Demo Total Reward", f"{total_demo_reward:.2f}")
     st.dataframe(demo_table, use_container_width=True, hide_index=True)
+
+    render_play_match_section(
+        agent,
+        game_config=selected_game_config,
+        checkpoint_identifier=str(selected_checkpoint_path),
+    )
 
 if auto_refresh:
     time.sleep(refresh_interval)

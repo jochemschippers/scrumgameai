@@ -1,15 +1,18 @@
+import argparse
 from pathlib import Path
 
-import torch
-
+from checkpoint_utils import load_agent_from_checkpoint
+from config_manager import load_game_config
 from deployment_profiles import choose_profile_action
-from dqn_agent import DQNAgent, encode_state
-from scrum_game_env import ScrumGameEnv
+from dqn_agent import encode_state
 
 BASE_DIR = Path(__file__).resolve().parent
 
 
-def load_dqn_checkpoint(model_path="artifacts/checkpoints/best_scrum_model.pth"):
+def load_dqn_checkpoint(
+    model_path="artifacts/checkpoints/best_scrum_model.pth",
+    game_config_path=None,
+):
     """Load the trained DQN checkpoint used for the final demo."""
     checkpoint_path = Path(model_path)
     if not checkpoint_path.is_absolute():
@@ -17,25 +20,18 @@ def load_dqn_checkpoint(model_path="artifacts/checkpoints/best_scrum_model.pth")
     if not checkpoint_path.exists():
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
 
-    env = ScrumGameEnv()
-    agent = DQNAgent(
-        state_dim=len(encode_state(env.reset(seed=42), env)),
-        num_actions=env.num_actions,
-        learning_rate=0.0005,
-        gamma=0.85,
-    )
     try:
-        state_dict = torch.load(checkpoint_path, map_location=agent.device)
-        agent.policy_network.load_state_dict(state_dict)
-        agent.target_network.load_state_dict(state_dict)
-    except RuntimeError as error:
+        agent, env, metadata = load_agent_from_checkpoint(
+            checkpoint_path,
+            game_config=load_game_config(game_config_path) if game_config_path else None,
+            strict_signature=game_config_path is not None,
+        )
+    except Exception as error:
         raise RuntimeError(
-            "The selected checkpoint is incompatible with the advanced 8-action Double DQN model. "
-            "Train a new checkpoint with `py train_dqn.py` in `game/v2_deep_rl`."
+            "The selected checkpoint is incompatible with the requested Scrum Game config. "
+            "Train or load a model for the same ruleset."
         ) from error
-    agent.policy_network.eval()
-    agent.target_network.eval()
-    return agent
+    return agent, env, metadata
 
 
 def product_name(env, product_id):
@@ -45,10 +41,17 @@ def product_name(env, product_id):
     return f"Product {product_id}"
 
 
-def play_demo_game(model_path="artifacts/checkpoints/best_scrum_model.pth", seed=42, profile_name="expert"):
+def play_demo_game(
+    model_path="artifacts/checkpoints/best_scrum_model.pth",
+    seed=42,
+    profile_name="expert",
+    game_config_path=None,
+):
     """Play one full game using one of the deployment profiles."""
-    env = ScrumGameEnv()
-    agent = load_dqn_checkpoint(model_path=model_path)
+    agent, env, metadata = load_dqn_checkpoint(
+        model_path=model_path,
+        game_config_path=game_config_path,
+    )
     checkpoint_path = Path(model_path)
     if not checkpoint_path.is_absolute():
         checkpoint_path = BASE_DIR / checkpoint_path
@@ -60,6 +63,7 @@ def play_demo_game(model_path="artifacts/checkpoints/best_scrum_model.pth", seed
 
     print("Final DQN Demo Game")
     print(f"Model: {checkpoint_path}")
+    print(f"Rule Signature: {metadata.get('current_rule_signature')}")
     print(f"Profile: {profile_name}")
     print("")
 
@@ -118,4 +122,16 @@ def play_demo_game(model_path="artifacts/checkpoints/best_scrum_model.pth", seed
 
 
 if __name__ == "__main__":
-    play_demo_game()
+    parser = argparse.ArgumentParser(description="Play one demo game with a saved DDQN checkpoint.")
+    parser.add_argument("--model-path", default="artifacts/checkpoints/best_scrum_model.pth")
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--profile", default="expert")
+    parser.add_argument("--game-config", default=None)
+    args = parser.parse_args()
+
+    play_demo_game(
+        model_path=args.model_path,
+        seed=args.seed,
+        profile_name=args.profile,
+        game_config_path=args.game_config,
+    )

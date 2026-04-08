@@ -6,8 +6,9 @@ from pathlib import Path
 
 import torch
 
-from dqn_agent import DQNAgent, encode_state
+from checkpoint_utils import load_agent_from_checkpoint
 from scrum_game_env import ScrumGameEnv
+from dqn_agent import encode_state
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -105,37 +106,18 @@ def resolve_checkpoint_path(run_dir):
     return checkpoint_path
 
 
-def load_agent(checkpoint_path, seed=DEFAULT_SEEDS[0]):
+def load_agent(checkpoint_path):
     """Initialize the environment and load the saved DDQN policy for inference."""
-    env = ScrumGameEnv()
-    initial_state = env.reset(seed=seed)
-    agent = DQNAgent(
-        state_dim=len(encode_state(initial_state, env)),
-        num_actions=env.num_actions,
-        learning_rate=0.0005,
-        gamma=0.85,
-    )
-
-    try:
-        state_dict = torch.load(checkpoint_path, map_location=agent.device)
-        agent.policy_network.load_state_dict(state_dict)
-        agent.target_network.load_state_dict(state_dict)
-    except RuntimeError as error:
-        raise RuntimeError(
-            "The selected checkpoint is incompatible with the current advanced 8-action DDQN model."
-        ) from error
-
-    agent.policy_network.eval()
-    agent.target_network.eval()
-    return agent
+    agent, env, metadata = load_agent_from_checkpoint(checkpoint_path)
+    return agent, metadata["resolved_game_config"]
 
 
-def evaluate_one_seed(agent, seed):
+def evaluate_one_seed(agent, game_config, seed):
     """Play one complete greedy game for one fixed seed."""
     random.seed(seed)
     torch.manual_seed(seed)
 
-    env = ScrumGameEnv()
+    env = ScrumGameEnv(game_config=game_config)
     state = env.reset(seed=seed)
     state_vector = encode_state(state, env)
     done = False
@@ -166,9 +148,9 @@ def evaluate_one_seed(agent, seed):
     }
 
 
-def evaluate_across_seeds(agent, seeds):
+def evaluate_across_seeds(agent, game_config, seeds):
     """Evaluate one saved policy across the requested fixed seeds."""
-    return [evaluate_one_seed(agent, seed) for seed in seeds]
+    return [evaluate_one_seed(agent, game_config, seed) for seed in seeds]
 
 
 def save_results_csv(results, output_path):
@@ -205,8 +187,8 @@ def main():
 
     run_dir = resolve_run_dir(args)
     checkpoint_path = resolve_checkpoint_path(run_dir)
-    agent = load_agent(checkpoint_path)
-    results = evaluate_across_seeds(agent, seeds=args.seeds[:5])
+    agent, game_config = load_agent(checkpoint_path)
+    results = evaluate_across_seeds(agent, game_config, seeds=args.seeds[:5])
     output_path = run_dir / "robustness_results.csv"
 
     save_results_csv(results, output_path)

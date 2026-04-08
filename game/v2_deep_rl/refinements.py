@@ -1,32 +1,26 @@
+from __future__ import annotations
+
 import random
 
+from config_manager import RefinementConfig, normalize_product_key
 
-class StandardRefinementModel301:
-    """
-    Standard refinement logic derived from the Scrum Game manuals.
 
-    Product groups:
-    - Card 1: Yellow, Red -> increase on 1-2, decrease on 19-20
-    - Card 2: Orange, Green, Purple -> increase on 1-3, decrease on 19-20
-    - Card 3: Blue -> increase on 1-4, decrease on 19-20
-    - Card 4: Black -> increase on 1, decrease on 20
-    """
+class ConfiguredRefinementModel:
+    """Config-driven refinement logic shared by training and play flows."""
 
-    def __init__(self, product_names):
-        self.product_lookup = {name.lower(): index + 1 for index, name in enumerate(product_names)}
-        self.group_rules = {
-            "yellow": {"increase_rolls": {1, 2}, "decrease_rolls": {19, 20}},
-            "red": {"increase_rolls": {1, 2}, "decrease_rolls": {19, 20}},
-            "orange": {"increase_rolls": {1, 2, 3}, "decrease_rolls": {19, 20}},
-            "green": {"increase_rolls": {1, 2, 3}, "decrease_rolls": {19, 20}},
-            "purple": {"increase_rolls": {1, 2, 3}, "decrease_rolls": {19, 20}},
-            "blue": {"increase_rolls": {1, 2, 3, 4}, "decrease_rolls": {19, 20}},
-            "black": {"increase_rolls": {1}, "decrease_rolls": {20}},
+    def __init__(self, refinement_config: RefinementConfig):
+        self.refinement_config = refinement_config
+        self.rule_lookup = {
+            rule.product_key: {
+                "increase_rolls": set(rule.increase_rolls),
+                "decrease_rolls": set(rule.decrease_rolls),
+            }
+            for rule in refinement_config.product_rules
         }
 
     def apply(self, env, product_id):
         """
-        Apply one refinement roll to the product that was played this turn.
+        Apply one refinement roll to the product played this turn.
 
         Increase:
         - add one feature to every future sprint of that product
@@ -34,9 +28,13 @@ class StandardRefinementModel301:
         Decrease:
         - remove one feature from the last future sprint of that product
         """
-        product_name = env.product_names[product_id - 1].lower()
-        rules = self.group_rules[product_name]
-        roll = random.randint(1, 20)
+        product_name = env.product_names[product_id - 1]
+        product_key = normalize_product_key(product_name)
+        rules = self.rule_lookup.get(
+            product_key,
+            {"increase_rolls": set(), "decrease_rolls": set()},
+        )
+        roll = random.randint(1, self.refinement_config.die_sides)
 
         result = {
             "roll": roll,

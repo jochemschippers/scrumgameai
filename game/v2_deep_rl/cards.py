@@ -1,47 +1,69 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 import random
+
+from config_manager import GameConfig, normalize_product_key
 
 
 @dataclass(frozen=True)
 class IncidentCard:
-    """One incident card and its rule-faithful effect metadata."""
+    """One incident card and its environment effect metadata."""
 
     card_id: int
     name: str
     description: str
     effect_type: str
-    target_products: tuple[int, ...] = ()
+    target_product_keys: tuple[str, ...] = ()
     delta_money: int = 0
     target_sprint: int | None = None
     set_value_money: int | None = None
     future_only: bool = True
+    weight: float = 1.0
+
+    def _scaled_delta(self, env, value: int) -> int:
+        return int(round(value * env.incident_severity_multiplier))
+
+    def _scaled_exact_value(self, env, value: int) -> int:
+        return int(round(value * env.incident_severity_multiplier))
 
     def apply_effect(self, env):
         """Apply the incident effect to the environment state."""
+        target_product_ids = [
+            env.product_lookup[normalize_product_key(product_key)]
+            for product_key in self.target_product_keys
+            if normalize_product_key(product_key) in env.product_lookup
+        ]
+
         if self.effect_type == "set_future_product_to_zero":
-            for product_id in self.target_products:
+            for product_id in target_product_ids:
                 for sprint_id in range(1, env.sprints_per_product + 1):
                     if env.is_sprint_future(product_id, sprint_id, future_only=self.future_only):
                         env.set_incident_value(product_id, sprint_id, 0)
             return
 
         if self.effect_type == "adjust_future_products":
-            for product_id in self.target_products:
+            scaled_delta = self._scaled_delta(env, self.delta_money)
+            for product_id in target_product_ids:
                 for sprint_id in range(1, env.sprints_per_product + 1):
                     if env.is_sprint_future(product_id, sprint_id, future_only=self.future_only):
-                        env.add_incident_delta(product_id, sprint_id, self.delta_money)
+                        env.add_incident_delta(product_id, sprint_id, scaled_delta)
             return
 
         if self.effect_type == "adjust_specific_sprint_globally":
+            scaled_delta = self._scaled_delta(env, self.delta_money)
             for product_id in range(1, env.products_count + 1):
                 if env.is_sprint_future(product_id, self.target_sprint, future_only=self.future_only):
-                    env.add_incident_delta(product_id, self.target_sprint, self.delta_money)
+                    env.add_incident_delta(product_id, self.target_sprint, scaled_delta)
             return
 
         if self.effect_type == "set_specific_sprint_exact":
-            for product_id in self.target_products:
+            if self.set_value_money is None:
+                raise ValueError("set_specific_sprint_exact requires set_value_money.")
+            scaled_value = self._scaled_exact_value(env, self.set_value_money)
+            for product_id in target_product_ids:
                 if env.is_sprint_future(product_id, self.target_sprint, future_only=self.future_only):
-                    env.set_incident_value(product_id, self.target_sprint, self.set_value_money)
+                    env.set_incident_value(product_id, self.target_sprint, scaled_value)
             return
 
         raise ValueError(f"Unsupported incident effect type: {self.effect_type}")
@@ -56,9 +78,16 @@ class IncidentDeck:
         self.discard_pile = []
         self.shuffle()
 
+    def _expanded_card_pool(self):
+        expanded = []
+        for card in self.all_cards:
+            copies = max(1, int(round(card.weight)))
+            expanded.extend([card] * copies)
+        return expanded
+
     def shuffle(self):
         """Reset the draw pile from the full card list."""
-        self.draw_pile = list(self.all_cards)
+        self.draw_pile = self._expanded_card_pool()
         random.shuffle(self.draw_pile)
         self.discard_pile = []
 
@@ -81,62 +110,20 @@ class IncidentDeck:
         return card
 
 
-def build_classical_incident_cards(product_names):
-    """
-    Build the incident deck from the rule material.
-
-    The manuals explicitly describe the following physical incident cards:
-    1. Red demand collapse to zero
-    2. Orange and blue competitor pressure
-    3. Government subsidy for all first sprints
-    4. Yellow demand boost
-    5. Black product breakthrough on sprint 4
-
-    The simulator variables mention 8 incident cards, but only these concrete
-    effects were documented in the provided manuals. The deck is therefore
-    source-faithful to the cards that are actually available in the gamedata.
-    """
-    product_lookup = {name.lower(): index + 1 for index, name in enumerate(product_names)}
-
+def build_incident_cards(game_config: GameConfig) -> list[IncidentCard]:
+    """Build the configured incident deck from GameConfig."""
     return [
         IncidentCard(
-            card_id=401,
-            name="Demand Collapse Red",
-            description="The demand of the red product drops dramatically. All future red sprints are worth zero.",
-            effect_type="set_future_product_to_zero",
-            target_products=(product_lookup["red"],),
-        ),
-        IncidentCard(
-            card_id=402,
-            name="New Competitors",
-            description="Orange and blue products lose value due to new competitors entering the market.",
-            effect_type="adjust_future_products",
-            target_products=(product_lookup["orange"], product_lookup["blue"]),
-            delta_money=-5000,
-        ),
-        IncidentCard(
-            card_id=403,
-            name="Government Subsidy",
-            description="All first sprints gain a subsidy bonus.",
-            effect_type="adjust_specific_sprint_globally",
-            target_sprint=1,
-            delta_money=5000,
-        ),
-        IncidentCard(
-            card_id=404,
-            name="Yellow Demand Boost",
-            description="All future yellow sprints gain value.",
-            effect_type="adjust_future_products",
-            target_products=(product_lookup["yellow"],),
-            delta_money=5000,
-        ),
-        IncidentCard(
-            card_id=405,
-            name="Black Product Breakthrough",
-            description="The fourth black sprint becomes worth 100,000.",
-            effect_type="set_specific_sprint_exact",
-            target_products=(product_lookup["black"],),
-            target_sprint=4,
-            set_value_money=100000,
-        ),
+            card_id=card_config.card_id,
+            name=card_config.name,
+            description=card_config.description,
+            effect_type=card_config.effect_type,
+            target_product_keys=tuple(card_config.target_products),
+            delta_money=card_config.delta_money,
+            target_sprint=card_config.target_sprint,
+            set_value_money=card_config.set_value_money,
+            future_only=card_config.future_only,
+            weight=card_config.weight,
+        )
+        for card_config in game_config.incident.cards
     ]

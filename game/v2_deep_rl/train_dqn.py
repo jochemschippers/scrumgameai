@@ -7,7 +7,18 @@ import random
 import matplotlib.pyplot as plt
 import torch
 
-from dqn_agent import DQNAgent, encode_state
+from checkpoint_utils import build_agent_for_config, load_agent_from_checkpoint, save_checkpoint
+from config_manager import (
+    GameConfig,
+    TrainingConfig,
+    compute_rule_signature,
+    compute_training_signature,
+    load_game_config,
+    load_training_config,
+    save_game_config,
+    save_training_config,
+)
+from dqn_agent import encode_state
 from model_utils import save_metrics_json
 from scrum_game_env import ScrumGameEnv
 
@@ -46,7 +57,7 @@ def resolve_output_directories(run_dir=None):
     """Resolve either the legacy flat artifact directories or a timestamped run folder."""
     if run_dir is None:
         checkpoint_dir, plot_dir, report_dir = ensure_deep_rl_directories()
-        return checkpoint_dir, plot_dir, report_dir, None
+        return checkpoint_dir, plot_dir, report_dir, None, ARTIFACTS_DIR
 
     run_path = Path(run_dir)
     if not run_path.is_absolute():
@@ -59,7 +70,7 @@ def resolve_output_directories(run_dir=None):
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     plot_dir.mkdir(parents=True, exist_ok=True)
     report_dir.mkdir(parents=True, exist_ok=True)
-    return checkpoint_dir, plot_dir, report_dir, run_path
+    return checkpoint_dir, plot_dir, report_dir, run_path, run_path
 
 
 def initialize_training_log(log_path, num_actions):
@@ -180,7 +191,43 @@ def epsilon_by_episode(
     return epsilon_start - (epsilon_start - epsilon_min) * progress
 
 
-def evaluate_dqn_agent(agent, num_episodes=1000, seed=1042):
+def resolve_training_config(
+    training_config: TrainingConfig | None = None,
+    training_config_path=None,
+    num_episodes=None,
+    learning_rate=None,
+    gamma=None,
+    checkpoint_interval=None,
+    evaluation_interval=None,
+    evaluation_episodes=None,
+    seed=None,
+    run_notes="",
+):
+    """Load the base training config and apply CLI/function overrides."""
+    base_config = training_config or load_training_config(training_config_path)
+    payload = base_config.to_dict()
+
+    if num_episodes is not None:
+        payload["episodes"] = int(num_episodes)
+    if learning_rate is not None:
+        payload["learning_rate"] = float(learning_rate)
+    if gamma is not None:
+        payload["gamma"] = float(gamma)
+    if checkpoint_interval is not None:
+        payload["checkpoint_interval"] = int(checkpoint_interval)
+    if evaluation_interval is not None:
+        payload["evaluation_interval"] = int(evaluation_interval)
+    if evaluation_episodes is not None:
+        payload["evaluation_episodes"] = int(evaluation_episodes)
+    if seed is not None:
+        payload["seed"] = int(seed)
+    if run_notes:
+        payload["run_notes"] = str(run_notes)
+
+    return TrainingConfig.from_dict(payload)
+
+
+def evaluate_dqn_agent(agent, num_episodes=1000, seed=1042, game_config: GameConfig | None = None):
     """
     Evaluate the DDQN greedily with epsilon fixed at 0.
 
@@ -189,7 +236,7 @@ def evaluate_dqn_agent(agent, num_episodes=1000, seed=1042):
     random.seed(seed)
     torch.manual_seed(seed)
 
-    env = ScrumGameEnv()
+    env = ScrumGameEnv(game_config=game_config)
     evaluation_rewards = []
     ending_monies = []
     bankruptcy_count = 0
@@ -261,15 +308,33 @@ def train_dqn_agent(
     seed=42,
     run_dir=None,
     run_notes="",
+    game_config: GameConfig | None = None,
+    game_config_path=None,
+    training_config: TrainingConfig | None = None,
+    training_config_path=None,
 ):
     """Train a Double DQN agent on the advanced Scrum Game environment."""
-    random.seed(seed)
-    torch.manual_seed(seed)
+    resolved_game_config = game_config or load_game_config(game_config_path)
+    resolved_training_config = resolve_training_config(
+        training_config=training_config,
+        training_config_path=training_config_path,
+        num_episodes=num_episodes,
+        learning_rate=learning_rate,
+        gamma=gamma,
+        checkpoint_interval=checkpoint_interval,
+        evaluation_interval=evaluation_interval,
+        evaluation_episodes=evaluation_episodes,
+        seed=seed,
+        run_notes=run_notes,
+    )
 
-    checkpoint_dir, plot_dir, report_dir, run_path = resolve_output_directories(run_dir)
+    random.seed(resolved_training_config.seed)
+    torch.manual_seed(resolved_training_config.seed)
 
-    env = ScrumGameEnv()
-    initial_state = env.reset(seed=seed)
+    checkpoint_dir, plot_dir, report_dir, run_path, config_root = resolve_output_directories(run_dir)
+
+    env = ScrumGameEnv(game_config=resolved_game_config)
+    initial_state = env.reset(seed=resolved_training_config.seed)
     state_dim = len(encode_state(initial_state, env))
     num_actions = env.num_actions
 
@@ -278,32 +343,41 @@ def train_dqn_agent(
     initialize_training_log(log_path, num_actions)
     initialize_evaluation_log(evaluation_log_path)
 
-    if run_path is not None:
-        save_metrics_json(
-            {
-                "run_name": run_path.name,
-                "run_path": str(run_path),
-                "created_at": datetime.now().isoformat(),
-                "training_episodes": num_episodes,
-                "learning_rate": learning_rate,
-                "gamma": gamma,
-                "checkpoint_interval": checkpoint_interval,
-                "evaluation_interval": evaluation_interval,
-                "evaluation_episodes": evaluation_episodes,
-                "seed": seed,
-                "run_notes": run_notes,
-            },
-            str(run_path / "run_metadata.json"),
-        )
+    game_config_output_path = config_root / "game_config.json"
+    training_config_output_path = config_root / "training_config.json"
+    save_game_config(resolved_game_config, game_config_output_path)
+    save_training_config(resolved_training_config, training_config_output_path)
 
-    agent = DQNAgent(
-        state_dim=state_dim,
-        num_actions=num_actions,
-        learning_rate=learning_rate,
-        gamma=gamma,
-        replay_capacity=100000,
-        batch_size=128,
-        target_update_frequency=2000,
+    run_metadata = {
+        "run_name": run_path.name if run_path is not None else "current_artifacts",
+        "run_path": str(run_path) if run_path is not None else str(config_root),
+        "created_at": datetime.now().isoformat(),
+        "training_episodes": resolved_training_config.episodes,
+        "learning_rate": resolved_training_config.learning_rate,
+        "gamma": resolved_training_config.gamma,
+        "checkpoint_interval": resolved_training_config.checkpoint_interval,
+        "evaluation_interval": resolved_training_config.evaluation_interval,
+        "evaluation_episodes": resolved_training_config.evaluation_episodes,
+        "seed": resolved_training_config.seed,
+        "run_notes": resolved_training_config.run_notes,
+        "game_config_path": str(game_config_output_path),
+        "training_config_path": str(training_config_output_path),
+        "rule_signature": compute_rule_signature(resolved_game_config),
+        "training_signature": compute_training_signature(resolved_training_config),
+    }
+
+    if run_path is not None:
+        save_metrics_json(run_metadata, str(run_path / "run_metadata.json"))
+    else:
+        save_metrics_json(run_metadata, str(report_dir / "run_metadata.json"))
+
+    agent, _ = build_agent_for_config(
+        resolved_game_config,
+        learning_rate=resolved_training_config.learning_rate,
+        gamma=resolved_training_config.gamma,
+        replay_capacity=resolved_training_config.replay_capacity,
+        batch_size=resolved_training_config.batch_size,
+        target_update_frequency=resolved_training_config.target_update_frequency,
     )
 
     training_rewards = []
@@ -317,8 +391,8 @@ def train_dqn_agent(
     best_average_reward = float("-inf")
     best_checkpoint_path = checkpoint_dir / "best_scrum_model.pth"
 
-    for episode in range(1, num_episodes + 1):
-        state = env.reset(seed=seed + episode)
+    for episode in range(1, resolved_training_config.episodes + 1):
+        state = env.reset(seed=resolved_training_config.seed + episode)
         state_vector = encode_state(state, env)
         done = False
         cumulative_reward = 0
@@ -326,7 +400,12 @@ def train_dqn_agent(
         invalid_actions_this_episode = 0
         episode_action_counts = [0] * num_actions
 
-        epsilon = epsilon_by_episode(episode - 1)
+        epsilon = epsilon_by_episode(
+            episode - 1,
+            epsilon_start=resolved_training_config.epsilon_start,
+            epsilon_min=resolved_training_config.epsilon_min,
+            epsilon_decay_episodes=resolved_training_config.epsilon_decay_episodes,
+        )
 
         while not done:
             action = agent.choose_action(state_vector, epsilon=epsilon)
@@ -383,70 +462,100 @@ def train_dqn_agent(
                 action_counts=block_action_counts,
             )
 
-        if episode % checkpoint_interval == 0:
+        if episode % resolved_training_config.checkpoint_interval == 0:
             checkpoint_path = checkpoint_dir / f"checkpoint_episode_{episode:06d}.pth"
-            torch.save(agent.policy_network.state_dict(), checkpoint_path)
+            save_checkpoint(
+                checkpoint_path,
+                agent,
+                resolved_game_config,
+                resolved_training_config,
+                extra_metadata={"episode": episode},
+            )
             print(f"Checkpoint saved at episode {episode}: {checkpoint_path}")
 
-        if episode % evaluation_interval == 0:
-            evaluation_metrics = evaluate_dqn_agent(agent, num_episodes=evaluation_episodes, seed=seed + 100000 + episode)
+        if episode % resolved_training_config.evaluation_interval == 0:
+            evaluation_metrics = evaluate_dqn_agent(
+                agent,
+                num_episodes=resolved_training_config.evaluation_episodes,
+                seed=resolved_training_config.seed + 100000 + episode,
+                game_config=resolved_game_config,
+            )
             append_evaluation_log(evaluation_log_path, episode, evaluation_metrics)
 
             if evaluation_metrics["average_reward"] > best_average_reward:
                 best_average_reward = evaluation_metrics["average_reward"]
-                torch.save(agent.policy_network.state_dict(), best_checkpoint_path)
+                save_checkpoint(
+                    best_checkpoint_path,
+                    agent,
+                    resolved_game_config,
+                    resolved_training_config,
+                    extra_metadata={
+                        "episode": episode,
+                        "average_reward": best_average_reward,
+                        "is_best_checkpoint": True,
+                    },
+                )
                 print(
                     f"Updated best model at episode {episode}: {best_checkpoint_path} "
                     f"(avg reward {best_average_reward:.2f})"
                 )
 
     if not best_checkpoint_path.exists():
-        torch.save(agent.policy_network.state_dict(), best_checkpoint_path)
+        save_checkpoint(
+            best_checkpoint_path,
+            agent,
+            resolved_game_config,
+            resolved_training_config,
+            extra_metadata={"episode": resolved_training_config.episodes, "is_best_checkpoint": True},
+        )
 
     plot_path = plot_dir / "dqn_training_curve.png"
     save_training_plot(training_rewards, output_path=plot_path)
 
-    best_agent = DQNAgent(
-        state_dim=state_dim,
-        num_actions=num_actions,
-        learning_rate=learning_rate,
-        gamma=gamma,
-        replay_capacity=100000,
-        batch_size=128,
-        target_update_frequency=2000,
-        device=agent.device,
+    best_agent, _, _ = load_agent_from_checkpoint(
+        best_checkpoint_path,
+        game_config=resolved_game_config,
     )
-    best_state_dict = torch.load(best_checkpoint_path, map_location=best_agent.device)
-    best_agent.policy_network.load_state_dict(best_state_dict)
-    best_agent.target_network.load_state_dict(best_state_dict)
-    best_agent.policy_network.eval()
-    best_agent.target_network.eval()
 
-    final_evaluation = evaluate_dqn_agent(best_agent, num_episodes=1000, seed=seed + 1000)
+    final_evaluation = evaluate_dqn_agent(
+        best_agent,
+        num_episodes=1000,
+        seed=resolved_training_config.seed + 1000,
+        game_config=resolved_game_config,
+    )
 
     save_metrics_json(
         {
             "model": "Double DQN",
-            "training_episodes": num_episodes,
+            "training_episodes": resolved_training_config.episodes,
             "evaluation_episodes": len(final_evaluation["rewards"]),
             "average_reward_per_episode": final_evaluation["average_reward"],
             "average_ending_money": final_evaluation["average_ending_money"],
             "bankruptcy_rate": final_evaluation["bankruptcy_rate"],
             "average_loan_duration": final_evaluation["average_loan_duration"],
             "invalid_action_rate": final_evaluation["invalid_action_rate"],
-            "learning_rate": learning_rate,
-            "gamma": gamma,
+            "learning_rate": resolved_training_config.learning_rate,
+            "gamma": resolved_training_config.gamma,
             "state_dim": state_dim,
             "num_actions": num_actions,
             "checkpoint_path": str(best_checkpoint_path),
             "plot_path": str(plot_path),
             "log_path": str(log_path),
             "evaluation_log_path": str(evaluation_log_path),
-            "final_epsilon": epsilon_by_episode(num_episodes - 1),
+            "game_config_path": str(game_config_output_path),
+            "training_config_path": str(training_config_output_path),
+            "rule_signature": compute_rule_signature(resolved_game_config),
+            "training_signature": compute_training_signature(resolved_training_config),
+            "final_epsilon": epsilon_by_episode(
+                resolved_training_config.episodes - 1,
+                epsilon_start=resolved_training_config.epsilon_start,
+                epsilon_min=resolved_training_config.epsilon_min,
+                epsilon_decay_episodes=resolved_training_config.epsilon_decay_episodes,
+            ),
             "mean_training_reward": sum(training_rewards) / len(training_rewards),
             "mean_training_loss": (sum(training_losses) / len(training_losses)) if training_losses else None,
             "best_intermediate_evaluation_reward": best_average_reward,
-            "run_notes": run_notes,
+            "run_notes": resolved_training_config.run_notes,
             "run_path": str(run_path) if run_path is not None else None,
         },
         str(report_dir / "dqn_metrics.json"),
@@ -459,13 +568,15 @@ def parse_args():
     """Parse CLI options for dashboard-driven and manual runs."""
     parser = argparse.ArgumentParser(description="Train the advanced Double DQN Scrum Game agent.")
     parser.add_argument("--run-dir", default=None, help="Optional timestamped run directory path.")
-    parser.add_argument("--episodes", type=int, default=500000, help="Number of training episodes.")
-    parser.add_argument("--evaluation-episodes", type=int, default=100, help="Episodes per periodic checkpoint evaluation.")
-    parser.add_argument("--checkpoint-interval", type=int, default=10000, help="Checkpoint save interval.")
-    parser.add_argument("--evaluation-interval", type=int, default=10000, help="Periodic evaluation interval.")
-    parser.add_argument("--seed", type=int, default=42, help="Training seed.")
-    parser.add_argument("--learning-rate", type=float, default=0.0005, help="Optimizer learning rate.")
-    parser.add_argument("--gamma", type=float, default=0.85, help="Discount factor.")
+    parser.add_argument("--game-config", default=None, help="Optional path to a game_config.json file.")
+    parser.add_argument("--training-config", default=None, help="Optional path to a training_config.json file.")
+    parser.add_argument("--episodes", type=int, default=None, help="Number of training episodes.")
+    parser.add_argument("--evaluation-episodes", type=int, default=None, help="Episodes per periodic checkpoint evaluation.")
+    parser.add_argument("--checkpoint-interval", type=int, default=None, help="Checkpoint save interval.")
+    parser.add_argument("--evaluation-interval", type=int, default=None, help="Periodic evaluation interval.")
+    parser.add_argument("--seed", type=int, default=None, help="Training seed.")
+    parser.add_argument("--learning-rate", type=float, default=None, help="Optimizer learning rate.")
+    parser.add_argument("--gamma", type=float, default=None, help="Discount factor.")
     parser.add_argument("--notes", default="", help="Optional run notes saved with the artifacts.")
     return parser.parse_args()
 
@@ -483,6 +594,8 @@ def main():
         seed=args.seed,
         run_dir=args.run_dir,
         run_notes=args.notes,
+        game_config_path=args.game_config,
+        training_config_path=args.training_config,
     )
 
     print(f"Training episodes completed: {len(training_rewards)}")
