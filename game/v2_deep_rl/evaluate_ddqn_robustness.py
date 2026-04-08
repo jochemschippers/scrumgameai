@@ -1,172 +1,216 @@
 import argparse
-from datetime import datetime
-from pathlib import Path
+import csv
+import random
 import statistics
+from pathlib import Path
 
-from model_utils import save_metrics_csv, save_metrics_json, save_text_report
-from train_dqn import evaluate_dqn_agent, train_dqn_agent
+import torch
+
+from dqn_agent import DQNAgent, encode_state
+from scrum_game_env import ScrumGameEnv
 
 
 BASE_DIR = Path(__file__).resolve().parent
-ROBUSTNESS_DIR = BASE_DIR / "artifacts" / "robustness"
-
-
-def create_robustness_output_dir():
-    """Create a unique output folder for one robustness batch."""
-    ROBUSTNESS_DIR.mkdir(parents=True, exist_ok=True)
-    base_name = datetime.now().strftime("robustness_%Y-%m-%d_%H%M")
-    candidate = ROBUSTNESS_DIR / base_name
-    suffix = 1
-    while candidate.exists():
-        candidate = ROBUSTNESS_DIR / f"{base_name}_{suffix:02d}"
-        suffix += 1
-    candidate.mkdir(parents=True, exist_ok=True)
-    return candidate
-
-
-def evaluate_across_seeds(
-    seeds,
-    train_episodes=500000,
-    evaluation_episodes=1000,
-):
-    """Train and evaluate the advanced DDQN model across multiple fixed seeds."""
-    results = []
-
-    for seed in seeds:
-        agent, _, _, _, _, _, _ = train_dqn_agent(
-            num_episodes=train_episodes,
-            seed=seed,
-        )
-        evaluation = evaluate_dqn_agent(agent, num_episodes=evaluation_episodes, seed=seed + 1000)
-
-        results.append(
-            {
-                "seed": seed,
-                "average_reward": evaluation["average_reward"],
-                "average_ending_money": evaluation["average_ending_money"],
-                "bankruptcy_rate": evaluation["bankruptcy_rate"],
-                "average_loan_duration": evaluation["average_loan_duration"],
-                "invalid_action_rate": evaluation["invalid_action_rate"],
-                "best_episode_reward": max(evaluation["rewards"]),
-                "worst_episode_reward": min(evaluation["rewards"]),
-            }
-        )
-
-    return results
-
-
-def summarize_results(results):
-    """Compute aggregate statistics for the robustness report."""
-    average_rewards = [row["average_reward"] for row in results]
-    ending_monies = [row["average_ending_money"] for row in results]
-    bankruptcy_rates = [row["bankruptcy_rate"] for row in results]
-    loan_durations = [row["average_loan_duration"] for row in results]
-    invalid_rates = [row["invalid_action_rate"] for row in results]
-
-    return {
-        "seeds": [row["seed"] for row in results],
-        "mean_average_reward": statistics.mean(average_rewards),
-        "std_average_reward": statistics.stdev(average_rewards) if len(average_rewards) > 1 else 0.0,
-        "best_case_average_reward": max(average_rewards),
-        "worst_case_average_reward": min(average_rewards),
-        "mean_average_ending_money": statistics.mean(ending_monies),
-        "mean_bankruptcy_rate": statistics.mean(bankruptcy_rates),
-        "mean_average_loan_duration": statistics.mean(loan_durations),
-        "mean_invalid_action_rate": statistics.mean(invalid_rates),
-    }
-
-
-def build_report_text(results, summary, train_episodes, evaluation_episodes):
-    """Create a Markdown robustness summary."""
-    lines = [
-        "# DDQN Robustness Evaluation",
-        "",
-        "## Protocol",
-        f"- Seeds: {summary['seeds']}",
-        f"- Training episodes per seed: {train_episodes}",
-        f"- Evaluation episodes per seed: {evaluation_episodes}",
-        "- Each seed trains a fresh advanced DDQN model.",
-        "- Evaluation is performed after training with a separate fixed evaluation seed offset.",
-        "",
-        "## Aggregate Results",
-        f"- Mean average reward: {summary['mean_average_reward']:.2f}",
-        f"- Standard deviation: {summary['std_average_reward']:.2f}",
-        f"- Best-case average reward: {summary['best_case_average_reward']:.2f}",
-        f"- Worst-case average reward: {summary['worst_case_average_reward']:.2f}",
-        f"- Mean ending money: {summary['mean_average_ending_money']:.2f}",
-        f"- Mean bankruptcy rate: {summary['mean_bankruptcy_rate']:.3f}",
-        f"- Mean loan duration: {summary['mean_average_loan_duration']:.2f}",
-        f"- Mean invalid action rate: {summary['mean_invalid_action_rate']:.4f}",
-        "",
-        "## Per-Seed Results",
-        "",
-        "| Seed | Avg Reward | Best | Worst | Avg Ending Money | Bankruptcy Rate | Loan Duration | Invalid Action Rate |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|",
-    ]
-
-    for row in results:
-        lines.append(
-            f"| {row['seed']} | {row['average_reward']:.2f} | {row['best_episode_reward']:.2f} | "
-            f"{row['worst_episode_reward']:.2f} | {row['average_ending_money']:.2f} | "
-            f"{row['bankruptcy_rate']:.3f} | {row['average_loan_duration']:.2f} | {row['invalid_action_rate']:.4f} |"
-        )
-
-    return "\n".join(lines)
-
-
-def print_summary(summary):
-    """Print a compact terminal summary."""
-    print("DDQN Robustness Evaluation")
-    print("-------------------------")
-    print(f"Seeds: {summary['seeds']}")
-    print(f"Mean Average Reward: {summary['mean_average_reward']:.2f}")
-    print(f"Std Average Reward: {summary['std_average_reward']:.2f}")
-    print(f"Best-Case Average Reward: {summary['best_case_average_reward']:.2f}")
-    print(f"Worst-Case Average Reward: {summary['worst_case_average_reward']:.2f}")
-    print(f"Mean Ending Money: {summary['mean_average_ending_money']:.2f}")
-    print(f"Mean Bankruptcy Rate: {summary['mean_bankruptcy_rate']:.3f}")
-    print(f"Mean Loan Duration: {summary['mean_average_loan_duration']:.2f}")
-    print(f"Mean Invalid Action Rate: {summary['mean_invalid_action_rate']:.4f}")
+RUNS_DIR = BASE_DIR / "artifacts" / "runs"
+DEFAULT_SEEDS = [42, 123, 999, 2026, 31415]
 
 
 def parse_args():
-    """Parse CLI options for robustness evaluation."""
-    parser = argparse.ArgumentParser(description="Run the 5-seed DDQN robustness evaluation.")
-    parser.add_argument("--episodes", type=int, default=500000, help="Training episodes per seed.")
-    parser.add_argument("--evaluation-episodes", type=int, default=1000, help="Evaluation episodes per seed.")
+    """Parse CLI arguments for the checkpoint-only robustness evaluation."""
+    parser = argparse.ArgumentParser(
+        description="Evaluate one saved DDQN checkpoint across five greedy seeded games."
+    )
+    parser.add_argument(
+        "run_dir",
+        nargs="?",
+        default=None,
+        help="Optional path to a specific run folder. Defaults to the newest folder in artifacts/runs.",
+    )
+    parser.add_argument(
+        "--run-dir",
+        dest="run_dir_flag",
+        default=None,
+        help="Optional path to a specific run folder. Overrides the positional run_dir argument.",
+    )
+    parser.add_argument(
+        "--seeds",
+        nargs="+",
+        type=int,
+        default=DEFAULT_SEEDS,
+        help="Seed list for pure greedy evaluation. The first five seeds are used.",
+    )
+    parser.add_argument(
+        "--episodes",
+        type=int,
+        default=None,
+        help="Deprecated and ignored. This script does not train.",
+    )
+    parser.add_argument(
+        "--evaluation-episodes",
+        type=int,
+        default=None,
+        help="Deprecated and ignored. This script runs one full greedy game per seed.",
+    )
     return parser.parse_args()
 
 
+def resolve_input_path(path_text):
+    """Resolve an input path relative to the current working directory or this script."""
+    candidate = Path(path_text).expanduser()
+    if candidate.is_absolute():
+        return candidate
+
+    cwd_candidate = candidate.resolve()
+    if cwd_candidate.exists():
+        return cwd_candidate
+
+    return (BASE_DIR / candidate).resolve()
+
+
+def get_newest_run_dir():
+    """Return the most recently modified run folder under artifacts/runs."""
+    if not RUNS_DIR.exists():
+        raise FileNotFoundError(f"Run directory does not exist: {RUNS_DIR}")
+
+    run_dirs = [path for path in RUNS_DIR.iterdir() if path.is_dir()]
+    if not run_dirs:
+        raise FileNotFoundError(f"No run folders found under: {RUNS_DIR}")
+
+    return max(run_dirs, key=lambda path: (path.stat().st_mtime, path.name))
+
+
+def resolve_run_dir(args):
+    """Resolve either the requested run directory or the newest available one."""
+    requested_path = args.run_dir_flag or args.run_dir
+    if requested_path is None:
+        run_dir = get_newest_run_dir()
+    else:
+        run_dir = resolve_input_path(requested_path)
+
+    if not run_dir.exists():
+        raise FileNotFoundError(f"Run folder not found: {run_dir}")
+    if not run_dir.is_dir():
+        raise NotADirectoryError(f"Run path is not a directory: {run_dir}")
+
+    return run_dir
+
+
+def resolve_checkpoint_path(run_dir):
+    """Return the expected best-model checkpoint path for one run folder."""
+    checkpoint_path = run_dir / "checkpoints" / "best_scrum_model.pth"
+    if not checkpoint_path.exists():
+        raise FileNotFoundError(
+            f"Checkpoint not found: {checkpoint_path}. Expected best_scrum_model.pth inside the run's checkpoints folder."
+        )
+    return checkpoint_path
+
+
+def load_agent(checkpoint_path, seed=DEFAULT_SEEDS[0]):
+    """Initialize the environment and load the saved DDQN policy for inference."""
+    env = ScrumGameEnv()
+    initial_state = env.reset(seed=seed)
+    agent = DQNAgent(
+        state_dim=len(encode_state(initial_state, env)),
+        num_actions=env.num_actions,
+        learning_rate=0.0005,
+        gamma=0.85,
+    )
+
+    try:
+        state_dict = torch.load(checkpoint_path, map_location=agent.device)
+        agent.policy_network.load_state_dict(state_dict)
+        agent.target_network.load_state_dict(state_dict)
+    except RuntimeError as error:
+        raise RuntimeError(
+            "The selected checkpoint is incompatible with the current advanced 8-action DDQN model."
+        ) from error
+
+    agent.policy_network.eval()
+    agent.target_network.eval()
+    return agent
+
+
+def evaluate_one_seed(agent, seed):
+    """Play one complete greedy game for one fixed seed."""
+    random.seed(seed)
+    torch.manual_seed(seed)
+
+    env = ScrumGameEnv()
+    state = env.reset(seed=seed)
+    state_vector = encode_state(state, env)
+    done = False
+    total_reward = 0.0
+    invalid_action_count = 0
+    steps = 0
+
+    while not done:
+        action = agent.choose_action(state_vector, epsilon=0.0)
+        next_state, reward, done, info = env.step(action)
+        if info.get("invalid_action"):
+            invalid_action_count += 1
+
+        total_reward += reward
+        steps += 1
+        state_vector = encode_state(next_state, env)
+
+    return {
+        "seed": seed,
+        "epsilon": 0.0,
+        "episode_reward": total_reward,
+        "ending_money": next_state["current_money"],
+        "turns_played": steps,
+        "loan_turns": env.turns_with_loan,
+        "loans_taken": env.loans_taken,
+        "invalid_action_count": invalid_action_count,
+        "terminal_reason": info.get("terminal_reason", ""),
+    }
+
+
+def evaluate_across_seeds(agent, seeds):
+    """Evaluate one saved policy across the requested fixed seeds."""
+    return [evaluate_one_seed(agent, seed) for seed in seeds]
+
+
+def save_results_csv(results, output_path):
+    """Save the per-seed robustness results to CSV."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(results[0].keys()))
+        writer.writeheader()
+        writer.writerows(results)
+
+
+def print_summary(results, run_dir, checkpoint_path, output_path):
+    """Print a compact terminal summary for the evaluation batch."""
+    rewards = [row["episode_reward"] for row in results]
+    ending_money = [row["ending_money"] for row in results]
+    bankruptcies = sum(1 for row in results if row["terminal_reason"] == "bankruptcy")
+
+    print("DDQN Robustness Evaluation")
+    print("-------------------------")
+    print(f"Run folder: {run_dir}")
+    print(f"Checkpoint: {checkpoint_path}")
+    print(f"Seeds: {[row['seed'] for row in results]}")
+    print(f"Mean reward: {statistics.mean(rewards):.2f}")
+    print(f"Mean ending money: {statistics.mean(ending_money):.2f}")
+    print(f"Bankruptcies: {bankruptcies}/{len(results)}")
+    print(f"Saved CSV to: {output_path}")
+
+
 def main():
-    """Run the five-seed DDQN robustness protocol and save report artifacts."""
+    """Run a pure inference robustness evaluation without any training calls."""
     args = parse_args()
-    seeds = [42, 123, 999, 2026, 31415]
-    results = evaluate_across_seeds(
-        seeds=seeds,
-        train_episodes=args.episodes,
-        evaluation_episodes=args.evaluation_episodes,
-    )
-    summary = summarize_results(results)
-    report_text = build_report_text(results, summary, args.episodes, args.evaluation_episodes)
-    output_dir = create_robustness_output_dir()
-    csv_path = output_dir / "ddqn_robustness.csv"
-    json_path = output_dir / "ddqn_robustness.json"
-    report_path = output_dir / "ddqn_robustness.md"
+    if len(args.seeds) < 5:
+        raise ValueError("Provide at least five seeds for robustness evaluation.")
 
-    save_metrics_csv(results, str(csv_path))
-    save_metrics_json(
-        {
-            "summary": summary,
-            "per_seed_results": results,
-        },
-        str(json_path),
-    )
-    save_text_report(report_text, str(report_path))
+    run_dir = resolve_run_dir(args)
+    checkpoint_path = resolve_checkpoint_path(run_dir)
+    agent = load_agent(checkpoint_path)
+    results = evaluate_across_seeds(agent, seeds=args.seeds[:5])
+    output_path = run_dir / "robustness_results.csv"
 
-    print_summary(summary)
-    print(f"Saved robustness CSV to: {csv_path}")
-    print(f"Saved robustness JSON to: {json_path}")
-    print(f"Saved robustness Markdown to: {report_path}")
+    save_results_csv(results, output_path)
+    print_summary(results, run_dir, checkpoint_path, output_path)
 
 
 if __name__ == "__main__":
