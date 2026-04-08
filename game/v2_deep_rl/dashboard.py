@@ -39,6 +39,8 @@ REPORTS_DIR = ARTIFACTS_DIR / "reports"
 CHECKPOINT_DIR = ARTIFACTS_DIR / "checkpoints"
 RUNS_DIR = ARTIFACTS_DIR / "runs"
 ROBUSTNESS_DIR = ARTIFACTS_DIR / "robustness"
+CONFIG_LIBRARY_DIR = BASE_DIR / "configs" / "custom"
+TRAINING_CONFIG_LIBRARY_DIR = BASE_DIR / "configs" / "training"
 LOG_PATH = REPORTS_DIR / "logs.csv"
 EVALUATION_LOG_PATH = REPORTS_DIR / "evaluation_history.csv"
 BEST_CHECKPOINT_PATH = CHECKPOINT_DIR / "best_scrum_model.pth"
@@ -52,6 +54,8 @@ def ensure_runtime_dirs():
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     ROBUSTNESS_DIR.mkdir(parents=True, exist_ok=True)
+    CONFIG_LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
+    TRAINING_CONFIG_LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def load_json_file(file_path):
@@ -129,6 +133,8 @@ def launch_training_process(
     run_notes="",
     game_config_path="",
     training_config_path="",
+    resume_from="",
+    resume_mode="strict",
     learning_rate=None,
     gamma=None,
     seed=None,
@@ -175,6 +181,8 @@ def launch_training_process(
             command.extend(["--game-config", str(game_config_path)])
         if training_config_path:
             command.extend(["--training-config", str(training_config_path)])
+        if resume_from:
+            command.extend(["--resume-from", str(resume_from), "--resume-mode", str(resume_mode)])
         if learning_rate is not None:
             command.extend(["--learning-rate", str(learning_rate)])
         if gamma is not None:
@@ -394,6 +402,28 @@ def load_source_game_config(selected_source):
     return load_game_config()
 
 
+def list_saved_game_configs():
+    """List bundled and custom-discovered game config files."""
+    configs = {
+        "Default Bundled Config": BASE_DIR / "configs" / "default_game_config.json",
+    }
+    if CONFIG_LIBRARY_DIR.exists():
+        for config_path in sorted(CONFIG_LIBRARY_DIR.glob("*.json")):
+            configs[config_path.name] = config_path
+    return configs
+
+
+def list_saved_training_configs():
+    """List bundled and custom-discovered training config files."""
+    configs = {
+        "Default Bundled Training Config": BASE_DIR / "configs" / "default_training_config.json",
+    }
+    if TRAINING_CONFIG_LIBRARY_DIR.exists():
+        for config_path in sorted(TRAINING_CONFIG_LIBRARY_DIR.glob("*.json")):
+            configs[config_path.name] = config_path
+    return configs
+
+
 def list_run_sources():
     """List the legacy flat artifacts and all timestamped run folders."""
     sources = [
@@ -437,6 +467,22 @@ def list_checkpoints():
         return []
 
     checkpoints = sorted(CHECKPOINT_DIR.glob("*.pth"))
+    best_first = []
+    for checkpoint in checkpoints:
+        if checkpoint.name == "best_scrum_model.pth":
+            best_first.insert(0, checkpoint)
+        else:
+            best_first.append(checkpoint)
+    return best_first
+
+
+def list_checkpoints_for_source(source):
+    """List checkpoints for one run source with best-model preference."""
+    checkpoints_dir = source["checkpoints_dir"]
+    if not checkpoints_dir.exists():
+        return []
+
+    checkpoints = sorted(checkpoints_dir.glob("*.pth"))
     best_first = []
     for checkpoint in checkpoints:
         if checkpoint.name == "best_scrum_model.pth":
@@ -888,6 +934,29 @@ def render_server_controls_v2():
     """Render sidebar controls for starting and stopping background jobs."""
     st.sidebar.header("Server Controls")
     active_process = get_training_process_state()
+    saved_game_configs = list_saved_game_configs()
+    saved_game_config_labels = list(saved_game_configs.keys())
+    saved_training_configs = list_saved_training_configs()
+    saved_training_config_labels = list(saved_training_configs.keys())
+    resume_sources = {
+        source["label"]: source
+        for source in list_run_sources()
+        if source["checkpoint_path"].exists()
+    }
+    resume_source_labels = ["None"] + list(resume_sources.keys())
+    game_override_labels = ["None"] + saved_game_config_labels + ["Manual Path"]
+    training_override_labels = ["None"] + saved_training_config_labels + ["Manual Path"]
+    resume_override_labels = ["None", "Manual Path"]
+    if st.session_state.get("selected_saved_game_config") not in saved_game_config_labels:
+        st.session_state["selected_saved_game_config"] = saved_game_config_labels[0]
+    if st.session_state.get("selected_training_config_option") not in training_override_labels:
+        st.session_state["selected_training_config_option"] = "None"
+    if st.session_state.get("selected_game_config_override") not in game_override_labels:
+        st.session_state["selected_game_config_override"] = "None"
+    if st.session_state.get("resume_source_label") not in resume_source_labels:
+        st.session_state["resume_source_label"] = "None"
+    if st.session_state.get("selected_resume_checkpoint_override") not in resume_override_labels:
+        st.session_state["selected_resume_checkpoint_override"] = "None"
 
     if active_process:
         elapsed = format_elapsed_time(time.time() - active_process.get("started_at_epoch", time.time()))
@@ -899,8 +968,60 @@ def render_server_controls_v2():
 
     st.sidebar.text_input("Run Notes", key="run_notes")
     st.sidebar.number_input("Episode Count", min_value=1000, step=1000, key="episode_count")
-    st.sidebar.text_input("Game Config Path", key="game_config_path")
-    st.sidebar.text_input("Training Config Path", key="training_config_path")
+    st.sidebar.selectbox(
+        "Saved Game Config",
+        saved_game_config_labels,
+        key="selected_saved_game_config",
+    )
+    st.sidebar.caption(f"Auto-read folder: {CONFIG_LIBRARY_DIR}")
+    st.sidebar.selectbox(
+        "Game Config Override",
+        game_override_labels,
+        key="selected_game_config_override",
+    )
+    if st.session_state["selected_game_config_override"] == "Manual Path":
+        st.sidebar.text_input("Game Config Manual Path", key="game_config_path")
+    st.sidebar.selectbox(
+        "Training Config",
+        training_override_labels,
+        key="selected_training_config_option",
+    )
+    st.sidebar.caption(f"Auto-read folder: {TRAINING_CONFIG_LIBRARY_DIR}")
+    if st.session_state["selected_training_config_option"] == "Manual Path":
+        st.sidebar.text_input("Training Config Manual Path", key="training_config_path")
+    st.sidebar.selectbox("Resume From Run", resume_source_labels, key="resume_source_label")
+    selected_resume_checkpoint_path = ""
+    if st.session_state["resume_source_label"] != "None":
+        selected_resume_source = resume_sources[st.session_state["resume_source_label"]]
+        resume_checkpoints = list_checkpoints_for_source(selected_resume_source)
+        resume_checkpoint_labels = [checkpoint.name for checkpoint in resume_checkpoints]
+        resume_checkpoint_key = f"resume_checkpoint_label::{st.session_state['resume_source_label']}"
+        if st.session_state.get(resume_checkpoint_key) not in resume_checkpoint_labels:
+            st.session_state[resume_checkpoint_key] = (
+                resume_checkpoint_labels[0] if resume_checkpoint_labels else ""
+            )
+        if resume_checkpoint_labels:
+            st.sidebar.selectbox(
+                "Resume Checkpoint",
+                resume_checkpoint_labels,
+                key=resume_checkpoint_key,
+            )
+            selected_resume_checkpoint = next(
+                checkpoint
+                for checkpoint in resume_checkpoints
+                if checkpoint.name == st.session_state[resume_checkpoint_key]
+            )
+            selected_resume_checkpoint_path = str(selected_resume_checkpoint)
+            st.sidebar.caption(f"Auto-selected checkpoint: {selected_resume_checkpoint_path}")
+    st.sidebar.selectbox(
+        "Resume Checkpoint Override",
+        resume_override_labels,
+        key="selected_resume_checkpoint_override",
+    )
+    if st.session_state["selected_resume_checkpoint_override"] == "Manual Path":
+        st.sidebar.text_input("Resume Checkpoint Manual Path", key="resume_checkpoint_path")
+    st.sidebar.selectbox("Resume Mode", ["strict", "fine-tune"], key="resume_mode")
+    st.sidebar.caption("Use strict for same rules. Use fine-tune only when the model shape still matches.")
     st.sidebar.number_input("Learning Rate Override", min_value=0.00001, step=0.0001, format="%.5f", key="learning_rate_override")
     st.sidebar.number_input("Gamma Override", min_value=0.1, max_value=0.9999, step=0.01, format="%.4f", key="gamma_override")
     st.sidebar.number_input("Seed Override", min_value=0, step=1, key="seed_override")
@@ -909,11 +1030,34 @@ def render_server_controls_v2():
     launch_disabled = active_process is not None
     if st.sidebar.button("Launch 500k Episode Training", use_container_width=True, disabled=launch_disabled):
         try:
+            selected_game_config_path = str(saved_game_configs[st.session_state["selected_saved_game_config"]])
+            if st.session_state["selected_game_config_override"] == "Manual Path":
+                selected_game_config_path = st.session_state["game_config_path"].strip() or selected_game_config_path
+            elif st.session_state["selected_game_config_override"] != "None":
+                selected_game_config_path = str(
+                    saved_game_configs[st.session_state["selected_game_config_override"]]
+                )
+
+            selected_training_config_path = ""
+            if st.session_state["selected_training_config_option"] == "Manual Path":
+                selected_training_config_path = st.session_state["training_config_path"].strip()
+            elif st.session_state["selected_training_config_option"] != "None":
+                selected_training_config_path = str(
+                    saved_training_configs[st.session_state["selected_training_config_option"]]
+                )
+
+            selected_resume_path = (
+                st.session_state["resume_checkpoint_path"].strip()
+                if st.session_state["selected_resume_checkpoint_override"] == "Manual Path"
+                else selected_resume_checkpoint_path
+            )
             success, message, run_name = launch_training_process(
                 episode_count=st.session_state["episode_count"],
                 run_notes=st.session_state["run_notes"],
-                game_config_path=st.session_state["game_config_path"],
-                training_config_path=st.session_state["training_config_path"],
+                game_config_path=selected_game_config_path,
+                training_config_path=selected_training_config_path,
+                resume_from=selected_resume_path,
+                resume_mode=st.session_state["resume_mode"],
                 learning_rate=st.session_state["learning_rate_override"],
                 gamma=st.session_state["gamma_override"],
                 seed=st.session_state["seed_override"],
@@ -966,8 +1110,22 @@ if "episode_count" not in st.session_state:
     st.session_state["episode_count"] = 500000
 if "game_config_path" not in st.session_state:
     st.session_state["game_config_path"] = ""
+if "selected_saved_game_config" not in st.session_state:
+    st.session_state["selected_saved_game_config"] = "Default Bundled Config"
+if "selected_game_config_override" not in st.session_state:
+    st.session_state["selected_game_config_override"] = "None"
 if "training_config_path" not in st.session_state:
     st.session_state["training_config_path"] = ""
+if "selected_training_config_option" not in st.session_state:
+    st.session_state["selected_training_config_option"] = "None"
+if "resume_checkpoint_path" not in st.session_state:
+    st.session_state["resume_checkpoint_path"] = ""
+if "resume_source_label" not in st.session_state:
+    st.session_state["resume_source_label"] = "None"
+if "selected_resume_checkpoint_override" not in st.session_state:
+    st.session_state["selected_resume_checkpoint_override"] = "None"
+if "resume_mode" not in st.session_state:
+    st.session_state["resume_mode"] = "strict"
 if "learning_rate_override" not in st.session_state:
     st.session_state["learning_rate_override"] = 0.0005
 if "gamma_override" not in st.session_state:

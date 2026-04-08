@@ -227,6 +227,60 @@ def resolve_training_config(
     return TrainingConfig.from_dict(payload)
 
 
+def initialize_agent_from_checkpoint(
+    agent,
+    checkpoint_path,
+    target_game_config: GameConfig,
+    resume_mode: str,
+):
+    """Warm-start an agent from an existing checkpoint under the requested resume mode."""
+    if not checkpoint_path:
+        return None
+
+    if resume_mode not in {"strict", "fine-tune"}:
+        raise ValueError("resume_mode must be either 'strict' or 'fine-tune'.")
+
+    strict_signature = resume_mode == "strict"
+    try:
+        _, _, checkpoint_metadata = load_agent_from_checkpoint(
+            checkpoint_path,
+            game_config=target_game_config,
+            strict_signature=strict_signature,
+        )
+    except RuntimeError as error:
+        raise RuntimeError(
+            f"Could not resume from checkpoint `{checkpoint_path}` under mode `{resume_mode}`: {error}"
+        ) from error
+
+    payload = torch.load(checkpoint_path, map_location=agent.device)
+    if isinstance(payload, dict) and "model_state_dict" in payload:
+        state_dict = payload["model_state_dict"]
+    else:
+        state_dict = payload
+
+    try:
+        agent.policy_network.load_state_dict(state_dict)
+        agent.target_network.load_state_dict(state_dict)
+    except RuntimeError as error:
+        raise RuntimeError(
+            "Checkpoint tensor shapes do not match the requested game config. "
+            "Resume/fine-tune only works when the model architecture is still compatible."
+        ) from error
+
+    agent.policy_network.train()
+    agent.target_network.eval()
+    return {
+        "resume_checkpoint_path": str(checkpoint_path),
+        "resume_mode": resume_mode,
+        "resume_checkpoint_rule_signature": (
+            checkpoint_metadata.get("checkpoint_rule_signature")
+            or checkpoint_metadata.get("rule_signature")
+        ),
+        "resume_target_rule_signature": compute_rule_signature(target_game_config),
+        "resume_legacy_checkpoint": checkpoint_metadata.get("legacy_checkpoint", False),
+    }
+
+
 def evaluate_dqn_agent(agent, num_episodes=1000, seed=1042, game_config: GameConfig | None = None):
     """
     Evaluate the DDQN greedily with epsilon fixed at 0.
@@ -312,6 +366,8 @@ def train_dqn_agent(
     game_config_path=None,
     training_config: TrainingConfig | None = None,
     training_config_path=None,
+    resume_from=None,
+    resume_mode="strict",
 ):
     """Train a Double DQN agent on the advanced Scrum Game environment."""
     resolved_game_config = game_config or load_game_config(game_config_path)
@@ -364,6 +420,8 @@ def train_dqn_agent(
         "training_config_path": str(training_config_output_path),
         "rule_signature": compute_rule_signature(resolved_game_config),
         "training_signature": compute_training_signature(resolved_training_config),
+        "resume_checkpoint_path": str(resume_from) if resume_from else None,
+        "resume_mode": resume_mode if resume_from else None,
     }
 
     if run_path is not None:
@@ -379,6 +437,18 @@ def train_dqn_agent(
         batch_size=resolved_training_config.batch_size,
         target_update_frequency=resolved_training_config.target_update_frequency,
     )
+    resume_metadata = initialize_agent_from_checkpoint(
+        agent,
+        resume_from,
+        resolved_game_config,
+        resume_mode,
+    )
+    if resume_metadata:
+        run_metadata.update(resume_metadata)
+        if run_path is not None:
+            save_metrics_json(run_metadata, str(run_path / "run_metadata.json"))
+        else:
+            save_metrics_json(run_metadata, str(report_dir / "run_metadata.json"))
 
     training_rewards = []
     training_losses = []
@@ -469,7 +539,10 @@ def train_dqn_agent(
                 agent,
                 resolved_game_config,
                 resolved_training_config,
-                extra_metadata={"episode": episode},
+                extra_metadata={
+                    "episode": episode,
+                    **(resume_metadata or {}),
+                },
             )
             print(f"Checkpoint saved at episode {episode}: {checkpoint_path}")
 
@@ -493,6 +566,7 @@ def train_dqn_agent(
                         "episode": episode,
                         "average_reward": best_average_reward,
                         "is_best_checkpoint": True,
+                        **(resume_metadata or {}),
                     },
                 )
                 print(
@@ -506,7 +580,11 @@ def train_dqn_agent(
             agent,
             resolved_game_config,
             resolved_training_config,
-            extra_metadata={"episode": resolved_training_config.episodes, "is_best_checkpoint": True},
+            extra_metadata={
+                "episode": resolved_training_config.episodes,
+                "is_best_checkpoint": True,
+                **(resume_metadata or {}),
+            },
         )
 
     plot_path = plot_dir / "dqn_training_curve.png"
@@ -546,6 +624,11 @@ def train_dqn_agent(
             "training_config_path": str(training_config_output_path),
             "rule_signature": compute_rule_signature(resolved_game_config),
             "training_signature": compute_training_signature(resolved_training_config),
+            "resume_checkpoint_path": str(resume_from) if resume_from else None,
+            "resume_mode": resume_mode if resume_from else None,
+            "resume_checkpoint_rule_signature": (resume_metadata or {}).get("resume_checkpoint_rule_signature"),
+            "resume_target_rule_signature": (resume_metadata or {}).get("resume_target_rule_signature"),
+            "resume_legacy_checkpoint": (resume_metadata or {}).get("resume_legacy_checkpoint"),
             "final_epsilon": epsilon_by_episode(
                 resolved_training_config.episodes - 1,
                 epsilon_start=resolved_training_config.epsilon_start,
@@ -577,6 +660,13 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=None, help="Training seed.")
     parser.add_argument("--learning-rate", type=float, default=None, help="Optimizer learning rate.")
     parser.add_argument("--gamma", type=float, default=None, help="Discount factor.")
+    parser.add_argument("--resume-from", default=None, help="Optional checkpoint path for resume or fine-tune training.")
+    parser.add_argument(
+        "--resume-mode",
+        choices=["strict", "fine-tune"],
+        default="strict",
+        help="Use 'strict' for same-rule resume or 'fine-tune' to allow rule-signature mismatch when shapes match.",
+    )
     parser.add_argument("--notes", default="", help="Optional run notes saved with the artifacts.")
     return parser.parse_args()
 
@@ -596,6 +686,8 @@ def main():
         run_notes=args.notes,
         game_config_path=args.game_config,
         training_config_path=args.training_config,
+        resume_from=args.resume_from,
+        resume_mode=args.resume_mode,
     )
 
     print(f"Training episodes completed: {len(training_rewards)}")

@@ -1,0 +1,18 @@
+DDQN Robustness Evaluation
+-------------------------
+Run folder: C:\Users\joche\OneDrive\Documenten\GitHub\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-07_1958
+Checkpoint: C:\Users\joche\OneDrive\Documenten\GitHub\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-07_1958\checkpoints\best_scrum_model.pth
+Seeds: [42, 123, 999, 2026, 31415]
+Mean reward: 15750.00
+Mean ending money: 51200.00
+Bankruptcies: 1/5
+Saved CSV to: C:\Users\joche\OneDrive\Documenten\GitHub\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-07_1958\robustness_results.csv
+DDQN Robustness Evaluation
+-------------------------
+Run folder: C:\Users\joche\OneDrive\Documenten\GitHub\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-07_1958
+Checkpoint: C:\Users\joche\OneDrive\Documenten\GitHub\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-07_1958\checkpoints\best_scrum_model.pth
+Seeds: [42, 123, 999, 2026, 31415]
+Mean reward: 15750.00
+Mean ending money: 51200.00
+Bankruptcies: 1/5
+Saved CSV to: C:\Users\joche\OneDrive\Documenten\GitHub\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-07_1958\robustness_results.csv

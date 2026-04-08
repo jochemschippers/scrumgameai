@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Scrum Game Control Center</title>
+  <link rel="stylesheet" href="./styles/app.css?v=13" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <h1>Control Center</h1>
+        <p>Unified Scrum Game workspace</p>
+      </div>
+
+      <nav class="nav" aria-label="Primary">
+        <button class="nav-button is-active" data-page="rules">Rules</button>
+        <button class="nav-button" data-page="models">Models</button>
+        <button class="nav-button" data-page="training">Training</button>
+        <button class="nav-button" data-page="testing">Testing</button>
+        <button class="nav-button" data-page="play">Play</button>
+      </nav>
+
+      <section class="sidebar-section">
+        <h2>Backend</h2>
+        <label class="field">
+          <span>API Base URL</span>
+          <input id="apiBaseUrlInput" type="text" value="http://127.0.0.1:8000" />
+        </label>
+        <div class="button-row">
+          <button id="connectButton" class="button primary" type="button">Connect</button>
+          <button id="refreshAllButton" class="button secondary" type="button">Refresh</button>
+        </div>
+        <div id="backendStatusCard" class="status-card status-muted">
+          <strong>Status</strong>
+          <span>Not connected</span>
+        </div>
+      </section>
+
+      <section class="sidebar-section">
+        <h2>Selections</h2>
+        <div class="selection-stack">
+          <label class="field">
+            <span>Active Game Config</span>
+            <select id="activeGameConfigSelect"></select>
+          </label>
+          <label class="field">
+            <span>Active Training Config</span>
+            <select id="activeTrainingConfigSelect"></select>
+          </label>
+          <label class="field">
+            <span>Active Checkpoint</span>
+            <select id="activeCheckpointSelect"></select>
+          </label>
+        </div>
+      </section>
+    </aside>
+
+    <main class="main-panel">
+      <header class="topbar">
+        <div>
+          <h2 id="pageTitle">Rules</h2>
+          <p id="pageSubtitle">Browse managed game and training config assets.</p>
+        </div>
+        <div class="summary-pills">
+          <span id="summaryRuleSignature" class="pill">Rule Signature: -</span>
+          <span id="summaryCheckpointStatus" class="pill">Checkpoint: -</span>
+          <span id="summaryJobCount" class="pill">Jobs: 0</span>
+        </div>
+      </header>
+
+      <section id="contextCard" class="context-card">
+        <div class="context-card-head">
+          <strong>Current Context</strong>
+          <span id="contextPageUsage" class="meta-count">Rules uses the active game and training configs.</span>
+        </div>
+        <div id="contextCardBody" class="context-grid"></div>
+      </section>
+
+      <section id="globalMessage" class="message hidden"></section>
+
+      <section id="page-rules" class="page is-active">
+        <div class="grid two">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Game Configs</h3>
+              <span id="gameConfigCount" class="meta-count">0</span>
+            </div>
+            <div class="compact-toolbar">
+              <button id="cloneGameConfigButton" class="button secondary" type="button">Clone Active</button>
+              <button id="exportGameConfigButton" class="button secondary" type="button">Export Active</button>
+              <button id="deleteGameConfigButton" class="button secondary" type="button">Delete Active</button>
+              <button id="importGameConfigButton" class="button secondary" type="button">Import JSON</button>
+              <input id="importGameConfigInput" type="file" accept=".json,application/json" class="hidden" />
+            </div>
+            <div id="gameConfigsList" class="list-stack"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Training Configs</h3>
+              <span id="trainingConfigCount" class="meta-count">0</span>
+            </div>
+            <div class="compact-toolbar">
+              <button id="cloneTrainingConfigButton" class="button secondary" type="button">Clone Active</button>
+              <button id="exportTrainingConfigButton" class="button secondary" type="button">Export Active</button>
+              <button id="deleteTrainingConfigButton" class="button secondary" type="button">Delete Active</button>
+              <button id="importTrainingConfigButton" class="button secondary" type="button">Import JSON</button>
+              <input id="importTrainingConfigInput" type="file" accept=".json,application/json" class="hidden" />
+            </div>
+            <div id="trainingConfigsList" class="list-stack"></div>
+          </article>
+        </div>
+
+        <article class="panel rules-editor-grid">
+          <div class="panel-head">
+            <h3>Visual Game Rules Editor</h3>
+            <div class="inline-actions">
+              <button id="visualEditorLoadButton" class="button secondary" type="button">Load Active</button>
+              <button id="visualEditorResetButton" class="button secondary" type="button">Reset Defaults</button>
+            </div>
+          </div>
+
+          <div class="visual-editor-grid">
+            <section class="panel inset-panel">
+              <div class="panel-head">
+                <h4>Metadata</h4>
+              </div>
+              <div class="grid two">
+                <label class="field">
+                  <span>Config Name</span>
+                  <input id="configNameInput" type="text" />
+                </label>
+                <label class="field">
+                  <span>Schema Version</span>
+                  <input id="schemaVersionInput" type="text" />
+                </label>
+                <label class="field span-2">
+                  <span>Description</span>
+                  <textarea id="configDescriptionInput" rows="3"></textarea>
+                </label>
+              </div>
+            </section>
+
+            <section class="panel inset-panel">
+              <div class="panel-head">
+                <h4>Core Rules</h4>
+              </div>
+              <div class="grid three">
+                <label class="field"><span>Players</span><input id="playersCountInput" type="number" min="1" /></label>
+                <label class="field"><span>Products</span><input id="productsCountInput" type="number" min="1" /></label>
+                <label class="field"><span>Sprints / Product</span><input id="sprintsPerProductInput" type="number" min="1" /></label>
+                <label class="field"><span>Max Turns</span><input id="maxTurnsInput" type="number" min="1" /></label>
+                <label class="field"><span>Starting Money</span><input id="startingMoneyInput" type="number" /></label>
+                <label class="field"><span>Ring Value</span><input id="ringValueInput" type="number" /></label>
+                <label class="field"><span>Continue Cost</span><input id="costContinueInput" type="number" /></label>
+                <label class="field"><span>Switch Mid Cost</span><input id="costSwitchMidInput" type="number" /></label>
+                <label class="field"><span>Switch After Cost</span><input id="costSwitchAfterInput" type="number" /></label>
+                <label class="field"><span>Mandatory Loan</span><input id="mandatoryLoanInput" type="number" /></label>
+                <label class="field"><span>Loan Interest</span><input id="loanInterestInput" type="number" /></label>
+                <label class="field"><span>Penalty Negative</span><input id="penaltyNegativeInput" type="number" /></label>
+                <label class="field"><span>Penalty Positive</span><input id="penaltyPositiveInput" type="number" /></label>
+                <label class="field"><span>Daily Scrums / Sprint</span><input id="dailyScrumsInput" type="number" min="1" /></label>
+                <label class="field"><span>Daily Scrum Target</span><input id="dailyScrumTargetInput" type="number" min="1" /></label>
+              </div>
+            </section>
+
+            <section class="panel inset-panel">
+              <div class="panel-head">
+                <h4>Products</h4>
+              </div>
+              <div id="productNamesGrid" class="grid three"></div>
+            </section>
+
+            <section class="panel inset-panel">
+              <div class="panel-head">
+                <h4>Board Matrix</h4>
+              </div>
+              <div id="boardMatrixContainer" class="matrix-wrap"></div>
+            </section>
+
+            <section class="panel inset-panel">
+              <div class="panel-head">
+                <h4>Dice Rules</h4>
+                <button id="addDiceRuleButton" class="button secondary" type="button">Add Dice Rule</button>
+              </div>
+              <div id="diceRulesList" class="list-stack"></div>
+            </section>
+
+            <section class="panel inset-panel">
+              <div class="panel-head">
+                <h4>Refinement Rules</h4>
+                <button id="resetRefinementRulesButton" class="button secondary" type="button">Rebuild Rules</button>
+              </div>
+              <div class="grid three">
+                <label class="field checkbox-inline">
+                  <input id="refinementActiveInput" type="checkbox" />
+                  <span>Refinements Active</span>
+                </label>
+                <label class="field">
+                  <span>Model Name</span>
+                  <input id="refinementModelInput" type="text" />
+                </label>
+                <label class="field">
+                  <span>Refinement Die Sides</span>
+                  <input id="refinementDieSidesInput" type="number" min="2" />
+                </label>
+              </div>
+              <div id="refinementRulesList" class="list-stack"></div>
+            </section>
+
+            <section class="panel inset-panel">
+              <div class="panel-head">
+                <h4>Incident Deck</h4>
+                <button id="addIncidentCardButton" class="button secondary" type="button">Add Incident Card</button>
+              </div>
+              <div class="grid four">
+                <label class="field checkbox-inline">
+                  <input id="incidentActiveInput" type="checkbox" />
+                  <span>Incidents Active</span>
+                </label>
+                <label class="field checkbox-inline">
+                  <input id="playerSpecificIncidentsInput" type="checkbox" />
+                  <span>Allow Player-Specific Incidents</span>
+                </label>
+                <label class="field">
+                  <span>Draw Probability</span>
+                  <input id="incidentDrawProbabilityInput" type="number" min="0" max="1" step="0.05" />
+                </label>
+                <label class="field">
+                  <span>Severity Multiplier</span>
+                  <input id="incidentSeverityMultiplierInput" type="number" min="0" step="0.05" />
+                </label>
+              </div>
+              <div id="incidentCardsList" class="list-stack"></div>
+            </section>
+          </div>
+        </article>
+
+        <div class="grid two rules-editor-grid">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Game Config JSON</h3>
+              <div class="inline-actions">
+                <button id="validateGameConfigButton" class="button secondary" type="button">Validate</button>
+                <button id="loadActiveGameConfigButton" class="button secondary" type="button">Load Active</button>
+              </div>
+            </div>
+            <div class="form-stack">
+              <label class="field">
+                <span>Save File Name</span>
+                <input id="gameConfigFileNameInput" type="text" placeholder="my_game_config" />
+              </label>
+              <label class="field">
+                <span>Canonical JSON</span>
+                <textarea id="gameConfigEditor" rows="22"></textarea>
+              </label>
+              <div class="button-row">
+                <button id="saveGameConfigButton" class="button primary" type="button">Save As New</button>
+                <button id="overwriteGameConfigButton" class="button secondary" type="button">Overwrite Active</button>
+              </div>
+              <div id="gameConfigValidationCard" class="empty-state">Validate the current game config to see derived metadata and structural errors.</div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Training Config JSON</h3>
+              <div class="inline-actions">
+                <button id="validateTrainingConfigButton" class="button secondary" type="button">Validate</button>
+                <button id="loadActiveTrainingConfigButton" class="button secondary" type="button">Load Active</button>
+              </div>
+            </div>
+            <div class="form-stack">
+              <label class="field">
+                <span>Save File Name</span>
+                <input id="trainingConfigFileNameInput" type="text" placeholder="my_training_config" />
+              </label>
+              <label class="field">
+                <span>Canonical JSON</span>
+                <textarea id="trainingConfigEditor" rows="22"></textarea>
+              </label>
+              <div class="button-row">
+                <button id="saveTrainingConfigButton" class="button primary" type="button">Save As New</button>
+                <button id="overwriteTrainingConfigButton" class="button secondary" type="button">Overwrite Active</button>
+              </div>
+              <div id="trainingConfigValidationCard" class="empty-state">Validate the current training config to see derived metadata and structural errors.</div>
+            </div>
+          </article>
+        </div>
+
+        <article class="panel rules-editor-grid">
+          <div class="panel-head">
+            <h3>Visual Summary</h3>
+          </div>
+          <div class="summary-grid">
+            <div class="summary-card"><span>Products</span><strong id="summaryProducts">0</strong></div>
+            <div class="summary-card"><span>Sprints</span><strong id="summarySprints">0</strong></div>
+            <div class="summary-card"><span>Actions</span><strong id="summaryActions">0</strong></div>
+            <div class="summary-card"><span>Incident Cards</span><strong id="summaryIncidentCards">0</strong></div>
+          </div>
+        </article>
+      </section>
+
+      <section id="page-models" class="page">
+        <div class="grid two-wide">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Checkpoints</h3>
+              <span id="checkpointCount" class="meta-count">0</span>
+            </div>
+            <div class="grid three compact-grid">
+              <label class="field">
+                <span>Source Filter</span>
+                <select id="checkpointSourceFilter">
+                  <option value="all">All</option>
+                  <option value="run">Run</option>
+                  <option value="current_artifacts">Current Artifacts</option>
+                  <option value="reference_v1">Reference V1</option>
+                  <option value="playable_model_v1">PlayableModelV1</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Format Filter</span>
+                <select id="checkpointFormatFilter">
+                  <option value="all">All</option>
+                  <option value="managed">Managed</option>
+                  <option value="legacy">Legacy</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Search</span>
+                <input id="checkpointSearchInput" type="text" placeholder="run or checkpoint name" />
+              </label>
+            </div>
+            <div class="compact-toolbar">
+              <label class="field checkbox-inline compact-checkbox">
+                <input id="checkpointBestOnlyToggle" type="checkbox" />
+                <span>Show Best Only</span>
+              </label>
+              <label class="field checkbox-inline compact-checkbox">
+                <input id="checkpointShowIntermediatesToggle" type="checkbox" />
+                <span>Show Intermediates</span>
+              </label>
+              <label class="field checkbox-inline compact-checkbox">
+                <input id="checkpointShowLegacyToggle" type="checkbox" checked />
+                <span>Show Legacy</span>
+              </label>
+            </div>
+            <div id="checkpointsList" class="list-stack"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Checkpoint Detail</h3>
+              <button id="runCompatibilityButton" class="button secondary" type="button">Check Active Pair</button>
+            </div>
+            <div id="checkpointDetailCard" class="empty-state">
+              Select a checkpoint from the sidebar or list to inspect it.
+            </div>
+            <div class="rules-editor-grid"></div>
+            <div class="panel-head">
+              <h3>Compatibility</h3>
+            </div>
+            <div id="compatibilityCard" class="empty-state">
+              Select a game config and checkpoint, then run compatibility.
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="page-training" class="page">
+        <div class="grid two">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Launch Training</h3>
+            </div>
+            <form id="trainJobForm" class="form-stack">
+              <div id="trainingSelectionSummary" class="list-card">
+                <h4>Current Selection</h4>
+                <p>Choose the active config and checkpoint from the left sidebar.</p>
+              </div>
+              <div id="trainingPreflightCard" class="empty-state">
+                Choose a mode to see whether the current config and checkpoint pair is safe to launch.
+              </div>
+              <label class="field">
+                <span>Mode</span>
+                <select id="trainModeSelect">
+                  <option value="train">New Training</option>
+                  <option value="resume">Strict Resume</option>
+                  <option value="fine_tune">Fine-Tune</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Episodes</span>
+                <input id="trainEpisodesInput" type="number" min="1" value="500000" />
+              </label>
+              <label class="field">
+                <span>Evaluation Episodes</span>
+                <input id="trainEvalEpisodesInput" type="number" min="1" value="100" />
+              </label>
+              <label class="field">
+                <span>Run Notes</span>
+                <textarea id="trainNotesInput" rows="3" placeholder="Optional run notes"></textarea>
+              </label>
+              <button class="button primary" type="submit">Queue Training Job</button>
+            </form>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Job Queue</h3>
+              <button id="refreshJobsButton" class="button secondary" type="button">Refresh Jobs</button>
+            </div>
+            <div id="jobsList" class="list-stack"></div>
+          </article>
+        </div>
+
+        <div class="grid two rules-editor-grid">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Job Detail</h3>
+              <span id="jobDetailLabel" class="meta-count">No job selected</span>
+            </div>
+            <div id="jobDetailCard" class="empty-state">Select a job to inspect its details.</div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Job Log Tail</h3>
+              <span class="meta-count">stdout preview</span>
+            </div>
+            <div id="jobLogCard" class="empty-state">Select a job to inspect the latest stdout lines.</div>
+          </article>
+        </div>
+
+        <div class="grid two rules-editor-grid">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Training Progress</h3>
+              <span id="trainingProgressJobLabel" class="meta-count">No job selected</span>
+            </div>
+            <div id="trainingProgressCard" class="empty-state">
+              Queue or select a training job to see progress.
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Training Charts</h3>
+              <span class="meta-count">Live from run CSV logs</span>
+            </div>
+            <div class="chart-stack">
+              <div class="chart-card">
+                <h4>Rolling Reward</h4>
+                <div id="trainingRewardChart" class="empty-state">Waiting for logs.csv...</div>
+              </div>
+              <div class="chart-card">
+                <h4>Evaluation Reward</h4>
+                <div id="trainingEvalChart" class="empty-state">Waiting for evaluation_history.csv...</div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="page-testing" class="page">
+        <div class="grid two">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Direct Evaluation</h3>
+              <div class="inline-actions">
+                <button id="exportDirectEvaluationJsonButton" class="button secondary" type="button">Export JSON</button>
+                <button id="exportDirectEvaluationCsvButton" class="button secondary" type="button">Export CSV</button>
+              </div>
+            </div>
+            <form id="directEvaluationForm" class="form-stack">
+              <label class="field">
+                <span>Seeds</span>
+                <input id="testingSeedsInput" type="text" value="42,123,999,2026,31415" />
+              </label>
+              <button class="button primary" type="submit">Run Direct Evaluation</button>
+            </form>
+            <div id="directEvaluationResult" class="empty-state">Run a direct evaluation for the active checkpoint and active game config.</div>
+            <div class="rules-editor-grid">
+              <div class="chart-card">
+                <h4>Reward By Seed</h4>
+                <div id="directEvaluationChart" class="empty-state">Run a direct evaluation to see the reward chart.</div>
+              </div>
+              <div class="chart-card rules-editor-grid">
+                <h4>Per-Seed Results</h4>
+                <div id="directEvaluationTable" class="empty-state">Per-seed evaluation rows will appear here.</div>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Checkpoint Comparison</h3>
+              <div class="inline-actions">
+                <button id="exportComparisonJsonButton" class="button secondary" type="button">Export JSON</button>
+                <button id="exportComparisonCsvButton" class="button secondary" type="button">Export CSV</button>
+              </div>
+            </div>
+            <form id="checkpointCompareForm" class="form-stack">
+              <label class="field">
+                <span>Compare Against</span>
+                <select id="compareCheckpointSelect"></select>
+              </label>
+              <label class="field">
+                <span>Seeds</span>
+                <input id="compareSeedsInput" type="text" value="42,123,999,2026,31415" />
+              </label>
+              <button class="button primary" type="submit">Compare Checkpoints</button>
+            </form>
+            <div id="checkpointCompareResult" class="empty-state">Compare the active checkpoint against another checkpoint on the active game config.</div>
+            <div class="rules-editor-grid">
+              <div class="chart-card">
+                <h4>Reward Delta By Seed</h4>
+                <div id="comparisonChart" class="empty-state">Run a comparison to see per-seed reward deltas.</div>
+              </div>
+              <div class="chart-card rules-editor-grid">
+                <h4>Per-Seed Comparison</h4>
+                <div id="comparisonTable" class="empty-state">Per-seed comparison rows will appear here.</div>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="grid two rules-editor-grid">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Robustness Job</h3>
+            </div>
+            <form id="robustnessJobForm" class="form-stack">
+              <label class="field">
+                <span>Run Folder</span>
+                <select id="robustnessRunSelect"></select>
+              </label>
+              <button class="button primary" type="submit">Queue Robustness Job</button>
+            </form>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Run Browser</h3>
+              <span id="runCount" class="meta-count">0</span>
+            </div>
+            <div id="runsList" class="list-stack"></div>
+          </article>
+        </div>
+
+        <article class="panel rules-editor-grid">
+          <div class="panel-head">
+            <h3>Run Detail</h3>
+            <span id="runDetailLabel" class="meta-count">No run selected</span>
+          </div>
+          <div id="runDetailCard" class="empty-state">Select a run to inspect its metadata, configs, and checkpoints.</div>
+        </article>
+      </section>
+
+      <section id="page-play" class="page">
+        <div class="grid two">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Start Play Session</h3>
+            </div>
+            <form id="playSessionForm" class="form-stack">
+              <label class="field">
+                <span>Match Seed</span>
+                <input id="playSeedInput" type="number" min="0" value="42" />
+              </label>
+              <label class="field checkbox-inline">
+                <input id="playIncludeHumanInput" type="checkbox" checked />
+                <span>Include Human Seat</span>
+              </label>
+              <label class="field">
+                <span>Opponent A</span>
+                <select id="playOpponentASelect">
+                  <option value="model-expert">Checkpoint Expert</option>
+                  <option value="model-balanced">Checkpoint Balanced</option>
+                  <option value="model-beginner">Checkpoint Beginner</option>
+                  <option value="heuristic">Heuristic</option>
+                  <option value="random">Random</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Opponent B</span>
+                <select id="playOpponentBSelect">
+                  <option value="">None</option>
+                  <option value="model-expert">Checkpoint Expert</option>
+                  <option value="model-balanced">Checkpoint Balanced</option>
+                  <option value="model-beginner">Checkpoint Beginner</option>
+                  <option value="heuristic">Heuristic</option>
+                  <option value="random">Random</option>
+                </select>
+              </label>
+              <button class="button primary" type="submit">Start Session</button>
+            </form>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Play Session State</h3>
+              <div class="inline-actions">
+                <button id="refreshPlayButton" class="button secondary" type="button">Refresh</button>
+                <button id="advancePlayRoundButton" class="button secondary" type="button">Advance Round</button>
+              </div>
+            </div>
+            <div id="playSessionCard" class="empty-state">
+              Start a session to play or inspect AI seats.
+            </div>
+            <div id="playHumanActionWrap" class="form-stack hidden">
+              <label class="field">
+                <span>Human Action</span>
+                <select id="playHumanActionSelect"></select>
+              </label>
+              <button id="submitHumanActionButton" class="button primary" type="button">Submit Human Action</button>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="./app.js?v=13"></script>
+</body>
+</html>

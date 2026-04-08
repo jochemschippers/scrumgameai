@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Scrum Game Config Editor</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell">
+      <div>
+        <h1>Scrum Game Config Editor</h1>
+        <p class="muted">Edit game rules, export canonical <code>GameConfig</code>, and train against that ruleset.</p>
+      </div>
+      <div class="toolbar">
+        <label class="button secondary file-button">
+          <input id="importConfigInput" type="file" accept=".json,application/json" />
+          Import JSON
+        </label>
+        <button id="resetDefaultsButton" class="button secondary" type="button">Reset Defaults</button>
+        <button id="copyJsonButton" class="button secondary" type="button">Copy JSON</button>
+        <button id="downloadJsonButton" class="button primary" type="button">Download JSON</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell layout">
+    <section class="editor">
+      <section class="card">
+        <div class="section-head">
+          <h2>Metadata</h2>
+          <p class="muted">Top-level identity for the ruleset.</p>
+        </div>
+        <div class="grid two">
+          <label class="field">
+            <span>Config Name</span>
+            <input id="configNameInput" type="text" />
+          </label>
+          <label class="field">
+            <span>Schema Version</span>
+            <input id="schemaVersionInput" type="text" />
+          </label>
+          <label class="field span-2">
+            <span>Description</span>
+            <textarea id="configDescriptionInput" rows="3"></textarea>
+          </label>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Core Rules</h2>
+          <p class="muted">Board size, turn budget, and economic rules.</p>
+        </div>
+        <div class="grid three">
+          <label class="field"><span>Players</span><input id="playersCountInput" type="number" min="1" /></label>
+          <label class="field"><span>Products</span><input id="productsCountInput" type="number" min="1" /></label>
+          <label class="field"><span>Sprints / Product</span><input id="sprintsPerProductInput" type="number" min="1" /></label>
+          <label class="field"><span>Max Turns</span><input id="maxTurnsInput" type="number" min="1" /></label>
+          <label class="field"><span>Starting Money</span><input id="startingMoneyInput" type="number" /></label>
+          <label class="field"><span>Ring Value</span><input id="ringValueInput" type="number" /></label>
+          <label class="field"><span>Continue Cost</span><input id="costContinueInput" type="number" /></label>
+          <label class="field"><span>Switch Mid Cost</span><input id="costSwitchMidInput" type="number" /></label>
+          <label class="field"><span>Switch After Cost</span><input id="costSwitchAfterInput" type="number" /></label>
+          <label class="field"><span>Mandatory Loan</span><input id="mandatoryLoanInput" type="number" /></label>
+          <label class="field"><span>Loan Interest</span><input id="loanInterestInput" type="number" /></label>
+          <label class="field"><span>Penalty Negative</span><input id="penaltyNegativeInput" type="number" /></label>
+          <label class="field"><span>Penalty Positive</span><input id="penaltyPositiveInput" type="number" /></label>
+          <label class="field"><span>Daily Scrums / Sprint</span><input id="dailyScrumsInput" type="number" min="1" /></label>
+          <label class="field"><span>Daily Scrum Target</span><input id="dailyScrumTargetInput" type="number" min="1" /></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Products</h2>
+          <p class="muted">Names are used by the board, refinement rules, and incident targeting.</p>
+        </div>
+        <div id="productNamesGrid" class="grid three"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Board Matrix</h2>
+          <p class="muted">Value and feature requirements for every product sprint.</p>
+        </div>
+        <div id="boardMatrixContainer" class="matrix-wrap"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Dice Rules</h2>
+          <p class="muted">Feature-count ranges mapped to dice regimes.</p>
+        </div>
+        <div class="inline-actions">
+          <button id="addDiceRuleButton" class="button secondary" type="button">Add Dice Rule</button>
+        </div>
+        <div id="diceRulesList" class="stack"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Refinement Rules</h2>
+          <p class="muted">Product-specific increase and decrease roll windows.</p>
+        </div>
+        <div class="grid three">
+          <label class="field checkbox-field">
+            <input id="refinementActiveInput" type="checkbox" />
+            <span>Refinements Active</span>
+          </label>
+          <label class="field">
+            <span>Model Name</span>
+            <input id="refinementModelInput" type="text" />
+          </label>
+          <label class="field">
+            <span>Refinement Die Sides</span>
+            <input id="refinementDieSidesInput" type="number" min="2" />
+          </label>
+        </div>
+        <div class="inline-actions">
+          <button id="resetRefinementRulesButton" class="button secondary" type="button">Rebuild Rules From Products</button>
+        </div>
+        <div id="refinementRulesList" class="stack"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Incident Deck</h2>
+          <p class="muted">Global incident settings plus custom incident cards.</p>
+        </div>
+        <div class="grid four">
+          <label class="field checkbox-field">
+            <input id="incidentActiveInput" type="checkbox" />
+            <span>Incidents Active</span>
+          </label>
+          <label class="field checkbox-field">
+            <input id="playerSpecificIncidentsInput" type="checkbox" />
+            <span>Allow Player-Specific Incidents</span>
+          </label>
+          <label class="field">
+            <span>Draw Probability</span>
+            <input id="incidentDrawProbabilityInput" type="number" min="0" max="1" step="0.05" />
+          </label>
+          <label class="field">
+            <span>Severity Multiplier</span>
+            <input id="incidentSeverityMultiplierInput" type="number" min="0" step="0.05" />
+          </label>
+        </div>
+        <div class="inline-actions">
+          <button id="addIncidentCardButton" class="button secondary" type="button">Add Incident Card</button>
+        </div>
+        <div id="incidentCardsList" class="stack"></div>
+      </section>
+    </section>
+
+    <aside class="sidebar">
+      <section class="card sticky">
+        <div class="section-head">
+          <h2>Output</h2>
+          <p class="muted">Canonical JSON ready for <code>train_dqn.py --game-config</code>.</p>
+        </div>
+        <p class="muted">Recommended save folder: <code>game\v2_deep_rl\configs\custom\</code>. The dashboard auto-discovers JSON files from that folder.</p>
+        <div class="summary">
+          <div><span>Products</span><strong id="summaryProducts">0</strong></div>
+          <div><span>Sprints</span><strong id="summarySprints">0</strong></div>
+          <div><span>Actions</span><strong id="summaryActions">0</strong></div>
+          <div><span>Incident Cards</span><strong id="summaryIncidentCards">0</strong></div>
+        </div>
+        <label class="field">
+          <span>Suggested file name</span>
+          <input id="downloadFileNameInput" type="text" value="my_custom_config.json" />
+        </label>
+        <pre id="jsonPreview" class="json-preview"></pre>
+      </section>
+    </aside>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>

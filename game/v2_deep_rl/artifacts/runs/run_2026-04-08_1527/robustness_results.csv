@@ -1,0 +1,6 @@
+seed,epsilon,episode_reward,ending_money,turns_played,loan_turns,loans_taken,invalid_action_count,terminal_reason
+42,0.0,-14250.0,23000,8,0,0,7,max_turns_reached
+123,0.0,-3000.0,34000,8,0,0,7,max_turns_reached
+999,0.0,-6000.0,31000,8,0,0,7,max_turns_reached
+2026,0.0,12500.0,49000,8,0,0,7,max_turns_reached
+31415,0.0,24000.0,53000,8,0,0,5,max_turns_reached
