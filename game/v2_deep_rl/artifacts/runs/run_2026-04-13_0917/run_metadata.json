@@ -1,0 +1,22 @@
+{
+  "run_name": "run_2026-04-13_0917",
+  "run_path": "C:\\Users\\damis\\Documents\\GitHub\\scrumgameai\\game\\v2_deep_rl\\artifacts\\runs\\run_2026-04-13_0917",
+  "created_at": "2026-04-13T09:17:35.669387",
+  "training_episodes": 20000,
+  "learning_rate": 0.0005,
+  "gamma": 0.85,
+  "checkpoint_interval": 10000,
+  "evaluation_interval": 10000,
+  "evaluation_episodes": 100,
+  "seed": 42,
+  "run_notes": "",
+  "game_config_path": "C:\\Users\\damis\\Documents\\GitHub\\scrumgameai\\game\\v2_deep_rl\\artifacts\\runs\\run_2026-04-13_0917\\game_config.json",
+  "training_config_path": "C:\\Users\\damis\\Documents\\GitHub\\scrumgameai\\game\\v2_deep_rl\\artifacts\\runs\\run_2026-04-13_0917\\training_config.json",
+  "rule_signature": "2a51abc7075cf9ea12df50d6aaf6c26fdc711621a7e2812de24b9d949d18a4b6",
+  "training_signature": "220fe1fb8e1f7babda0de35ec7c321821292b241ff00b75cdf39637fd7c6b140",
+  "resume_checkpoint_path": "C:\\Users\\damis\\Documents\\GitHub\\scrumgameai\\game\\v2_deep_rl\\artifacts\\runs\\run_2026-04-11_1708\\checkpoints\\best_scrum_model.pth",
+  "resume_mode": "strict",
+  "resume_checkpoint_rule_signature": "2a51abc7075cf9ea12df50d6aaf6c26fdc711621a7e2812de24b9d949d18a4b6",
+  "resume_target_rule_signature": "2a51abc7075cf9ea12df50d6aaf6c26fdc711621a7e2812de24b9d949d18a4b6",
+  "resume_legacy_checkpoint": false
+}

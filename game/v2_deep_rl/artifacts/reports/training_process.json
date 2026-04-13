@@ -1,0 +1,31 @@
+{
+  "pid": 19012,
+  "started_at_epoch": 1776064652.519136,
+  "command": [
+    "C:\\Python314\\python.exe",
+    "C:\\Users\\damis\\Documents\\GitHub\\scrumgameai\\game\\v2_deep_rl\\train_dqn.py",
+    "--run-dir",
+    "C:\\Users\\damis\\Documents\\GitHub\\scrumgameai\\game\\v2_deep_rl\\artifacts\\runs\\run_2026-04-13_0917",
+    "--episodes",
+    "20000",
+    "--notes",
+    "",
+    "--game-config",
+    "C:\\Users\\damis\\Documents\\GitHub\\scrumgameai\\game\\v2_deep_rl\\configs\\default_game_config.json",
+    "--resume-from",
+    "C:\\Users\\damis\\Documents\\GitHub\\scrumgameai\\game\\v2_deep_rl\\artifacts\\runs\\run_2026-04-11_1708\\checkpoints\\best_scrum_model.pth",
+    "--resume-mode",
+    "strict",
+    "--learning-rate",
+    "0.0005",
+    "--gamma",
+    "0.85",
+    "--seed",
+    "42",
+    "--evaluation-episodes",
+    "100"
+  ],
+  "stdout_log": "C:\\Users\\damis\\Documents\\GitHub\\scrumgameai\\game\\v2_deep_rl\\artifacts\\runs\\run_2026-04-13_0917\\reports\\training_stdout.log",
+  "run_name": "run_2026-04-13_0917",
+  "job_type": "training"
+}
