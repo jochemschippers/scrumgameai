@@ -1,0 +1,10 @@
+usage: train_dqn.py [-h] [--run-dir RUN_DIR] [--game-config GAME_CONFIG]
+                    [--training-config TRAINING_CONFIG] [--episodes EPISODES]
+                    [--evaluation-episodes EVALUATION_EPISODES]
+                    [--checkpoint-interval CHECKPOINT_INTERVAL]
+                    [--evaluation-interval EVALUATION_INTERVAL] [--seed SEED]
+                    [--learning-rate LEARNING_RATE] [--gamma GAMMA]
+                    [--epsilon-decay-episodes EPSILON_DECAY_EPISODES]
+                    [--resume-from RESUME_FROM]
+                    [--resume-mode {strict,fine-tune}] [--notes NOTES]
+train_dqn.py: error: argument --resume-mode: invalid choice: 'fine_tune' (choose from strict, fine-tune)

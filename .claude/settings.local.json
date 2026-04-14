@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import openai; print\\(openai.__version__\\)\")",
+      "Bash(python -m pip install openai --quiet)",
+      "Bash(python -c ':*)"
+    ]
+  }
+}

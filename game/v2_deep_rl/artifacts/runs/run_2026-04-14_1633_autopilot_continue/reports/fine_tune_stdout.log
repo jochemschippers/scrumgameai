@@ -1,0 +1,17 @@
+Checkpoint saved at episode 10000: C:\Users\joche\OneDrive\Documenten\GitClones\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-14_1633_autopilot_continue\checkpoints\checkpoint_episode_010000.pth
+Updated best model at episode 10000: C:\Users\joche\OneDrive\Documenten\GitClones\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-14_1633_autopilot_continue\checkpoints\best_scrum_model.pth (avg reward -35905.00)
+Checkpoint saved at episode 20000: C:\Users\joche\OneDrive\Documenten\GitClones\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-14_1633_autopilot_continue\checkpoints\checkpoint_episode_020000.pth
+Updated best model at episode 20000: C:\Users\joche\OneDrive\Documenten\GitClones\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-14_1633_autopilot_continue\checkpoints\best_scrum_model.pth (avg reward -23820.00)
+Checkpoint saved at episode 30000: C:\Users\joche\OneDrive\Documenten\GitClones\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-14_1633_autopilot_continue\checkpoints\checkpoint_episode_030000.pth
+Checkpoint saved at episode 40000: C:\Users\joche\OneDrive\Documenten\GitClones\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-14_1633_autopilot_continue\checkpoints\checkpoint_episode_040000.pth
+Checkpoint saved at episode 50000: C:\Users\joche\OneDrive\Documenten\GitClones\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-14_1633_autopilot_continue\checkpoints\checkpoint_episode_050000.pth
+Updated best model at episode 50000: C:\Users\joche\OneDrive\Documenten\GitClones\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-14_1633_autopilot_continue\checkpoints\best_scrum_model.pth (avg reward -10290.00)
+Training episodes completed: 50000
+Evaluation episodes completed: 1000
+Average reward per episode during evaluation: -13874.00
+Average ending money during evaluation: 39193.00
+Bankruptcy rate during evaluation: 0.350
+Saved best model checkpoint to: C:\Users\joche\OneDrive\Documenten\GitClones\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-14_1633_autopilot_continue\checkpoints\best_scrum_model.pth
+Saved training curve to: C:\Users\joche\OneDrive\Documenten\GitClones\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-14_1633_autopilot_continue\plots\dqn_training_curve.png
+Saved live training log to: C:\Users\joche\OneDrive\Documenten\GitClones\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-14_1633_autopilot_continue\reports\logs.csv
+Saved periodic evaluation log to: C:\Users\joche\OneDrive\Documenten\GitClones\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-14_1633_autopilot_continue\reports\evaluation_history.csv

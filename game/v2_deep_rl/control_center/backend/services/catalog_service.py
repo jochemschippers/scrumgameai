@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import math
 import json
+import csv
 from pathlib import Path
 import re
 
@@ -31,6 +33,49 @@ from config_manager import (  # noqa: E402
 def _read_json(path: Path) -> dict:
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def _sanitize_json_value(value):
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {key: _sanitize_json_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_json_value(item) for item in value]
+    return value
+
+
+def _read_json_safe(path: Path):
+    return _sanitize_json_value(_read_json(path))
+
+
+def _safe_float(value: str | None) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if math.isfinite(parsed) else None
+
+
+def _safe_int(value: str | None) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _tail_csv_rows(path: Path, limit: int = 200) -> list[dict]:
+    if not path.exists():
+        return []
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    if limit <= 0:
+        return rows
+    return rows[-limit:]
 
 
 def _slugify_name(value: str, fallback: str) -> str:
@@ -276,8 +321,8 @@ def list_runs() -> list[dict]:
         metadata_path = run_dir / "run_metadata.json"
         metrics_path = run_dir / "reports" / "dqn_metrics.json"
         checkpoint_path = run_dir / "checkpoints" / "best_scrum_model.pth"
-        metadata = _read_json(metadata_path) if metadata_path.exists() else {}
-        metrics = _read_json(metrics_path) if metrics_path.exists() else {}
+        metadata = _read_json_safe(metadata_path) if metadata_path.exists() else {}
+        metrics = _read_json_safe(metrics_path) if metrics_path.exists() else {}
 
         runs.append(
             {
@@ -313,10 +358,10 @@ def get_run(run_id: str) -> dict | None:
         "id": run_dir.name,
         "label": run_dir.name,
         "path": str(run_dir),
-        "metadata": _read_json(metadata_path) if metadata_path.exists() else {},
-        "metrics": _read_json(metrics_path) if metrics_path.exists() else {},
-        "game_config": _read_json(game_config_path) if game_config_path.exists() else None,
-        "training_config": _read_json(training_config_path) if training_config_path.exists() else None,
+        "metadata": _read_json_safe(metadata_path) if metadata_path.exists() else {},
+        "metrics": _read_json_safe(metrics_path) if metrics_path.exists() else {},
+        "game_config": _read_json_safe(game_config_path) if game_config_path.exists() else None,
+        "training_config": _read_json_safe(training_config_path) if training_config_path.exists() else None,
         "checkpoints": [
             {
                 "name": checkpoint_path.name,
@@ -324,4 +369,73 @@ def get_run(run_id: str) -> dict | None:
             }
             for checkpoint_path in sorted((run_dir / "checkpoints").glob("*.pth"))
         ],
+    }
+
+
+def get_run_progress(run_id: str) -> dict | None:
+    run_dir = RUNS_DIR / run_id
+    if not run_dir.exists() or not run_dir.is_dir():
+        return None
+
+    training_config_path = run_dir / "training_config.json"
+    training_config = _read_json_safe(training_config_path) if training_config_path.exists() else {}
+    total_episodes = _safe_int(str(training_config.get("episodes", "")))
+
+    reports_dir = run_dir / "reports"
+    training_rows = _tail_csv_rows(reports_dir / "logs.csv", limit=240)
+    evaluation_rows = _tail_csv_rows(reports_dir / "evaluation_history.csv", limit=120)
+
+    training_series = []
+    for row in training_rows:
+        episode = _safe_int(row.get("episode"))
+        if episode is None:
+            continue
+        training_series.append(
+            {
+                "episode": episode,
+                "episode_reward": _safe_float(row.get("episode_reward")),
+                "rolling_average_reward": _safe_float(row.get("rolling_average_reward")),
+                "mean_recent_loss": _safe_float(row.get("mean_recent_loss")),
+                "average_ending_money": _safe_float(row.get("average_ending_money")),
+                "epsilon": _safe_float(row.get("epsilon")),
+            }
+        )
+
+    evaluation_series = []
+    for row in evaluation_rows:
+        episode = _safe_int(row.get("episode"))
+        if episode is None:
+            continue
+        evaluation_series.append(
+            {
+                "episode": episode,
+                "average_reward": _safe_float(row.get("average_reward")),
+                "bankruptcy_rate": _safe_float(row.get("bankruptcy_rate")),
+                "average_ending_money": _safe_float(row.get("average_ending_money")),
+                "invalid_action_rate": _safe_float(row.get("invalid_action_rate")),
+            }
+        )
+
+    latest_training = training_series[-1] if training_series else None
+    latest_evaluation = evaluation_series[-1] if evaluation_series else None
+    latest_episode = latest_training["episode"] if latest_training else 0
+    ratio = 0.0
+    if total_episodes and total_episodes > 0:
+        ratio = max(0.0, min(1.0, latest_episode / total_episodes))
+
+    return {
+        "run_id": run_id,
+        "job_id": None,
+        "job_type": "train",
+        "status": "completed",
+        "run_dir": str(run_dir),
+        "stdout_log_path": "",
+        "error_message": None,
+        "total_episodes": total_episodes,
+        "latest_episode": latest_episode,
+        "progress_ratio": ratio,
+        "latest_training_row": latest_training,
+        "latest_evaluation_row": latest_evaluation,
+        "training_series": training_series,
+        "evaluation_series": evaluation_series,
     }

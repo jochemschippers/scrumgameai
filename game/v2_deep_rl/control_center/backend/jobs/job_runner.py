@@ -36,6 +36,8 @@ def build_command(job: dict) -> list[str]:
             command.extend(["--learning-rate", str(payload["learning_rate"])])
         if payload.get("gamma") is not None:
             command.extend(["--gamma", str(payload["gamma"])])
+        if payload.get("epsilon_decay_episodes") is not None:
+            command.extend(["--epsilon-decay-episodes", str(int(payload["epsilon_decay_episodes"]))])
         if payload.get("seed") is not None:
             command.extend(["--seed", str(int(payload["seed"]))])
         if payload.get("run_notes"):
@@ -94,6 +96,20 @@ def run_job(job_id: int) -> int:
             error_message=str(error),
         )
         return_code = 1
+
+    # If a training job completed successfully, trigger the autopilot cycle
+    # (if logic is enabled) before dispatching the next queued job.
+    if return_code == 0 and job["job_type"] in {"train", "fine_tune"}:
+        payload = job.get("payload") or {}
+        run_id = Path(job["run_dir"]).name
+        context = payload.get("autopilot_context") or {}
+        try:
+            from services.training_autopilot import get_settings, run_autopilot
+            if get_settings().get("logic_enabled", True):
+                run_autopilot(run_id, context=context)
+        except Exception as autopilot_error:
+            with stdout_log_path.open("ab") as log_handle:
+                log_handle.write(f"\n[autopilot] Error during autopilot cycle: {autopilot_error}\n".encode())
 
     # Hand off immediately to the next queued job once this worker has
     # persisted its terminal state.

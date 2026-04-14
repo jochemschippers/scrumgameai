@@ -1,5 +1,7 @@
 const state = {
-  apiBaseUrl: "http://127.0.0.1:8000",
+  apiBaseUrl: ["localhost", "127.0.0.1"].includes(window.location.hostname)
+    ? "http://127.0.0.1:8000"
+    : window.location.origin,
   health: null,
   gameConfigs: [],
   trainingConfigs: [],
@@ -18,6 +20,7 @@ const state = {
   directEvaluation: null,
   comparisonEvaluation: null,
   activeProgressJobId: null,
+  activeProgressRunId: null,
   trainingProgress: null,
   trainingPreflight: null,
   gameConfigValidation: null,
@@ -29,6 +32,9 @@ const state = {
   jobLog: null,
   progressPollHandle: null,
   includeCheckpointSelections: false,
+  autopilotSettings: null,
+  autopilotHistory: [],
+  autopilotStopRequested: false,
 };
 
 const DEFAULT_GAME_CONFIG = {
@@ -159,29 +165,29 @@ const DEFAULT_GAME_CONFIG = {
 
 const pages = {
   rules: {
-    title: "Rules",
-    subtitle: "Browse managed game and training config assets.",
-    usage: "Rules uses the active game config and active training config.",
-  },
-  models: {
-    title: "Models",
-    subtitle: "Inspect checkpoints and check compatibility against the active ruleset.",
-    usage: "Models uses the active checkpoint and active game config for compatibility.",
+    title: "Design",
+    subtitle: "Define the blueprint the agent learns against.",
+    usage: "Design uses the active blueprint and training profile.",
   },
   training: {
-    title: "Training",
-    subtitle: "Queue new training, strict resume, or fine-tune jobs.",
-    usage: "Training uses the active game config, training config, and active checkpoint for resume or fine-tune.",
+    title: "Train",
+    subtitle: "Launch and monitor training jobs for the active workspace.",
+    usage: "Train uses the active blueprint, training profile, and active brain for resume or fine-tune.",
   },
-  testing: {
-    title: "Testing",
-    subtitle: "Queue robustness evaluation and inspect training runs.",
-    usage: "Testing uses the active checkpoint and active game config. Run Browser is independent until you open a run.",
+  inspect: {
+    title: "Inspect",
+    subtitle: "Inspect a running or finished job, run, or brain in one place.",
+    usage: "Inspect follows the selected job or run and shows details, logs, and learning progress.",
+  },
+  evaluate: {
+    title: "Evaluate",
+    subtitle: "Inspect brains, compare performance, and validate blueprint fit.",
+    usage: "Evaluate uses the active blueprint and active brain, while the run browser exposes historical runs and robustness jobs.",
   },
   play: {
     title: "Play",
-    subtitle: "Reserve the playable area in the unified app shell.",
-    usage: "Play uses the active game config and active checkpoint for model-controlled seats.",
+    subtitle: "Run the arena with human and brain-controlled seats.",
+    usage: "Play uses the active blueprint and active brain for model-controlled seats.",
   },
 };
 
@@ -199,6 +205,19 @@ function clearMessage() {
   const box = $("globalMessage");
   box.textContent = "";
   box.className = "message hidden";
+}
+
+function clearEvaluationResults() {
+  state.directEvaluation = null;
+  state.comparisonEvaluation = null;
+  renderDirectEvaluation();
+  renderCheckpointComparison();
+}
+
+function clearCompatibilityResult() {
+  state.compatibility = null;
+  renderCompatibility();
+  renderContextCard();
 }
 
 async function apiRequest(path, options = {}) {
@@ -366,6 +385,14 @@ function selectedProgressJob() {
   return state.jobs.find((item) => item.id === state.activeProgressJobId) || null;
 }
 
+function selectedProgressRun() {
+  return state.runs.find((item) => item.id === state.activeProgressRunId) || null;
+}
+
+function jobForRunId(runId) {
+  return state.jobs.find((item) => runLabelFromPath(item.run_dir) === runId) || null;
+}
+
 function currentTrainingMode() {
   return $("trainModeSelect")?.value || "train";
 }
@@ -413,6 +440,10 @@ function startProgressPolling() {
       await fetchTrainingProgress(state.activeProgressJobId, false);
     } catch (_error) {
       // Leave the last successful progress state visible.
+    }
+    const runId = state.activeRunId || (state.jobDetail?.run_dir ? runLabelFromPath(state.jobDetail.run_dir) : null);
+    if (runId) {
+      await fetchAutopilotData(runId).catch(() => {});
     }
   }, 5000);
 }
@@ -549,9 +580,10 @@ function updateStatusCard() {
 function updateSummaryPills() {
   const activeGameConfig = state.gameConfigs.find((item) => item.id === state.activeGameConfigId);
   const activeCheckpoint = state.checkpoints.find((item) => item.id === state.activeCheckpointId);
-  $("summaryRuleSignature").textContent = `Rule Signature: ${activeGameConfig?.rule_signature || "-"}`;
-  $("summaryCheckpointStatus").textContent = `Checkpoint: ${activeCheckpoint?.checkpoint_format || "-"}`;
-  $("summaryJobCount").textContent = `Jobs: ${state.jobs.length}`;
+  const visibleJobs = state.jobs.filter((job) => ["queued", "completed", "failed", "stopped"].includes(job.status));
+  $("summaryRuleSignature").textContent = `Blueprint: ${activeGameConfig?.rule_signature || "-"}`;
+  $("summaryCheckpointStatus").textContent = `Brain: ${activeCheckpoint?.checkpoint_format || "-"}`;
+  $("summaryJobCount").textContent = `Jobs: ${visibleJobs.length}`;
 }
 
 function renderContextCard() {
@@ -564,15 +596,15 @@ function renderContextCard() {
     : "not checked";
   body.innerHTML = `
     <div class="context-item">
-      <span>Active Game Config</span>
+      <span>Active Blueprint</span>
       <strong>${escapeHtml(gameConfig?.label || "-")}</strong>
     </div>
     <div class="context-item">
-      <span>Active Training Config</span>
+      <span>Active Training Profile</span>
       <strong>${escapeHtml(trainingConfig?.label || "-")}</strong>
     </div>
     <div class="context-item">
-      <span>Active Checkpoint</span>
+      <span>Active Brain</span>
       <strong>${escapeHtml(checkpoint ? checkpointUiLabel(checkpoint) : "-")}</strong>
     </div>
     <div class="context-item">
@@ -1049,7 +1081,8 @@ function renderRuns() {
       </div>
       <div class="inline-actions">
         <button class="button secondary view-run-button" data-run-id="${run.id}" type="button">View Run</button>
-        ${run.best_checkpoint_path ? `<button class="button secondary use-run-best-button" data-run-id="${run.id}" type="button">Use Best Model</button>` : ""}
+        <button class="button secondary open-inspect-run-button" data-run-id="${run.id}" type="button">Open Inspect</button>
+        ${run.best_checkpoint_path ? `<button class="button secondary use-run-best-button" data-run-id="${run.id}" type="button">Use Best Brain</button>` : ""}
       </div>
     `;
     container.appendChild(card);
@@ -1059,6 +1092,16 @@ function renderRuns() {
     button.addEventListener("click", async () => {
       try {
         await fetchRunDetail(button.dataset.runId, true);
+      } catch (error) {
+        showMessage(error.message, "error");
+      }
+    });
+  });
+
+  container.querySelectorAll(".open-inspect-run-button").forEach((button) => {
+    button.addEventListener("click", async () => {
+      try {
+        await openInspectForRun(button.dataset.runId, true);
       } catch (error) {
         showMessage(error.message, "error");
       }
@@ -1076,127 +1119,12 @@ function renderRuns() {
       state.activeCheckpointId = checkpoint.id;
       $("activeCheckpointSelect").value = checkpoint.id;
       updateSummaryPills();
+      clearCompatibilityResult();
+      clearEvaluationResults();
       renderContextCard();
       renderTrainingSelectionSummary();
-      renderCheckpoints();
       renderCheckpointDetail();
-      showMessage(`Active checkpoint set to the best model from ${run.label}.`);
-    });
-  });
-}
-
-function renderCheckpoints() {
-  const sourceFilter = $("checkpointSourceFilter")?.value || "all";
-  const formatFilter = $("checkpointFormatFilter")?.value || "all";
-  const search = ($("checkpointSearchInput")?.value || "").trim().toLowerCase();
-  const bestOnly = Boolean($("checkpointBestOnlyToggle")?.checked);
-  const showIntermediates = Boolean($("checkpointShowIntermediatesToggle")?.checked);
-  const showLegacy = Boolean($("checkpointShowLegacyToggle")?.checked);
-  const filteredCheckpoints = state.checkpoints.filter((checkpoint) => {
-    if (sourceFilter !== "all" && checkpoint.source_type !== sourceFilter) return false;
-    if (formatFilter !== "all" && checkpoint.checkpoint_format !== formatFilter) return false;
-    if (!showLegacy && checkpoint.checkpoint_format === "legacy") return false;
-    const category = checkpointCategory(checkpoint);
-    if (bestOnly && category !== "best") return false;
-    if (!showIntermediates && category === "intermediate") return false;
-    if (search) {
-      const haystack = [
-        checkpoint.label,
-        checkpoint.id,
-        checkpoint.source_run,
-        checkpoint.source_type,
-        checkpointGroupLabel(checkpoint),
-        checkpointUiLabel(checkpoint),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      if (!haystack.includes(search)) return false;
-    }
-    return true;
-  });
-  $("checkpointCount").textContent = `${filteredCheckpoints.length}`;
-  const container = $("checkpointsList");
-  container.innerHTML = "";
-
-  if (!filteredCheckpoints.length) {
-    container.innerHTML = `<div class="empty-state">No checkpoints match the current filters.</div>`;
-    return;
-  }
-
-  const grouped = new Map();
-  filteredCheckpoints
-    .slice()
-    .sort((left, right) => checkpointGroupLabel(left).localeCompare(checkpointGroupLabel(right)) || checkpointUiLabel(left).localeCompare(checkpointUiLabel(right)))
-    .forEach((checkpoint) => {
-      const label = checkpointGroupLabel(checkpoint);
-      if (!grouped.has(label)) {
-        grouped.set(label, []);
-      }
-      grouped.get(label).push(checkpoint);
-    });
-
-  grouped.forEach((items, label) => {
-    const best = items.filter((item) => checkpointCategory(item) === "best");
-    const finals = items.filter((item) => checkpointCategory(item) === "final");
-    const others = items.filter((item) => !["best", "final"].includes(checkpointCategory(item)));
-    const section = document.createElement("details");
-    section.className = "model-group";
-    section.open = label === checkpointGroupLabel(filteredCheckpoints[0]);
-    section.innerHTML = `
-      <summary>
-        <div>
-          <strong>${escapeHtml(label)}</strong>
-          <div class="checkpoint-subtitle">${items.length} checkpoint${items.length === 1 ? "" : "s"}</div>
-        </div>
-        <div class="card-meta">
-          <span class="tag">${best.length} best</span>
-          <span class="tag">${finals.length} final</span>
-          <span class="tag">${others.length} other</span>
-        </div>
-      </summary>
-      <div class="model-group-body"></div>
-    `;
-    const body = section.querySelector(".model-group-body");
-    [best, finals, others].forEach((groupItems) => {
-      groupItems.forEach((checkpoint) => {
-        const category = checkpointCategory(checkpoint);
-        const card = document.createElement("article");
-        card.className = `checkpoint-card${checkpoint.id === state.activeCheckpointId ? " is-active" : ""}`;
-        card.innerHTML = `
-          <div class="checkpoint-title-row">
-            <h4>${escapeHtml(checkpoint.label)}</h4>
-            <span class="checkpoint-subtitle">${escapeHtml(category)}</span>
-          </div>
-          <div class="checkpoint-subtitle">${escapeHtml(checkpointUiLabel(checkpoint))}</div>
-          <div class="card-meta">
-            <span class="tag">${escapeHtml(checkpoint.checkpoint_format)}</span>
-            <span class="tag">${escapeHtml(checkpoint.checkpoint_type)}</span>
-            <span class="tag ${checkpointCompatibilityTone(checkpoint.compatibility_status)}">${escapeHtml(checkpoint.compatibility_status || "unknown")}</span>
-          </div>
-          <div class="card-meta">
-            <span class="tag">${escapeHtml(String(checkpoint.state_dim || "-"))} state</span>
-            <span class="tag">${escapeHtml(String(checkpoint.num_actions || "-"))} actions</span>
-            ${checkpoint.rule_signature ? `<span class="tag">${escapeHtml(checkpoint.rule_signature.slice(0, 12))}</span>` : ""}
-          </div>
-          <div class="inline-actions">
-            <button class="button secondary select-checkpoint-button" data-checkpoint-id="${checkpoint.id}" type="button">Use This Checkpoint</button>
-          </div>
-        `;
-        body.appendChild(card);
-      });
-    });
-    container.appendChild(section);
-  });
-
-  container.querySelectorAll(".select-checkpoint-button").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.activeCheckpointId = button.dataset.checkpointId;
-      $("activeCheckpointSelect").value = state.activeCheckpointId;
-      updateSummaryPills();
-      renderCheckpoints();
-      renderCheckpointDetail();
-      showMessage("Active checkpoint updated.");
+      showMessage(`Active brain set to the best checkpoint from ${run.label}.`);
     });
   });
 }
@@ -1204,15 +1132,7 @@ function renderCheckpoints() {
 function renderJobs() {
   const container = $("jobsList");
   container.innerHTML = "";
-  const visibleJobs = state.jobs.filter((job) => job.status !== "completed");
-
-  if (!visibleJobs.length) {
-    container.innerHTML = `<div class="empty-state">No queued, running, failed, or stopped jobs.</div>`;
-    if (!state.activeProgressJobId) {
-      renderTrainingProgress();
-    }
-    return;
-  }
+  const visibleJobs = state.jobs.filter((job) => ["queued", "running", "completed", "failed", "stopped"].includes(job.status));
 
   if (
     state.activeProgressJobId &&
@@ -1220,6 +1140,14 @@ function renderJobs() {
   ) {
     state.activeProgressJobId = null;
     state.trainingProgress = null;
+  }
+
+  if (!visibleJobs.length) {
+    container.innerHTML = `<div class="empty-state">No queued, running, completed, failed, or stopped jobs.</div>`;
+    if (!state.activeProgressJobId) {
+      renderTrainingProgress();
+    }
+    return;
   }
 
   if (!state.activeProgressJobId) {
@@ -1249,10 +1177,10 @@ function renderJobs() {
     const stopButton = ["queued", "running"].includes(job.status)
       ? `<button class="button secondary stop-job-button" data-job-id="${job.id}" type="button">Stop</button>`
       : "";
-    const progressButton = ["train", "fine_tune"].includes(job.job_type)
-      ? `<button class="button secondary view-progress-button" data-job-id="${job.id}" type="button">View Progress</button>`
+    const dismissButton = ["completed", "failed", "stopped"].includes(job.status)
+      ? `<button class="button secondary dismiss-job-button" data-job-id="${job.id}" type="button">Dismiss</button>`
       : "";
-    const detailButton = `<button class="button secondary view-job-button" data-job-id="${job.id}" type="button">View Detail</button>`;
+    const inspectButton = `<button class="button secondary open-inspect-job-button" data-job-id="${job.id}" type="button">Open Inspect</button>`;
     card.innerHTML = `
       <h4>Job #${job.id} | ${job.job_type}</h4>
       <p>${job.status}</p>
@@ -1263,9 +1191,9 @@ function renderJobs() {
         <span class="tag">${runLabelFromPath(job.run_dir)}</span>
       </div>
       <div class="inline-actions">
-        ${detailButton}
-        ${progressButton}
+        ${inspectButton}
         ${stopButton}
+        ${dismissButton}
       </div>
     `;
     container.appendChild(card);
@@ -1283,21 +1211,30 @@ function renderJobs() {
     });
   });
 
-  container.querySelectorAll(".view-progress-button").forEach((button) => {
+  container.querySelectorAll(".open-inspect-job-button").forEach((button) => {
     button.addEventListener("click", async () => {
       try {
-        await fetchTrainingProgress(Number(button.dataset.jobId));
-        showMessage(`Loaded progress for job ${button.dataset.jobId}.`);
+        await openInspectForJob(Number(button.dataset.jobId), true);
       } catch (error) {
         showMessage(error.message, "error");
       }
     });
   });
 
-  container.querySelectorAll(".view-job-button").forEach((button) => {
+  container.querySelectorAll(".dismiss-job-button").forEach((button) => {
     button.addEventListener("click", async () => {
+      const jobId = Number(button.dataset.jobId);
       try {
-        await fetchJobDetail(Number(button.dataset.jobId), true);
+        await apiRequest(`/jobs/${jobId}`, { method: "DELETE" });
+        if (state.activeJobDetailId === jobId) {
+          state.activeJobDetailId = null;
+          state.jobDetail = null;
+          state.jobLog = null;
+          renderJobDetail();
+          renderJobLog();
+        }
+        showMessage(`Dismissed job ${jobId}.`);
+        await refreshJobs();
       } catch (error) {
         showMessage(error.message, "error");
       }
@@ -1317,7 +1254,7 @@ function renderRunDetail() {
   if (!state.runDetail) {
     label.textContent = "No run selected";
     container.className = "empty-state";
-    container.textContent = "Select a run to inspect its metadata, configs, and checkpoints.";
+    container.textContent = "Select a run to inspect its metadata, brains, and evaluation actions.";
     return;
   }
   label.textContent = state.runDetail.label;
@@ -1344,7 +1281,8 @@ function renderRunDetail() {
       ${checkpoints.map((checkpoint) => `<span class="tag">${escapeHtml(checkpoint.name)}</span>`).join("") || "<span class='tag'>no checkpoints</span>"}
     </div>
     <div class="inline-actions">
-      ${bestCheckpoint ? `<button class="button secondary use-run-detail-best-button" type="button">Use Best Checkpoint</button>` : ""}
+      ${bestCheckpoint ? `<button class="button secondary use-run-detail-best-button" type="button">Use Best Brain</button>` : ""}
+      <button class="button secondary open-run-inspect-button" type="button">Open Inspect</button>
       <button class="button secondary queue-run-robustness-button" type="button">Queue Robustness</button>
     </div>
   `;
@@ -1353,11 +1291,20 @@ function renderRunDetail() {
     state.activeCheckpointId = bestCheckpoint.id;
     $("activeCheckpointSelect").value = bestCheckpoint.id;
     updateSummaryPills();
+    clearCompatibilityResult();
+    clearEvaluationResults();
     renderContextCard();
     renderTrainingSelectionSummary();
-    renderCheckpoints();
     renderCheckpointDetail();
-    showMessage(`Active checkpoint set to ${bestCheckpoint.label}.`);
+    showMessage(`Active brain set to ${bestCheckpoint.label}.`);
+  });
+
+  container.querySelector(".open-run-inspect-button")?.addEventListener("click", async () => {
+    try {
+      await openInspectForRun(state.runDetail.id, true);
+    } catch (error) {
+      showMessage(error.message, "error");
+    }
   });
 
   container.querySelector(".queue-run-robustness-button")?.addEventListener("click", async () => {
@@ -1406,7 +1353,6 @@ function renderJobDetail() {
     ${state.jobDetail.error_message ? `<p>${escapeHtml(state.jobDetail.error_message)}</p>` : "<p>No error message.</p>"}
     <div class="inline-actions">
       ${state.jobDetail.run_dir ? `<button class="button secondary open-job-run-button" data-run-id="${escapeHtml(runId)}" type="button">Open Run</button>` : ""}
-      ${["train", "fine_tune"].includes(state.jobDetail.job_type) ? `<button class="button secondary open-job-progress-button" data-job-id="${state.jobDetail.id}" type="button">Open Progress</button>` : ""}
       <button class="button secondary refresh-job-log-button" data-job-id="${state.jobDetail.id}" type="button">Refresh Log</button>
     </div>
   `;
@@ -1414,17 +1360,7 @@ function renderJobDetail() {
   container.querySelector(".open-job-run-button")?.addEventListener("click", async (event) => {
     try {
       await fetchRunDetail(event.target.dataset.runId, true);
-      setPage("testing");
-    } catch (error) {
-      showMessage(error.message, "error");
-    }
-  });
-
-  container.querySelector(".open-job-progress-button")?.addEventListener("click", async (event) => {
-    try {
-      await fetchTrainingProgress(Number(event.target.dataset.jobId), false);
-      setPage("training");
-      showMessage(`Opened progress for job ${event.target.dataset.jobId}.`);
+      setPage("evaluate");
     } catch (error) {
       showMessage(error.message, "error");
     }
@@ -1527,9 +1463,337 @@ function renderTrainingPreflight() {
     </div>
     <div class="card-meta">
       <span class="tag">shape ${escapeHtml(String(state.trainingPreflight.shape_compatible))}</span>
-      <span class="tag">checkpoint ${escapeHtml(checkpointUiLabel(checkpoint))}</span>
+      <span class="tag">brain ${escapeHtml(checkpointUiLabel(checkpoint))}</span>
     </div>
   `;
+}
+
+async function fetchAutopilotData(runId) {
+  if (!runId) return;
+  try {
+    const [settings, historyResult, stopStatus] = await Promise.all([
+      apiRequest("/autopilot/settings"),
+      apiRequest(`/autopilot/history/${encodeURIComponent(runId)}`),
+      apiRequest("/autopilot/status"),
+    ]);
+    state.autopilotSettings = settings;
+    state.autopilotHistory = historyResult.items || [];
+    state.autopilotStopRequested = stopStatus.stop_requested || false;
+  } catch (_error) {
+    // Leave previous state intact on error.
+  }
+  renderAutopilotPanel();
+}
+
+function renderAutopilotPanel() {
+  const settings = state.autopilotSettings;
+  const history = state.autopilotHistory;
+  const runDetail = state.runDetail;
+
+  // --- Controls card ---
+  const controlCard = $("autopilotControlCard");
+  const statusLabel = $("autopilotStatusLabel");
+
+  if (!settings) {
+    controlCard.className = "empty-state";
+    controlCard.textContent = "Open a training run to manage autopilot.";
+    statusLabel.textContent = "-";
+  } else {
+    const logicOn = settings.logic_enabled;
+    const aiOn = settings.ai_enabled;
+    const stopPending = state.autopilotStopRequested;
+    const lastDecision = history.length ? history[history.length - 1] : null;
+    const aiUsed = history.filter((d) => d.advisor === "ai").length;
+
+    statusLabel.textContent = logicOn ? (aiOn ? "logic + AI" : "logic only") : "disabled";
+
+    controlCard.className = "list-card";
+    controlCard.innerHTML = `
+      <div class="autopilot-toggles">
+        <div class="autopilot-toggle-row">
+          <span>Logic Autopilot</span>
+          <button class="button ${logicOn ? "primary" : "secondary"} autopilot-toggle-btn" data-key="logic_enabled" data-value="${!logicOn}" type="button">
+            ${logicOn ? "Enabled" : "Disabled"}
+          </button>
+        </div>
+        <div class="autopilot-toggle-row">
+          <span>AI Advisor <em style="font-size:11px;color:var(--muted)">(on plateau)</em></span>
+          <button class="button ${aiOn ? "primary" : "secondary"} autopilot-toggle-btn" data-key="ai_enabled" data-value="${!aiOn}" type="button">
+            ${aiOn ? "Enabled" : "Disabled"}
+          </button>
+        </div>
+      </div>
+      <div class="card-meta">
+        <span class="tag ${stopPending ? "bad" : ""}">Stop after cycle: ${stopPending ? "pending" : "off"}</span>
+        <span class="tag">AI used: ${aiUsed} / 3</span>
+        ${lastDecision ? `<span class="tag">Last: ${actionTag(lastDecision.action)} by ${escapeHtml(lastDecision.advisor)}</span>` : ""}
+      </div>
+      <div class="inline-actions">
+        <button class="button primary" id="startAutopilotLoopButton" type="button">Start Autopilot Loop</button>
+        ${stopPending
+          ? `<button class="button secondary" id="clearStopButton" type="button">Resume Auto-Chain</button>`
+          : `<button class="button secondary" id="requestStopButton" type="button">Stop After Cycle</button>`
+        }
+      </div>
+    `;
+
+    const startLoopBtn = controlCard.querySelector("#startAutopilotLoopButton");
+    if (startLoopBtn) {
+      startLoopBtn.addEventListener("click", async () => {
+        const runId = state.activeRunId;
+        if (!runId) { showMessage("No run selected.", "error"); return; }
+        try {
+          startLoopBtn.disabled = true;
+          startLoopBtn.textContent = "Running…";
+          const result = await apiRequest(`/autopilot/run/${runId}`, { method: "POST", body: JSON.stringify({}) });
+          showMessage(`Autopilot loop started: ${result.action} — ${result.reason}`);
+          await fetchAutopilotData(runId);
+        } catch (error) {
+          showMessage(error.message, "error");
+          startLoopBtn.disabled = false;
+          startLoopBtn.textContent = "Start Autopilot Loop";
+        }
+      });
+    }
+
+    const stopBtn = controlCard.querySelector("#requestStopButton");
+    if (stopBtn) {
+      stopBtn.addEventListener("click", async () => {
+        try {
+          await apiRequest("/autopilot/stop-after-cycle", { method: "POST" });
+          showMessage("Autopilot will stop after the current training block.");
+          state.autopilotStopRequested = true;
+          renderAutopilotPanel();
+          renderAutopilotTrainingPanel();
+        } catch (error) {
+          showMessage(error.message, "error");
+        }
+      });
+    }
+
+    const resumeBtn = controlCard.querySelector("#clearStopButton");
+    if (resumeBtn) {
+      resumeBtn.addEventListener("click", async () => {
+        try {
+          await apiRequest("/autopilot/stop-after-cycle", { method: "DELETE" });
+          showMessage("Stop request cleared. Autopilot will resume after next block.");
+          state.autopilotStopRequested = false;
+          renderAutopilotPanel();
+          renderAutopilotTrainingPanel();
+        } catch (error) {
+          showMessage(error.message, "error");
+        }
+      });
+    }
+
+    controlCard.querySelectorAll(".autopilot-toggle-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        try {
+          state.autopilotSettings = await apiRequest("/autopilot/settings", {
+            method: "POST",
+            body: JSON.stringify({ [btn.dataset.key]: btn.dataset.value === "true" }),
+          });
+          renderAutopilotPanel();
+          renderAutopilotTrainingPanel();
+        } catch (error) {
+          showMessage(error.message, "error");
+        }
+      });
+    });
+  }
+
+  // --- Run settings card ---
+  const settingsCard = $("autopilotRunSettingsCard");
+  const tc = runDetail?.training_config;
+  if (!tc) {
+    settingsCard.className = "empty-state";
+    settingsCard.textContent = "Open a training run to see active settings.";
+  } else {
+    settingsCard.className = "list-card";
+    settingsCard.innerHTML = `
+      <div class="metric-grid">
+        <div class="metric-card"><span>Learning Rate</span><strong>${formatNumber(tc.learning_rate, 6)}</strong></div>
+        <div class="metric-card"><span>Epsilon Decay Ep.</span><strong>${tc.epsilon_decay_episodes?.toLocaleString() ?? "-"}</strong></div>
+        <div class="metric-card"><span>Episodes</span><strong>${tc.episodes?.toLocaleString() ?? "-"}</strong></div>
+        <div class="metric-card"><span>Gamma</span><strong>${formatNumber(tc.gamma, 4)}</strong></div>
+        <div class="metric-card"><span>Batch Size</span><strong>${tc.batch_size ?? "-"}</strong></div>
+        <div class="metric-card"><span>Epsilon Min</span><strong>${formatNumber(tc.epsilon_min, 4)}</strong></div>
+      </div>
+    `;
+  }
+
+  // --- Decision history ---
+  const decisionsCard = $("autopilotDecisionsCard");
+  const countLabel = $("autopilotDecisionCount");
+  countLabel.textContent = `${history.length} decision${history.length !== 1 ? "s" : ""}`;
+
+  if (!history.length) {
+    decisionsCard.className = "empty-state";
+    decisionsCard.textContent = "No autopilot decisions recorded for this run.";
+    return;
+  }
+
+  decisionsCard.className = "decision-list";
+  decisionsCard.innerHTML = [...history].reverse().map((d) => {
+    const ts = d.decided_at ? new Date(d.decided_at).toLocaleString() : "-";
+    const m = d.metrics || {};
+    return `
+      <div class="decision-row">
+        <div class="decision-row-head">
+          ${actionTag(d.action)}
+          <span class="tag ${d.advisor === "ai" ? "ai" : ""}">${escapeHtml(d.advisor || "logic")}</span>
+          <span class="tag">${escapeHtml(ts)}</span>
+          ${d.job_enqueued ? `<span class="tag good">job #${d.job_id} queued</span>` : ""}
+        </div>
+        <p class="decision-reason">${escapeHtml(d.reason || "")}</p>
+        <div class="card-meta">
+          ${m.latest_epsilon != null ? `<span class="tag">ε=${formatNumber(m.latest_epsilon, 3)}</span>` : ""}
+          ${m.latest_reward != null ? `<span class="tag">reward ${formatNumber(m.latest_reward)}</span>` : ""}
+          ${m.bankruptcy_rate != null ? `<span class="tag">bankruptcy ${formatNumber(m.bankruptcy_rate, 3)}</span>` : ""}
+          ${m.invalid_action_rate != null ? `<span class="tag">invalid ${formatNumber(m.invalid_action_rate, 3)}</span>` : ""}
+          ${m.reward_improvement_ratio != null ? `<span class="tag">improvement ${formatNumber(m.reward_improvement_ratio * 100, 1)}%</span>` : ""}
+        </div>
+        ${d.next_payload ? `<div class="card-meta">
+          <span class="tag info">lr ${formatNumber(d.next_payload.learning_rate, 6)}</span>
+          <span class="tag info">ε-decay ${d.next_payload.epsilon_decay_episodes?.toLocaleString()}</span>
+          <span class="tag info">${d.next_payload.episodes?.toLocaleString()} ep</span>
+        </div>` : ""}
+      </div>
+    `;
+  }).join("");
+}
+
+function actionTag(action) {
+  const tones = {
+    continue: "good",
+    lower_lr: "warn",
+    extend_epsilon_decay: "info",
+    fine_tune: "ai",
+    stop: "bad",
+  };
+  return `<span class="tag ${tones[action] || ""}">${escapeHtml(action || "-")}</span>`;
+}
+
+function renderAutopilotTrainingPanel() {
+  const card = $("autopilotTrainingCard");
+  const label = $("autopilotTrainingStatusLabel");
+  const settings = state.autopilotSettings;
+
+  if (!settings) {
+    card.className = "empty-state";
+    card.textContent = "Connect to the backend to manage autopilot settings.";
+    label.textContent = "-";
+    return;
+  }
+
+  const logicOn = settings.logic_enabled;
+  const aiOn = settings.ai_enabled;
+  const stopPending = state.autopilotStopRequested;
+  label.textContent = logicOn ? (aiOn ? "logic + AI" : "logic only") : "disabled";
+
+  card.className = "list-card";
+  card.innerHTML = `
+    <div class="autopilot-toggles">
+      <div class="autopilot-toggle-row">
+        <span>Logic Autopilot</span>
+        <button class="button ${logicOn ? "primary" : "secondary"} ap-toggle-btn" data-key="logic_enabled" data-value="${!logicOn}" type="button">
+          ${logicOn ? "Enabled" : "Disabled"}
+        </button>
+      </div>
+      <div class="autopilot-toggle-row">
+        <span>AI Advisor <em style="font-size:11px;color:var(--muted)">(on plateau)</em></span>
+        <button class="button ${aiOn ? "primary" : "secondary"} ap-toggle-btn" data-key="ai_enabled" data-value="${!aiOn}" type="button">
+          ${aiOn ? "Enabled" : "Disabled"}
+        </button>
+      </div>
+    </div>
+    <div class="card-meta">
+      <span class="tag ${stopPending ? "bad" : ""}">Stop after cycle: ${stopPending ? "pending" : "off"}</span>
+    </div>
+    <div class="inline-actions">
+      <button class="button primary" id="startAutopilotTrainingBtn" type="button"
+        ${state.trainingProgress?.status === "completed" ? "" : "disabled"}>
+        Start Autopilot Loop
+      </button>
+      ${stopPending
+        ? `<button class="button secondary" id="clearStopTrainingBtn" type="button">Resume Auto-Chain</button>`
+        : `<button class="button secondary" id="requestStopTrainingBtn" type="button">Stop After Cycle</button>`
+      }
+    </div>
+  `;
+
+  card.querySelectorAll(".ap-toggle-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        state.autopilotSettings = await apiRequest("/autopilot/settings", {
+          method: "POST",
+          body: JSON.stringify({ [btn.dataset.key]: btn.dataset.value === "true" }),
+        });
+        renderAutopilotTrainingPanel();
+        renderAutopilotPanel();
+      } catch (error) {
+        showMessage(error.message, "error");
+      }
+    });
+  });
+
+  const startLoopTrainingBtn = card.querySelector("#startAutopilotTrainingBtn");
+  if (startLoopTrainingBtn) {
+    startLoopTrainingBtn.addEventListener("click", async () => {
+      const progress = state.trainingProgress;
+      const runId = progress?.run_dir ? runLabelFromPath(progress.run_dir) : state.activeProgressRunId;
+      if (!runId) { showMessage("No completed run to analyze.", "error"); return; }
+      try {
+        startLoopTrainingBtn.disabled = true;
+        startLoopTrainingBtn.textContent = "Running…";
+        const result = await apiRequest(`/autopilot/run/${runId}`, { method: "POST", body: JSON.stringify({}) });
+        showMessage(`Autopilot loop started: ${result.action} — ${result.reason}`);
+        await fetchAutopilotData(runId);
+      } catch (error) {
+        showMessage(error.message, "error");
+        renderAutopilotTrainingPanel();
+      }
+    });
+  }
+
+  const stopBtn = card.querySelector("#requestStopTrainingBtn");
+  if (stopBtn) {
+    stopBtn.addEventListener("click", async () => {
+      try {
+        await apiRequest("/autopilot/stop-after-cycle", { method: "POST" });
+        state.autopilotStopRequested = true;
+        renderAutopilotTrainingPanel();
+        renderAutopilotPanel();
+      } catch (error) { showMessage(error.message, "error"); }
+    });
+  }
+
+  const resumeBtn = card.querySelector("#clearStopTrainingBtn");
+  if (resumeBtn) {
+    resumeBtn.addEventListener("click", async () => {
+      try {
+        await apiRequest("/autopilot/stop-after-cycle", { method: "DELETE" });
+        state.autopilotStopRequested = false;
+        renderAutopilotTrainingPanel();
+        renderAutopilotPanel();
+      } catch (error) { showMessage(error.message, "error"); }
+    });
+  }
+}
+
+async function refreshAutopilotSettings() {
+  try {
+    const [settings, stopStatus] = await Promise.all([
+      apiRequest("/autopilot/settings"),
+      apiRequest("/autopilot/status"),
+    ]);
+    state.autopilotSettings = settings;
+    state.autopilotStopRequested = stopStatus.stop_requested || false;
+  } catch (_error) {
+    // Non-fatal — leave previous state.
+  }
+  renderAutopilotTrainingPanel();
+  renderAutopilotPanel();
 }
 
 function renderTrainingProgress() {
@@ -1537,11 +1801,17 @@ function renderTrainingProgress() {
   const container = $("trainingProgressCard");
   const progress = state.trainingProgress;
   const job = selectedProgressJob();
+  const run = selectedProgressRun();
 
-  if (!job || !progress) {
+  if (state.activeProgressRunId && !run && !job) {
+    state.activeProgressRunId = null;
+    state.trainingProgress = null;
+  }
+
+  if (!progress) {
     progressLabel.textContent = "No job selected";
     container.className = "empty-state";
-    container.textContent = "Queue or select a training job to see progress.";
+    container.textContent = "Open a training job or finished run to see progress.";
     renderLineChart("trainingRewardChart", [], "rolling_average_reward", "#4cb782", "");
     renderLineChart("trainingEvalChart", [], "average_reward", "#7fb7ff", "");
     return;
@@ -1550,8 +1820,13 @@ function renderTrainingProgress() {
   const percent = Math.max(0, Math.min(100, Math.round((progress.progress_ratio || 0) * 100)));
   const latest = progress.latest_training_row || {};
   const latestEval = progress.latest_evaluation_row || {};
-  progressLabel.textContent = `Job #${job.id} | ${job.job_type} | ${job.status}`;
-  const runPath = job.run_dir || progress.run_dir || "";
+  const progressStatus = job?.status || progress.status || "completed";
+  progressLabel.textContent = job
+    ? `Job #${job.id} | ${job.job_type} | ${job.status}`
+    : run
+      ? `${run.id} | ${progressStatus}`
+      : `${runLabelFromPath(progress.run_dir)} | ${progressStatus}`;
+  const runPath = job?.run_dir || run?.path || progress.run_dir || "";
   const runName = runLabelFromPath(runPath);
 
   container.className = "progress-stack";
@@ -1566,7 +1841,7 @@ function renderTrainingProgress() {
       <div class="card-meta">
         <span class="tag">${percent}%</span>
         <span class="tag">epsilon ${formatNumber(latest.epsilon, 4)}</span>
-        <span class="tag">status ${escapeHtml(job.status)}</span>
+        <span class="tag">status ${escapeHtml(progressStatus)}</span>
       </div>
     </div>
     <div class="metric-grid">
@@ -1599,7 +1874,7 @@ function renderCompatibility() {
   const container = $("compatibilityCard");
   if (!state.compatibility) {
     container.className = "empty-state";
-    container.textContent = "Select a game config and checkpoint, then run compatibility.";
+    container.textContent = "Select a blueprint and brain, then run compatibility.";
     return;
   }
 
@@ -1613,8 +1888,8 @@ function renderCompatibility() {
       <span class="tag">Shape: ${state.compatibility.shape_compatible}</span>
     </div>
     <div class="card-meta">
-      <span class="tag">Checkpoint rule: ${state.compatibility.checkpoint_rule_signature || "legacy-unknown"}</span>
-      <span class="tag">Target rule: ${state.compatibility.target_rule_signature}</span>
+      <span class="tag">Brain rule: ${state.compatibility.checkpoint_rule_signature || "legacy-unknown"}</span>
+      <span class="tag">Blueprint rule: ${state.compatibility.target_rule_signature}</span>
     </div>
   `;
 }
@@ -1624,7 +1899,7 @@ function renderCheckpointDetail() {
   const checkpoint = state.checkpoints.find((item) => item.id === state.activeCheckpointId);
   if (!checkpoint) {
     container.className = "empty-state";
-    container.textContent = "Select a checkpoint from the sidebar or list to inspect it.";
+    container.textContent = "Select a brain from the library or workspace selector to inspect it.";
     return;
   }
 
@@ -1644,7 +1919,18 @@ function renderCheckpointDetail() {
     <div class="card-meta">
       <span class="tag">${checkpoint.rule_signature || "legacy-unknown-rule"}</span>
     </div>
+    <div class="inline-actions">
+      ${checkpoint.source_type === "run" && checkpoint.source_run ? `<button class="button secondary open-brain-inspect-button" data-run-id="${escapeHtml(checkpoint.source_run)}" type="button">Open Inspect</button>` : ""}
+    </div>
   `;
+
+  container.querySelector(".open-brain-inspect-button")?.addEventListener("click", async (event) => {
+    try {
+      await openInspectForRun(event.target.dataset.runId, true);
+    } catch (error) {
+      showMessage(error.message, "error");
+    }
+  });
 }
 
 function playControllerPayload(choice) {
@@ -1738,10 +2024,16 @@ function parseSeedList(value) {
 }
 
 function renderDirectEvaluation() {
+  const activeBrainInput = $("directEvaluationBrainInput");
+  const checkpoint = selectedCheckpoint();
+  if (activeBrainInput) {
+    activeBrainInput.value = checkpoint ? checkpointUiLabel(checkpoint) : "";
+    activeBrainInput.placeholder = checkpoint ? "" : "Select an active brain from the sidebar";
+  }
   const host = $("directEvaluationResult");
   if (!state.directEvaluation) {
     host.className = "empty-state";
-    host.textContent = "Run a direct evaluation for the active checkpoint and active game config.";
+    host.textContent = "Run a direct evaluation for the active brain and blueprint.";
     renderBarChart("directEvaluationChart", [], "episode_reward", "seed", "#6b8aa3", "#cc5f5f", "");
     renderTable("directEvaluationTable", [], []);
     return;
@@ -1750,7 +2042,7 @@ function renderDirectEvaluation() {
   host.className = "list-card";
   host.innerHTML = `
     <h4>${state.directEvaluation.checkpoint.label}</h4>
-    <p>Direct greedy evaluation</p>
+    <p>Direct greedy evaluation of the active brain.</p>
     <div class="card-meta">
       <span class="tag">mean reward ${Number(summary.mean_reward).toFixed(2)}</span>
       <span class="tag">mean bank ${Number(summary.mean_ending_money).toFixed(2)}</span>
@@ -1784,15 +2076,12 @@ function renderDirectEvaluation() {
 
 function renderCheckpointComparison() {
   const host = $("checkpointCompareResult");
-  const compareOptions = state.checkpoints
-    .filter((item) => item.id !== state.activeCheckpointId)
-    .slice()
-    .map((item) => ({ ...item, ui_label: checkpointUiLabel(item) }))
-    .sort((left, right) => left.ui_label.localeCompare(right.ui_label));
-  buildOptions("compareCheckpointSelect", compareOptions, "id", "ui_label");
+  const compareOptions = sidebarCheckpointOptions()
+    .filter((item) => item.id !== state.activeCheckpointId);
+  buildOptions("compareCheckpointSelect", compareOptions, "id", "ui_label", "No comparison brains");
   if (!state.comparisonEvaluation) {
     host.className = "empty-state";
-    host.textContent = "Compare the active checkpoint against another checkpoint on the active game config.";
+    host.textContent = "Compare the selected right-side brain against the active brain from the sidebar.";
     renderBarChart("comparisonChart", [], "reward_delta", "seed", "#6b8aa3", "#cc5f5f", "");
     renderTable("comparisonTable", [], []);
     return;
@@ -1957,10 +2246,21 @@ async function refreshJobs() {
 
 async function fetchTrainingProgress(jobId, announce = false) {
   state.activeProgressJobId = Number(jobId);
+  state.activeProgressRunId = null;
   state.trainingProgress = await apiRequest(`/jobs/${state.activeProgressJobId}/progress`);
   renderTrainingProgress();
   if (announce) {
     showMessage(`Loaded progress for job ${jobId}.`);
+  }
+}
+
+async function fetchRunProgress(runId, announce = false) {
+  state.activeProgressRunId = runId;
+  state.activeProgressJobId = null;
+  state.trainingProgress = await apiRequest(`/runs/${encodeURIComponent(runId)}/progress`);
+  renderTrainingProgress();
+  if (announce) {
+    showMessage(`Loaded progress for run ${runId}.`);
   }
 }
 
@@ -2066,6 +2366,57 @@ async function fetchJobDetail(jobId, announce = false) {
   }
 }
 
+async function openInspectForRun(runId, announce = true) {
+  await fetchRunDetail(runId, false);
+  await fetchAutopilotData(runId).catch(() => {});
+  const linkedJob = jobForRunId(runId);
+  if (linkedJob) {
+    await fetchJobDetail(linkedJob.id, false).catch(() => {});
+    if (["train", "fine_tune"].includes(linkedJob.job_type)) {
+      await fetchTrainingProgress(linkedJob.id, false).catch(() => {});
+    }
+  } else {
+    state.activeJobDetailId = null;
+    state.jobDetail = null;
+    state.jobLog = null;
+    renderJobDetail();
+    renderJobLog();
+    await fetchRunProgress(runId, false).catch(() => {
+      state.activeProgressRunId = null;
+      state.activeProgressJobId = null;
+      state.trainingProgress = null;
+      renderTrainingProgress();
+    });
+  }
+  setPage("inspect");
+  if (announce) {
+    showMessage(`Opened inspect view for ${runId}.`);
+  }
+}
+
+async function openInspectForJob(jobId, announce = true) {
+  await fetchJobDetail(jobId, false);
+  const job = state.jobDetail;
+  if (job?.run_dir) {
+    await fetchRunDetail(runLabelFromPath(job.run_dir), false).catch(() => {});
+  }
+  if (job?.run_dir) {
+    await fetchAutopilotData(runLabelFromPath(job.run_dir)).catch(() => {});
+  }
+  if (job && ["train", "fine_tune"].includes(job.job_type)) {
+    await fetchTrainingProgress(job.id, false).catch(() => {});
+  } else {
+    state.activeProgressRunId = null;
+    state.activeProgressJobId = null;
+    state.trainingProgress = null;
+    renderTrainingProgress();
+  }
+  setPage("inspect");
+  if (announce) {
+    showMessage(`Opened inspect view for job ${jobId}.`);
+  }
+}
+
 async function refreshAll() {
   clearMessage();
   const [health, gameConfigs, trainingConfigs, runs, checkpoints, jobs] = await Promise.all([
@@ -2089,7 +2440,6 @@ async function refreshAll() {
   renderTrainingConfigs();
   renderRuns();
   renderRunDetail();
-  renderCheckpoints();
   renderCheckpointDetail();
   renderJobs();
   renderJobDetail();
@@ -2107,6 +2457,7 @@ async function refreshAll() {
   updateSummaryPills();
   renderContextCard();
   await refreshTrainingPreflight();
+  await refreshAutopilotSettings().catch(() => {});
 
   if (!$("gameConfigEditor").value && state.gameConfigs.length) {
     await loadActiveGameConfigIntoEditor();
@@ -2255,7 +2606,7 @@ async function runCheckpointComparison(event) {
   event.preventDefault();
   const rightCheckpointId = $("compareCheckpointSelect").value;
   if (!state.activeCheckpointId || !rightCheckpointId || !state.activeGameConfigId) {
-    showMessage("Select both checkpoints and a game config first.", "error");
+    showMessage("Select an active brain, a comparison brain, and a blueprint first.", "error");
     return;
   }
   state.comparisonEvaluation = await apiRequest("/testing/compare", {
@@ -2386,6 +2737,8 @@ function attachEvents() {
     state.activeGameConfigId = event.target.value;
     updateSummaryPills();
     renderTrainingSelectionSummary();
+    clearCompatibilityResult();
+    clearEvaluationResults();
     refreshTrainingPreflight().catch(() => {});
     loadActiveGameConfigIntoEditor().catch(() => {});
   });
@@ -2400,8 +2753,9 @@ function attachEvents() {
     state.activeCheckpointId = event.target.value;
     updateSummaryPills();
     renderTrainingSelectionSummary();
+    clearCompatibilityResult();
+    clearEvaluationResults();
     refreshTrainingPreflight().catch(() => {});
-    renderCheckpoints();
     renderCheckpointDetail();
   });
 
@@ -2410,6 +2764,8 @@ function attachEvents() {
     syncSelectors();
     updateSummaryPills();
     renderTrainingSelectionSummary();
+    clearCompatibilityResult();
+    clearEvaluationResults();
     refreshTrainingPreflight().catch(() => {});
     renderCheckpointDetail();
   });
@@ -2417,30 +2773,6 @@ function attachEvents() {
   $("trainModeSelect").addEventListener("change", () => {
     renderTrainingSelectionSummary();
     refreshTrainingPreflight().catch(() => {});
-  });
-
-  $("checkpointSourceFilter").addEventListener("change", () => {
-    renderCheckpoints();
-  });
-
-  $("checkpointFormatFilter").addEventListener("change", () => {
-    renderCheckpoints();
-  });
-
-  $("checkpointSearchInput").addEventListener("input", () => {
-    renderCheckpoints();
-  });
-
-  $("checkpointBestOnlyToggle").addEventListener("change", () => {
-    renderCheckpoints();
-  });
-
-  $("checkpointShowIntermediatesToggle").addEventListener("change", () => {
-    renderCheckpoints();
-  });
-
-  $("checkpointShowLegacyToggle").addEventListener("change", () => {
-    renderCheckpoints();
   });
 
   $("trainJobForm").addEventListener("submit", async (event) => {

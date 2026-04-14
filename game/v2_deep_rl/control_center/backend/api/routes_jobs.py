@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from jobs.queue_manager import (
+    dismiss_job,
     enqueue_evaluation_job,
     enqueue_train_job,
     get_job_details,
@@ -73,4 +74,17 @@ def stop_job_route(job_id: int):
     try:
         return stop_job(job_id)
     except ValueError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        detail = str(error)
+        status_code = 404 if "was not found" in detail else 400
+        raise HTTPException(status_code=status_code, detail=detail) from error
+
+
+@router.delete("/{job_id}")
+def dismiss_job_route(job_id: int):
+    """Dismiss one terminal job from the queue list."""
+    try:
+        return dismiss_job(job_id)
+    except ValueError as error:
+        detail = str(error)
+        status_code = 404 if "was not found" in detail else 400
+        raise HTTPException(status_code=status_code, detail=detail) from error

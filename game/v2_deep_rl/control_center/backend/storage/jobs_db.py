@@ -87,6 +87,13 @@ def get_job(job_id: int) -> dict | None:
     return _row_to_job(row)
 
 
+def delete_job(job_id: int) -> bool:
+    with get_connection() as connection:
+        cursor = connection.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+        connection.commit()
+    return cursor.rowcount > 0
+
+
 def update_job(job_id: int, **fields) -> dict | None:
     if not fields:
         return get_job(job_id)

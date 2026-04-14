@@ -1,0 +1,9 @@
+Training episodes completed: 500
+Evaluation episodes completed: 1000
+Average reward per episode during evaluation: -40908.25
+Average ending money during evaluation: 20515.00
+Bankruptcy rate during evaluation: 0.333
+Saved best model checkpoint to: C:\Users\joche\OneDrive\Documenten\GitClones\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-14_1507\checkpoints\best_scrum_model.pth
+Saved training curve to: C:\Users\joche\OneDrive\Documenten\GitClones\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-14_1507\plots\dqn_training_curve.png
+Saved live training log to: C:\Users\joche\OneDrive\Documenten\GitClones\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-14_1507\reports\logs.csv
+Saved periodic evaluation log to: C:\Users\joche\OneDrive\Documenten\GitClones\scrumgameai\game\v2_deep_rl\artifacts\runs\run_2026-04-14_1507\reports\evaluation_history.csv

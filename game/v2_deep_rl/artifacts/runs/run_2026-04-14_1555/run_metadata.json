@@ -1,0 +1,19 @@
+{
+  "run_name": "run_2026-04-14_1555",
+  "run_path": "C:\\Users\\joche\\OneDrive\\Documenten\\GitClones\\scrumgameai\\game\\v2_deep_rl\\artifacts\\runs\\run_2026-04-14_1555",
+  "created_at": "2026-04-14T15:55:43.961350",
+  "training_episodes": 1000,
+  "learning_rate": 0.0005,
+  "gamma": 0.85,
+  "checkpoint_interval": 10000,
+  "evaluation_interval": 10000,
+  "evaluation_episodes": 100,
+  "seed": 42,
+  "run_notes": "",
+  "game_config_path": "C:\\Users\\joche\\OneDrive\\Documenten\\GitClones\\scrumgameai\\game\\v2_deep_rl\\artifacts\\runs\\run_2026-04-14_1555\\game_config.json",
+  "training_config_path": "C:\\Users\\joche\\OneDrive\\Documenten\\GitClones\\scrumgameai\\game\\v2_deep_rl\\artifacts\\runs\\run_2026-04-14_1555\\training_config.json",
+  "rule_signature": "5ac0a93a41f442a279ce8ce0e96b8c9b94e095702da1f58f12012cc58ac7a857",
+  "training_signature": "d7c0c5513209161587703c74238cb28c18c3a2acb82315a68bd2345091515b62",
+  "resume_checkpoint_path": null,
+  "resume_mode": null
+}

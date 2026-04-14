@@ -212,6 +212,7 @@ def resolve_training_config(
     evaluation_interval=None,
     evaluation_episodes=None,
     seed=None,
+    epsilon_decay_episodes=None,
     run_notes="",
 ):
     """Load the base training config and apply CLI/function overrides."""
@@ -232,6 +233,8 @@ def resolve_training_config(
         payload["evaluation_episodes"] = int(evaluation_episodes)
     if seed is not None:
         payload["seed"] = int(seed)
+    if epsilon_decay_episodes is not None:
+        payload["epsilon_decay_episodes"] = int(epsilon_decay_episodes)
     if run_notes:
         payload["run_notes"] = str(run_notes)
 
@@ -371,6 +374,7 @@ def train_dqn_agent(
     evaluation_interval=10000,
     evaluation_episodes=100,
     seed=42,
+    epsilon_decay_episodes=None,
     run_dir=None,
     run_notes="",
     game_config: GameConfig | None = None,
@@ -392,6 +396,7 @@ def train_dqn_agent(
         evaluation_interval=evaluation_interval,
         evaluation_episodes=evaluation_episodes,
         seed=seed,
+        epsilon_decay_episodes=epsilon_decay_episodes,
         run_notes=run_notes,
     )
 
@@ -671,6 +676,7 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=None, help="Training seed.")
     parser.add_argument("--learning-rate", type=float, default=None, help="Optimizer learning rate.")
     parser.add_argument("--gamma", type=float, default=None, help="Discount factor.")
+    parser.add_argument("--epsilon-decay-episodes", type=int, default=None, help="Episodes over which epsilon decays to minimum.")
     parser.add_argument("--resume-from", default=None, help="Optional checkpoint path for resume or fine-tune training.")
     parser.add_argument(
         "--resume-mode",
@@ -693,6 +699,7 @@ def main():
         evaluation_interval=args.evaluation_interval,
         evaluation_episodes=args.evaluation_episodes,
         seed=args.seed,
+        epsilon_decay_episodes=args.epsilon_decay_episodes,
         run_dir=args.run_dir,
         run_notes=args.notes,
         game_config_path=args.game_config,

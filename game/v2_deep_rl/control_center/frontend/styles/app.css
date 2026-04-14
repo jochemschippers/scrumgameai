@@ -558,6 +558,25 @@ textarea {
   background: var(--panel-muted);
 }
 
+.evaluation-form-stack {
+  grid-auto-rows: minmax(56px, auto);
+}
+
+#directEvaluationResult,
+#checkpointCompareResult {
+  min-height: 78px;
+}
+
+#directEvaluationChart,
+#comparisonChart {
+  min-height: 274px;
+}
+
+#directEvaluationTable,
+#comparisonTable {
+  min-height: 92px;
+}
+
 .chart-card h4 {
   margin-bottom: 8px;
 }
@@ -689,6 +708,62 @@ textarea {
 pre {
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.tag.ai {
+  background: #f0ecff;
+  color: #6b4fa8;
+}
+
+.tag.info {
+  background: #e8f2ff;
+  color: #3d6fa8;
+}
+
+.autopilot-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.autopilot-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.autopilot-toggle-row span {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.decision-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.decision-row {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-muted);
+}
+
+.decision-row-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.decision-reason {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0;
 }
 
 @media (max-width: 1080px) {

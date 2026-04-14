@@ -10,7 +10,7 @@ import sys
 import time
 
 from services.app_paths import BACKEND_DIR, ENGINE_ROOT, RUNS_DIR, ensure_engine_import_path
-from storage.jobs_db import create_job, get_job, init_db, list_jobs as list_jobs_db, update_job, utc_now_iso
+from storage.jobs_db import create_job, delete_job, get_job, init_db, list_jobs as list_jobs_db, update_job, utc_now_iso
 
 ensure_engine_import_path()
 
@@ -269,7 +269,7 @@ def enqueue_train_job(payload: dict) -> dict:
     init_db()
     resume_from = payload.get("resume_from")
     resume_mode = payload.get("resume_mode", "strict")
-    job_type = "fine_tune" if resume_from and resume_mode == "fine_tune" else "train"
+    job_type = "fine_tune" if resume_from and resume_mode in {"fine_tune", "fine-tune"} else "train"
     run_dir = _create_job_run_dir(job_type, run_name=payload.get("run_name"))
     stdout_log_path = _default_stdout_log(run_dir, job_type)
 
@@ -329,3 +329,19 @@ def stop_job(job_id: int) -> dict:
     updated = update_job(job_id, status="stopped", ended_at=utc_now_iso(), error_message="Stopped by user request.")
     dispatch_next_job()
     return updated
+
+
+def dismiss_job(job_id: int) -> dict:
+    init_db()
+    job = get_job(job_id)
+    if job is None:
+        raise ValueError(f"Job `{job_id}` was not found.")
+
+    if job["status"] in {"queued", "running"}:
+        raise ValueError(f"Job `{job_id}` cannot be dismissed while it is {job['status']}.")
+
+    deleted = delete_job(job_id)
+    if not deleted:
+        raise ValueError(f"Job `{job_id}` could not be dismissed.")
+
+    return {"ok": True, "job_id": job_id}

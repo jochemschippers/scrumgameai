@@ -172,3 +172,26 @@ Phase 1 should be deterministic and traceable.
 Phase 2 can add an AI advisor.
 
 Phase 3 can support AI-suggested rule variants, but only behind validation and human review.
+
+
+
+ai key:
+from openai import OpenAI
+
+client = OpenAI(
+  base_url = "https://integrate.api.nvidia.com/v1",
+  api_key = "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"
+)
+
+completion = client.chat.completions.create(
+  model="abacusai/dracarys-llama-3.1-70b-instruct",
+  messages=[{"role":"user","content":""}],
+  temperature=0.5,
+  top_p=1,
+  max_tokens=1024,
+  stream=True
+)
+
+for chunk in completion:
+  if chunk.choices[0].delta.content is not None:
+    print(chunk.choices[0].delta.content, end="")

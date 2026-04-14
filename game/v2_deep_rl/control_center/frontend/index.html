@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Scrum Game Control Center</title>
-  <link rel="stylesheet" href="./styles/app.css?v=13" />
+  <link rel="stylesheet" href="./styles/app.css?v=14" />
 </head>
 <body>
   <div class="app-shell">
@@ -15,10 +15,9 @@
       </div>
 
       <nav class="nav" aria-label="Primary">
-        <button class="nav-button is-active" data-page="rules">Rules</button>
-        <button class="nav-button" data-page="models">Models</button>
-        <button class="nav-button" data-page="training">Training</button>
-        <button class="nav-button" data-page="testing">Testing</button>
+        <button class="nav-button is-active" data-page="rules">Design</button>
+        <button class="nav-button" data-page="training">Train</button>
+        <button class="nav-button" data-page="evaluate">Evaluate</button>
         <button class="nav-button" data-page="play">Play</button>
       </nav>
 
@@ -39,18 +38,18 @@
       </section>
 
       <section class="sidebar-section">
-        <h2>Selections</h2>
+        <h2>Workspace</h2>
         <div class="selection-stack">
           <label class="field">
-            <span>Active Game Config</span>
+            <span>Active Blueprint</span>
             <select id="activeGameConfigSelect"></select>
           </label>
           <label class="field">
-            <span>Active Training Config</span>
+            <span>Active Training Profile</span>
             <select id="activeTrainingConfigSelect"></select>
           </label>
           <label class="field">
-            <span>Active Model</span>
+            <span>Active Brain</span>
             <select id="activeCheckpointSelect"></select>
           </label>
           <label class="field checkbox-inline compact-checkbox sidebar-checkbox">
@@ -64,20 +63,20 @@
     <main class="main-panel">
       <header class="topbar">
         <div>
-          <h2 id="pageTitle">Rules</h2>
-          <p id="pageSubtitle">Browse managed game and training config assets.</p>
+          <h2 id="pageTitle">Design</h2>
+          <p id="pageSubtitle">Define the blueprint the agent learns against.</p>
         </div>
         <div class="summary-pills">
-          <span id="summaryRuleSignature" class="pill">Rule Signature: -</span>
-          <span id="summaryCheckpointStatus" class="pill">Checkpoint: -</span>
+          <span id="summaryRuleSignature" class="pill">Blueprint: -</span>
+          <span id="summaryCheckpointStatus" class="pill">Brain: -</span>
           <span id="summaryJobCount" class="pill">Jobs: 0</span>
         </div>
       </header>
 
       <section id="contextCard" class="context-card">
         <div class="context-card-head">
-          <strong>Current Context</strong>
-          <span id="contextPageUsage" class="meta-count">Rules uses the active game and training configs.</span>
+          <strong>Active Workspace</strong>
+          <span id="contextPageUsage" class="meta-count">Design uses the active blueprint and training profile.</span>
         </div>
         <div id="contextCardBody" class="context-grid"></div>
       </section>
@@ -307,73 +306,6 @@
         </article>
       </section>
 
-      <section id="page-models" class="page">
-        <div class="grid two-wide">
-          <article class="panel">
-            <div class="panel-head">
-              <h3>Checkpoints</h3>
-              <span id="checkpointCount" class="meta-count">0</span>
-            </div>
-            <div class="grid three compact-grid">
-              <label class="field">
-                <span>Source Filter</span>
-                <select id="checkpointSourceFilter">
-                  <option value="all">All</option>
-                  <option value="run">Run</option>
-                  <option value="current_artifacts">Current Artifacts</option>
-                  <option value="reference_v1">Reference V1</option>
-                  <option value="playable_model_v1">PlayableModelV1</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>Format Filter</span>
-                <select id="checkpointFormatFilter">
-                  <option value="all">All</option>
-                  <option value="managed">Managed</option>
-                  <option value="legacy">Legacy</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>Search</span>
-                <input id="checkpointSearchInput" type="text" placeholder="run or checkpoint name" />
-              </label>
-            </div>
-            <div class="compact-toolbar">
-              <label class="field checkbox-inline compact-checkbox">
-                <input id="checkpointBestOnlyToggle" type="checkbox" />
-                <span>Show Best Only</span>
-              </label>
-              <label class="field checkbox-inline compact-checkbox">
-                <input id="checkpointShowIntermediatesToggle" type="checkbox" />
-                <span>Show Intermediates</span>
-              </label>
-              <label class="field checkbox-inline compact-checkbox">
-                <input id="checkpointShowLegacyToggle" type="checkbox" checked />
-                <span>Show Legacy</span>
-              </label>
-            </div>
-            <div id="checkpointsList" class="list-stack"></div>
-          </article>
-
-          <article class="panel">
-            <div class="panel-head">
-              <h3>Checkpoint Detail</h3>
-              <button id="runCompatibilityButton" class="button secondary" type="button">Check Active Pair</button>
-            </div>
-            <div id="checkpointDetailCard" class="empty-state">
-              Select a checkpoint from the sidebar or list to inspect it.
-            </div>
-            <div class="rules-editor-grid"></div>
-            <div class="panel-head">
-              <h3>Compatibility</h3>
-            </div>
-            <div id="compatibilityCard" class="empty-state">
-              Select a game config and checkpoint, then run compatibility.
-            </div>
-          </article>
-        </div>
-      </section>
-
       <section id="page-training" class="page">
         <div class="grid two">
           <article class="panel">
@@ -428,53 +360,128 @@
         <div class="grid two rules-editor-grid">
           <article class="panel">
             <div class="panel-head">
-              <h3>Job Detail</h3>
-              <span id="jobDetailLabel" class="meta-count">No job selected</span>
+              <h3>Inspection</h3>
             </div>
-            <div id="jobDetailCard" class="empty-state">Select a job to inspect its details.</div>
+            <div class="empty-state">
+              Open a queued, running, completed, or cataloged brain in the dedicated Inspect page for logs, run detail, and learning charts.
+            </div>
           </article>
 
           <article class="panel">
             <div class="panel-head">
-              <h3>Job Log Tail</h3>
-              <span class="meta-count">stdout preview</span>
+              <h3>Autopilot</h3>
+              <span id="autopilotTrainingStatusLabel" class="meta-count">-</span>
             </div>
-            <div id="jobLogCard" class="empty-state">Select a job to inspect the latest stdout lines.</div>
+            <div id="autopilotTrainingCard" class="empty-state">Connect to the backend to manage autopilot settings.</div>
+          </article>
+        </div>
+      </section>
+
+      <section id="page-inspect" class="page">
+        <div class="grid two rules-editor-grid">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Job Detail</h3>
+              <span id="jobDetailLabel" class="meta-count">No job selected</span>
+            </div>
+            <div id="jobDetailCard" class="empty-state">Open a job or run to inspect its details.</div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Run Detail</h3>
+              <span id="runDetailLabel" class="meta-count">No run selected</span>
+            </div>
+            <div id="runDetailCard" class="empty-state">Open a run or finished brain to inspect its run metadata.</div>
           </article>
         </div>
 
         <div class="grid two rules-editor-grid">
           <article class="panel">
             <div class="panel-head">
-              <h3>Training Progress</h3>
-              <span id="trainingProgressJobLabel" class="meta-count">No job selected</span>
+              <h3>Job Log Tail</h3>
+              <span class="meta-count">stdout preview</span>
             </div>
-            <div id="trainingProgressCard" class="empty-state">
-              Queue or select a training job to see progress.
-            </div>
+            <div id="jobLogCard" class="empty-state">Open a job to inspect the latest stdout lines.</div>
           </article>
 
           <article class="panel">
             <div class="panel-head">
-              <h3>Training Charts</h3>
-              <span class="meta-count">Live from run CSV logs</span>
+              <h3>Training Progress</h3>
+              <span id="trainingProgressJobLabel" class="meta-count">No job selected</span>
             </div>
-            <div class="chart-stack">
-              <div class="chart-card">
-                <h4>Rolling Reward</h4>
-                <div id="trainingRewardChart" class="empty-state">Waiting for logs.csv...</div>
-              </div>
-              <div class="chart-card">
-                <h4>Evaluation Reward</h4>
-                <div id="trainingEvalChart" class="empty-state">Waiting for evaluation_history.csv...</div>
-              </div>
+            <div id="trainingProgressCard" class="empty-state">
+              Open a training job or finished brain to inspect progress.
             </div>
           </article>
         </div>
+
+        <div class="grid two rules-editor-grid">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Rolling Reward</h3>
+              <span class="meta-count">Live from run CSV logs</span>
+            </div>
+            <div id="trainingRewardChart" class="empty-state">Waiting for logs.csv...</div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Evaluation Reward</h3>
+              <span class="meta-count">Live from evaluation history</span>
+            </div>
+            <div id="trainingEvalChart" class="empty-state">Waiting for evaluation_history.csv...</div>
+          </article>
+        </div>
+
+        <div class="grid two rules-editor-grid">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Autopilot</h3>
+              <span id="autopilotStatusLabel" class="meta-count">-</span>
+            </div>
+            <div id="autopilotControlCard" class="empty-state">Open a training run to manage autopilot.</div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Active Run Settings</h3>
+              <span class="meta-count">Hyperparameters</span>
+            </div>
+            <div id="autopilotRunSettingsCard" class="empty-state">Open a training run to see active settings.</div>
+          </article>
+        </div>
+
+        <article class="panel rules-editor-grid">
+          <div class="panel-head">
+            <h3>Autopilot Decisions</h3>
+            <span id="autopilotDecisionCount" class="meta-count">0 decisions</span>
+          </div>
+          <div id="autopilotDecisionsCard" class="empty-state">Open a training run with autopilot history to see decisions.</div>
+        </article>
       </section>
 
-      <section id="page-testing" class="page">
-        <div class="grid two">
+      <section id="page-evaluate" class="page">
+        <div class="grid two-wide">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Active Brain</h3>
+              <button id="runCompatibilityButton" class="button secondary" type="button">Check Blueprint Fit</button>
+            </div>
+            <div id="checkpointDetailCard" class="empty-state">
+              Select a brain from the library or workspace selector.
+            </div>
+            <div class="rules-editor-grid"></div>
+            <div class="panel-head">
+              <h3>Compatibility</h3>
+            </div>
+            <div id="compatibilityCard" class="empty-state">
+              Select a blueprint and brain, then run compatibility.
+            </div>
+          </article>
+        </div>
+
+        <div class="grid two rules-editor-grid">
           <article class="panel">
             <div class="panel-head">
               <h3>Direct Evaluation</h3>
@@ -483,14 +490,22 @@
                 <button id="exportDirectEvaluationCsvButton" class="button secondary" type="button">Export CSV</button>
               </div>
             </div>
-            <form id="directEvaluationForm" class="form-stack">
+            <form id="directEvaluationForm" class="form-stack evaluation-form-stack">
+              <div id="directEvaluationActiveBrainCard" class="list-card">
+                <h4>Active Brain</h4>
+                <p>The direct evaluation always uses the active brain from the sidebar workspace.</p>
+              </div>
+              <label class="field">
+                <span>Testing Brain</span>
+                <input id="directEvaluationBrainInput" type="text" readonly />
+              </label>
               <label class="field">
                 <span>Seeds</span>
                 <input id="testingSeedsInput" type="text" value="42,123,999,2026,31415" />
               </label>
               <button class="button primary" type="submit">Run Direct Evaluation</button>
             </form>
-            <div id="directEvaluationResult" class="empty-state">Run a direct evaluation for the active checkpoint and active game config.</div>
+            <div id="directEvaluationResult" class="empty-state">Run a direct evaluation for the active brain and blueprint.</div>
             <div class="rules-editor-grid">
               <div class="chart-card">
                 <h4>Reward By Seed</h4>
@@ -505,13 +520,17 @@
 
           <article class="panel">
             <div class="panel-head">
-              <h3>Checkpoint Comparison</h3>
+              <h3>Comparison</h3>
               <div class="inline-actions">
                 <button id="exportComparisonJsonButton" class="button secondary" type="button">Export JSON</button>
                 <button id="exportComparisonCsvButton" class="button secondary" type="button">Export CSV</button>
               </div>
             </div>
-            <form id="checkpointCompareForm" class="form-stack">
+            <form id="checkpointCompareForm" class="form-stack evaluation-form-stack">
+              <div class="list-card">
+                <h4>Left Brain</h4>
+                <p>The left side always uses the active brain from the sidebar workspace.</p>
+              </div>
               <label class="field">
                 <span>Compare Against</span>
                 <select id="compareCheckpointSelect"></select>
@@ -520,9 +539,9 @@
                 <span>Seeds</span>
                 <input id="compareSeedsInput" type="text" value="42,123,999,2026,31415" />
               </label>
-              <button class="button primary" type="submit">Compare Checkpoints</button>
+              <button class="button primary" type="submit">Compare Against Active Brain</button>
             </form>
-            <div id="checkpointCompareResult" class="empty-state">Compare the active checkpoint against another checkpoint on the active game config.</div>
+            <div id="checkpointCompareResult" class="empty-state">Compare the selected right-side brain against the active brain from the sidebar.</div>
             <div class="rules-editor-grid">
               <div class="chart-card">
                 <h4>Reward Delta By Seed</h4>
@@ -539,7 +558,7 @@
         <div class="grid two rules-editor-grid">
           <article class="panel">
             <div class="panel-head">
-              <h3>Robustness Job</h3>
+              <h3>Evaluation Jobs</h3>
             </div>
             <form id="robustnessJobForm" class="form-stack">
               <label class="field">
@@ -559,13 +578,6 @@
           </article>
         </div>
 
-        <article class="panel rules-editor-grid">
-          <div class="panel-head">
-            <h3>Run Detail</h3>
-            <span id="runDetailLabel" class="meta-count">No run selected</span>
-          </div>
-          <div id="runDetailCard" class="empty-state">Select a run to inspect its metadata, configs, and checkpoints.</div>
-        </article>
       </section>
 
       <section id="page-play" class="page">
@@ -632,6 +644,6 @@
     </main>
   </div>
 
-  <script src="./app.js?v=13"></script>
+  <script src="./app.js?v=14"></script>
 </body>
 </html>
