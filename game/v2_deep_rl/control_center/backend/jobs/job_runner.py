@@ -64,27 +64,43 @@ def run_job(job_id: int) -> int:
 
     stdout_log_path = Path(job["stdout_log_path"])
     stdout_log_path.parent.mkdir(parents=True, exist_ok=True)
-    command = build_command(job)
+    try:
+        command = build_command(job)
 
-    with stdout_log_path.open("ab") as stdout_handle:
-        result = subprocess.run(
-            command,
-            cwd=ENGINE_ROOT,
-            stdout=stdout_handle,
-            stderr=subprocess.STDOUT,
-            stdin=subprocess.DEVNULL,
-            check=False,
+        with stdout_log_path.open("ab") as stdout_handle:
+            result = subprocess.run(
+                command,
+                cwd=ENGINE_ROOT,
+                stdout=stdout_handle,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                check=False,
+            )
+
+        status = "completed" if result.returncode == 0 else "failed"
+        error_message = None if result.returncode == 0 else f"Command exited with code {result.returncode}."
+        update_job(
+            job_id,
+            status=status,
+            ended_at=utc_now_iso(),
+            error_message=error_message,
         )
+        return_code = result.returncode
+    except Exception as error:
+        update_job(
+            job_id,
+            status="failed",
+            ended_at=utc_now_iso(),
+            error_message=str(error),
+        )
+        return_code = 1
 
-    status = "completed" if result.returncode == 0 else "failed"
-    error_message = None if result.returncode == 0 else f"Command exited with code {result.returncode}."
-    update_job(
-        job_id,
-        status=status,
-        ended_at=utc_now_iso(),
-        error_message=error_message,
-    )
-    return result.returncode
+    # Hand off immediately to the next queued job once this worker has
+    # persisted its terminal state.
+    from jobs.queue_manager import dispatch_next_job
+
+    dispatch_next_job()
+    return return_code
 
 
 def parse_args():

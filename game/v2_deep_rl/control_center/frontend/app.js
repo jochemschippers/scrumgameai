@@ -28,6 +28,7 @@ const state = {
   jobDetail: null,
   jobLog: null,
   progressPollHandle: null,
+  includeCheckpointSelections: false,
 };
 
 const DEFAULT_GAME_CONFIG = {
@@ -256,21 +257,41 @@ function parseNumberList(value) {
 
 function checkpointUiLabel(checkpoint) {
   if (!checkpoint) return "";
-  if (checkpoint.display_label) return checkpoint.display_label;
-
   let source = checkpoint.source_type || "checkpoint";
   if (checkpoint.source_type === "run" && checkpoint.source_run) {
-    source = checkpoint.source_run;
+    source = formatRunSourceLabel(checkpoint.source_run);
   } else if (checkpoint.source_type === "current_artifacts") {
-    source = "current artifacts";
+    source = "Current Artifacts";
   } else if (checkpoint.source_type === "reference_v1") {
-    source = "reference v1";
+    source = "Reference V1";
   } else if (checkpoint.source_type === "playable_model_v1") {
-    source = "playableModelV1";
+    source = "Playable Model V1";
   }
 
   const format = checkpoint.checkpoint_format ? ` | ${checkpoint.checkpoint_format}` : "";
   return `${source}${format} | ${checkpoint.label || checkpoint.id}`;
+}
+
+function formatRunSourceLabel(runName) {
+  const raw = String(runName || "").trim();
+  const match = raw.match(/^run_(\d{4}-\d{2}-\d{2})_(\d{4})(?:_(.+))?$/);
+  if (!match) return raw || "Run";
+
+  const [, datePart, timePart, remainder] = match;
+  const timeLabel = `${timePart.slice(0, 2)}:${timePart.slice(2)}`;
+  const suffixParts = String(remainder || "")
+    .split("_")
+    .filter(Boolean);
+
+  let iteration = "";
+  if (suffixParts.length && /^\d{2}$/.test(suffixParts[suffixParts.length - 1])) {
+    iteration = ` (${Number(suffixParts.pop()) + 1})`;
+  }
+
+  const customName = suffixParts.join(" ").trim();
+  return customName
+    ? `${datePart} ${timeLabel}${iteration} | ${customName}`
+    : `${datePart} ${timeLabel}${iteration}`;
 }
 
 function checkpointCompatibilityTone(status) {
@@ -304,6 +325,18 @@ function checkpointGroupLabel(checkpoint) {
     return "PlayableModelV1";
   }
   return checkpoint.source_type || "Other";
+}
+
+function isModelSelectable(checkpoint) {
+  return checkpointCategory(checkpoint) !== "intermediate";
+}
+
+function sidebarCheckpointOptions() {
+  const includeAll = Boolean(state.includeCheckpointSelections);
+  return state.checkpoints
+    .filter((item) => includeAll || isModelSelectable(item))
+    .map((item) => ({ ...item, ui_label: checkpointUiLabel(item) }))
+    .sort((left, right) => left.ui_label.localeCompare(right.ui_label));
 }
 
 function formatNumber(value, digits = 2) {
@@ -1171,9 +1204,10 @@ function renderCheckpoints() {
 function renderJobs() {
   const container = $("jobsList");
   container.innerHTML = "";
+  const visibleJobs = state.jobs.filter((job) => job.status !== "completed");
 
-  if (!state.jobs.length) {
-    container.innerHTML = `<div class="empty-state">No jobs queued yet.</div>`;
+  if (!visibleJobs.length) {
+    container.innerHTML = `<div class="empty-state">No queued, running, failed, or stopped jobs.</div>`;
     if (!state.activeProgressJobId) {
       renderTrainingProgress();
     }
@@ -1196,10 +1230,10 @@ function renderJobs() {
     }
   }
 
-  state.jobs.forEach((job) => {
+  visibleJobs.forEach((job) => {
     const card = document.createElement("article");
     card.className = "list-card";
-    const queuedTrainingJobs = state.jobs
+    const queuedTrainingJobs = visibleJobs
       .filter((item) => ["train", "fine_tune"].includes(item.job_type) && item.status === "queued")
       .slice()
       .reverse();
@@ -1821,10 +1855,7 @@ function renderCheckpointComparison() {
 function syncSelectors() {
   buildOptions("activeGameConfigSelect", state.gameConfigs);
   buildOptions("activeTrainingConfigSelect", state.trainingConfigs);
-  const checkpointOptions = state.checkpoints
-    .slice()
-    .map((item) => ({ ...item, ui_label: checkpointUiLabel(item) }))
-    .sort((left, right) => left.ui_label.localeCompare(right.ui_label));
+  const checkpointOptions = sidebarCheckpointOptions();
   buildOptions("activeCheckpointSelect", checkpointOptions, "id", "ui_label");
 
   if (!state.activeGameConfigId && state.gameConfigs.length) {
@@ -1833,13 +1864,14 @@ function syncSelectors() {
   if (!state.activeTrainingConfigId && state.trainingConfigs.length) {
     state.activeTrainingConfigId = state.trainingConfigs[0].id;
   }
-  if (!state.activeCheckpointId && state.checkpoints.length) {
-    state.activeCheckpointId = state.checkpoints[0].id;
+  if (!checkpointOptions.some((item) => item.id === state.activeCheckpointId)) {
+    state.activeCheckpointId = checkpointOptions[0]?.id || "";
   }
 
   $("activeGameConfigSelect").value = state.activeGameConfigId || "";
   $("activeTrainingConfigSelect").value = state.activeTrainingConfigId || "";
   $("activeCheckpointSelect").value = state.activeCheckpointId || "";
+  $("activeCheckpointIncludeAllToggle").checked = state.includeCheckpointSelections;
 }
 
 async function loadActiveGameConfigIntoEditor() {
@@ -2120,6 +2152,7 @@ async function queueTrainingJob(event) {
     training_config_path: selectedTrainingConfig()?.path || "",
     episodes: Number($("trainEpisodesInput").value),
     evaluation_episodes: Number($("trainEvalEpisodesInput").value),
+    run_name: $("trainRunNameInput").value.trim(),
     run_notes: $("trainNotesInput").value.trim(),
   };
 
@@ -2369,6 +2402,15 @@ function attachEvents() {
     renderTrainingSelectionSummary();
     refreshTrainingPreflight().catch(() => {});
     renderCheckpoints();
+    renderCheckpointDetail();
+  });
+
+  $("activeCheckpointIncludeAllToggle").addEventListener("change", (event) => {
+    state.includeCheckpointSelections = Boolean(event.target.checked);
+    syncSelectors();
+    updateSummaryPills();
+    renderTrainingSelectionSummary();
+    refreshTrainingPreflight().catch(() => {});
     renderCheckpointDetail();
   });
 

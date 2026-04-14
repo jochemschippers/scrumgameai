@@ -35,9 +35,9 @@ def _is_pid_running(pid: int | None) -> bool:
         return False
 
 
-def _create_job_run_dir(job_type: str) -> Path:
+def _create_job_run_dir(job_type: str, run_name: str | None = None) -> Path:
     if job_type in {"train", "fine_tune"}:
-        return create_timestamped_run_directory()
+        return create_timestamped_run_directory(run_name=run_name)
     timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     run_dir = RUNS_DIR / f"{job_type}_{timestamp}"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -270,7 +270,7 @@ def enqueue_train_job(payload: dict) -> dict:
     resume_from = payload.get("resume_from")
     resume_mode = payload.get("resume_mode", "strict")
     job_type = "fine_tune" if resume_from and resume_mode == "fine_tune" else "train"
-    run_dir = _create_job_run_dir(job_type)
+    run_dir = _create_job_run_dir(job_type, run_name=payload.get("run_name"))
     stdout_log_path = _default_stdout_log(run_dir, job_type)
 
     job = create_job(

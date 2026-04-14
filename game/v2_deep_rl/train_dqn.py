@@ -28,6 +28,14 @@ ARTIFACTS_DIR = BASE_DIR / "artifacts"
 RUNS_DIR = ARTIFACTS_DIR / "runs"
 
 
+def _slugify_run_name(value: str | None) -> str:
+    """Convert an optional user-facing run name into a safe folder suffix."""
+    text = str(value or "").strip().lower()
+    slug = "".join(character if character.isalnum() else "_" for character in text)
+    slug = "_".join(part for part in slug.split("_") if part)
+    return slug[:48]
+
+
 def ensure_deep_rl_directories():
     """Create the deep-RL artifact folders used by training."""
     checkpoint_dir = BASE_DIR / "artifacts" / "checkpoints"
@@ -41,10 +49,13 @@ def ensure_deep_rl_directories():
     return checkpoint_dir, plot_dir, report_dir
 
 
-def create_timestamped_run_directory():
+def create_timestamped_run_directory(run_name: str | None = None):
     """Create a unique timestamped run directory under artifacts/runs."""
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     base_name = datetime.now().strftime("run_%Y-%m-%d_%H%M")
+    run_suffix = _slugify_run_name(run_name)
+    if run_suffix:
+        base_name = f"{base_name}_{run_suffix}"
     candidate = RUNS_DIR / base_name
     suffix = 1
     while candidate.exists():

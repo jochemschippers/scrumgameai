@@ -50,8 +50,12 @@
             <select id="activeTrainingConfigSelect"></select>
           </label>
           <label class="field">
-            <span>Active Checkpoint</span>
+            <span>Active Model</span>
             <select id="activeCheckpointSelect"></select>
+          </label>
+          <label class="field checkbox-inline compact-checkbox sidebar-checkbox">
+            <input id="activeCheckpointIncludeAllToggle" type="checkbox" />
+            <span>Include Checkpoints</span>
           </label>
         </div>
       </section>
@@ -399,6 +403,10 @@
               <label class="field">
                 <span>Evaluation Episodes</span>
                 <input id="trainEvalEpisodesInput" type="number" min="1" value="100" />
+              </label>
+              <label class="field">
+                <span>Run Name</span>
+                <input id="trainRunNameInput" type="text" placeholder="Optional display name" />
               </label>
               <label class="field">
                 <span>Run Notes</span>

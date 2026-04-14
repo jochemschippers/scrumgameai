@@ -445,6 +445,10 @@ textarea {
   padding-top: 0;
 }
 
+.sidebar-checkbox span {
+  font-size: 12px;
+}
+
 .checkbox-inline input {
   width: auto;
 }
