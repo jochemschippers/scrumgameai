@@ -4,6 +4,7 @@ import csv
 import json
 import math
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -27,6 +28,7 @@ EPSILON_EXPLORE_THRESHOLD = 0.50
 CONTINUE_EPISODES = 50_000      # episodes per auto-continuation block
 LR_REDUCTION_FACTOR = 0.5
 EPSILON_EXTENSION_FACTOR = 1.25
+MAX_LR_REDUCTIONS = 3           # stop oscillating after this many consecutive lower_lr decisions
 
 # --- AI advisor settings ---
 MAX_AI_INTERVENTIONS = 3        # AI gets this many chances before the run truly stops
@@ -70,6 +72,17 @@ def _read_json(path: Path) -> dict:
         return {}
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def _derive_base_run_name(run_id: str) -> str:
+    """Extract the user-given name from a run_id, stripping timestamp prefix and any _vN suffix."""
+    match = re.match(r'^run_\d{4}-\d{2}-\d{2}_\d{4}(?:_(.+))?$', run_id)
+    if not match:
+        return ""
+    name = match.group(1) or ""
+    # Strip trailing _vN so chained runs all share the same base
+    name = re.sub(r'_v\d+$', '', name)
+    return name
 
 
 def _write_decision_record(run_dir: Path, decision: dict) -> None:
@@ -256,7 +269,7 @@ Do not suggest rule changes or anything outside these two hyperparameters."""
             "epsilon_decay_episodes": new_epsilon_decay,
             "resume_from": best_checkpoint_path,
             "resume_mode": "fine-tune",
-            "run_name": f"autopilot_ai_{intervention_number}",
+            "resume_episodes_mode": "incremental",
         },
         "advisor": "ai",
     }
@@ -266,7 +279,7 @@ Do not suggest rule changes or anything outside these two hyperparameters."""
 # Public API
 # ---------------------------------------------------------------------------
 
-def analyze_run(run_id: str) -> dict:
+def analyze_run(run_id: str, context: dict | None = None) -> dict:
     """
     Analyze a completed run and return an autopilot decision dict.
     Pure analysis — does not enqueue any job or write to disk.
@@ -274,9 +287,13 @@ def analyze_run(run_id: str) -> dict:
     Decision logic:
       - continue:              reward still improving (>2% over window)
       - lower_lr:             reward improving but variance is high
+                              (capped at MAX_LR_REDUCTIONS consecutive reductions)
       - extend_epsilon_decay: reward flat + high invalid action rate
       - stop:                 plateau detected — AI advisor may override this
     """
+    context = context or {}
+    lr_reduction_count = int(context.get("lr_reduction_count", 0))
+
     run_dir = RUNS_DIR / run_id
     if not run_dir.exists():
         raise ValueError(f"Run `{run_id}` not found.")
@@ -284,8 +301,17 @@ def analyze_run(run_id: str) -> dict:
     eval_rows = _read_csv(run_dir / "reports" / "evaluation_history.csv")
     training_config = _read_json(run_dir / "training_config.json")
 
+    # Prefer latest_scrum_model.pth (final episode of this run) for continuation so
+    # each cycle advances the episode counter rather than looping from the best-reward
+    # episode (which may be earlier than where training actually reached).
+    latest_checkpoint = run_dir / "checkpoints" / "latest_scrum_model.pth"
     best_checkpoint = run_dir / "checkpoints" / "best_scrum_model.pth"
-    best_checkpoint_path = str(best_checkpoint) if best_checkpoint.exists() else None
+    if latest_checkpoint.exists():
+        best_checkpoint_path = str(latest_checkpoint)
+    elif best_checkpoint.exists():
+        best_checkpoint_path = str(best_checkpoint)
+    else:
+        best_checkpoint_path = None
 
     rewards = [_safe_float(r.get("average_reward")) for r in eval_rows]
     rewards = [r for r in rewards if r is not None]
@@ -331,11 +357,19 @@ def analyze_run(run_id: str) -> dict:
         cv = std / abs(mean) if mean != 0 else 0.0
 
         if improvement > IMPROVEMENT_MIN_RATIO:
-            if cv > VARIANCE_THRESHOLD:
+            if cv > VARIANCE_THRESHOLD and lr_reduction_count < MAX_LR_REDUCTIONS:
                 action = "lower_lr"
                 reason = (
                     f"Reward improving ({improvement:.1%} over {PLATEAU_WINDOW} windows) "
-                    f"but results are noisy (CV={cv:.2f}). Reducing learning rate."
+                    f"but results are noisy (CV={cv:.2f}). Reducing learning rate "
+                    f"(reduction {lr_reduction_count + 1}/{MAX_LR_REDUCTIONS})."
+                )
+            elif cv > VARIANCE_THRESHOLD:
+                # LR reduction cap reached — treat high variance as a plateau signal.
+                action = "stop"
+                reason = (
+                    f"Reward improving ({improvement:.1%}) but variance remains high (CV={cv:.2f}) "
+                    f"after {lr_reduction_count} LR reductions. Stopping."
                 )
             else:
                 action = "continue"
@@ -359,19 +393,24 @@ def analyze_run(run_id: str) -> dict:
 
     next_payload = None
     if action != "stop":
-        new_lr = current_lr * LR_REDUCTION_FACTOR if action == "lower_lr" else current_lr
+        # Apply LR floor so repeated reductions can't go below the safe minimum.
+        new_lr = max(_LR_MIN, current_lr * LR_REDUCTION_FACTOR) if action == "lower_lr" else current_lr
+        # Epsilon decay: extend by adding episodes on top of the current decay period
+        # rather than scaling the absolute value, so the extension is meaningful
+        # regardless of where in training the continuation starts.
         new_epsilon_decay = (
-            int(current_epsilon_decay * EPSILON_EXTENSION_FACTOR)
+            current_epsilon_decay + int(current_epsilon_decay * (EPSILON_EXTENSION_FACTOR - 1.0))
             if action == "extend_epsilon_decay"
             else current_epsilon_decay
         )
+        resume_mode = "strict" if action == "continue" else "fine-tune"
         next_payload = {
             "episodes": CONTINUE_EPISODES,
             "learning_rate": new_lr,
             "epsilon_decay_episodes": new_epsilon_decay,
             "resume_from": best_checkpoint_path,
-            "resume_mode": "fine-tune",
-            "run_name": f"autopilot_{action}",
+            "resume_mode": resume_mode,
+            "resume_episodes_mode": "incremental",
         }
 
     return {
@@ -392,6 +431,9 @@ def analyze_run(run_id: str) -> dict:
         "current_config": {
             "learning_rate": current_lr,
             "epsilon_decay_episodes": current_epsilon_decay,
+        },
+        "context": {
+            "lr_reduction_count": lr_reduction_count,
         },
         "best_checkpoint_path": best_checkpoint_path,
         "next_payload": next_payload,
@@ -417,8 +459,13 @@ def run_autopilot(run_id: str, dry_run: bool = False, context: dict | None = Non
 
     context = context or {}
     ai_intervention_count = int(context.get("ai_intervention_count", 0))
+    lr_reduction_count = int(context.get("lr_reduction_count", 0))
+    # base_run_name is carried forward so the whole chain shares the original name.
+    # continuation_version tracks what vN suffix the *next* run should get (starts at 2).
+    base_run_name = context.get("base_run_name") or _derive_base_run_name(run_id)
+    continuation_version = int(context.get("continuation_version", 2))
 
-    decision = analyze_run(run_id)
+    decision = analyze_run(run_id, context=context)
 
     # --- AI advisor: only when logic says stop and budget remains ---
     settings = get_settings()
@@ -452,13 +499,23 @@ def run_autopilot(run_id: str, dry_run: bool = False, context: dict | None = Non
         _write_decision_record(run_dir, decision)
         return decision
 
-    # Build next AI intervention count
+    # Build versioned run name: keep original name + v2, v3, …
+    versioned_run_name = f"{base_run_name}_v{continuation_version}" if base_run_name else f"v{continuation_version}"
+
+    # Build next context counters
     next_ai_count = ai_intervention_count + 1 if decision["advisor"] == "ai" else ai_intervention_count
+    next_lr_reduction_count = lr_reduction_count + 1 if decision["action"] == "lower_lr" else lr_reduction_count
 
     payload = {
         **decision["next_payload"],
+        "run_name": versioned_run_name,
         "autopilot_after_completion": True,
-        "autopilot_context": {"ai_intervention_count": next_ai_count},
+        "autopilot_context": {
+            "ai_intervention_count": next_ai_count,
+            "lr_reduction_count": next_lr_reduction_count,
+            "base_run_name": base_run_name,
+            "continuation_version": continuation_version + 1,
+        },
     }
     job = enqueue_train_job(payload)
     decision["job_enqueued"] = True

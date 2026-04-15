@@ -1,7 +1,7 @@
 const state = {
-  apiBaseUrl: ["localhost", "127.0.0.1"].includes(window.location.hostname)
-    ? "http://127.0.0.1:8000"
-    : window.location.origin,
+  apiBaseUrl: window.location.protocol.startsWith("http")
+    ? window.location.origin
+    : "http://127.0.0.1:8000",
   health: null,
   gameConfigs: [],
   trainingConfigs: [],
@@ -287,8 +287,13 @@ function checkpointUiLabel(checkpoint) {
     source = "Playable Model V1";
   }
 
-  const format = checkpoint.checkpoint_format ? ` | ${checkpoint.checkpoint_format}` : "";
-  return `${source}${format} | ${checkpoint.label || checkpoint.id}`;
+  // Show checkpoint type (best/intermediate/final) instead of format string.
+  const typeLabel = checkpoint.checkpoint_type || "checkpoint";
+  // Show episode when available (populated for best checkpoints from metadata).
+  const episodeLabel = checkpoint.episode != null ? ` ep${Number(checkpoint.episode).toLocaleString()}` : "";
+  // Mark legacy checkpoints so users know they may have limited compatibility info.
+  const legacySuffix = checkpoint.checkpoint_format === "legacy" ? " [legacy]" : "";
+  return `${source} | ${typeLabel}${episodeLabel}${legacySuffix}`;
 }
 
 function formatRunSourceLabel(runName) {
@@ -430,22 +435,60 @@ function downloadCsvFile(fileName, headers, rows) {
   URL.revokeObjectURL(url);
 }
 
-function startProgressPolling() {
-  if (state.progressPollHandle) {
-    clearInterval(state.progressPollHandle);
-  }
-  state.progressPollHandle = setInterval(async () => {
-    if (!state.activeProgressJobId) return;
-    try {
-      await fetchTrainingProgress(state.activeProgressJobId, false);
-    } catch (_error) {
-      // Leave the last successful progress state visible.
+// Guard flag: prevents a new poll from starting before the previous one finishes.
+// This replaces setInterval (which fires regardless of async completion) and
+// prevents request accumulation when the server is slow during training.
+let _pollInFlight = false;
+
+async function _runPollCycle() {
+  if (_pollInFlight) return;
+  _pollInFlight = true;
+  try {
+    // Refresh the jobs list so we can detect autopilot-created continuation jobs.
+    const jobsPayload = await apiRequest("/jobs").catch(() => null);
+    if (jobsPayload) {
+      state.jobs = jobsPayload.items || [];
+      renderJobs();
+      updateSummaryPills();
     }
-    const runId = state.activeRunId || (state.jobDetail?.run_dir ? runLabelFromPath(state.jobDetail.run_dir) : null);
+
+    // Auto-advance to a new running training job when the tracked job is completed.
+    const trackedJob = state.jobs.find((j) => j.id === state.activeProgressJobId);
+    if (!state.activeProgressJobId || trackedJob?.status === "completed") {
+      const runningJob = state.jobs.find(
+        (j) => j.status === "running" && ["train", "fine_tune"].includes(j.job_type)
+      );
+      if (runningJob) {
+        state.activeProgressJobId = runningJob.id;
+      }
+    }
+
+    if (state.activeProgressJobId) {
+      await fetchTrainingProgress(state.activeProgressJobId, false).catch(() => {});
+    }
+
+    const runId =
+      state.activeRunId ||
+      (state.trainingProgress?.run_dir ? runLabelFromPath(state.trainingProgress.run_dir) : null) ||
+      (state.jobDetail?.run_dir ? runLabelFromPath(state.jobDetail.run_dir) : null);
     if (runId) {
       await fetchAutopilotData(runId).catch(() => {});
+      renderAutopilotTrainingPanel();
     }
-  }, 5000);
+  } finally {
+    _pollInFlight = false;
+  }
+}
+
+function startProgressPolling() {
+  if (state.progressPollHandle) {
+    clearTimeout(state.progressPollHandle);
+  }
+  const schedule = async () => {
+    await _runPollCycle();
+    state.progressPollHandle = setTimeout(schedule, 5000);
+  };
+  state.progressPollHandle = setTimeout(schedule, 5000);
 }
 
 function buildPolyline(points, width, height) {
@@ -1337,6 +1380,16 @@ function renderJobDetail() {
   const payload = state.jobDetail.payload || {};
   container.className = "list-card";
   const runId = runLabelFromPath(state.jobDetail.run_dir);
+  // Resolve the checkpoint this job was resumed from (if any).
+  const resumeFrom = payload.resume_from || "";
+  const resumeCheckpoint = resumeFrom
+    ? state.checkpoints.find((c) => c.path === resumeFrom || c.id === resumeFrom) || null
+    : null;
+  const resumeLabel = resumeCheckpoint
+    ? checkpointUiLabel(resumeCheckpoint)
+    : resumeFrom
+      ? resumeFrom.replace(/\\/g, "/").split("/").slice(-3).join("/")
+      : "";
   container.innerHTML = `
     <h4>Job #${state.jobDetail.id} | ${escapeHtml(state.jobDetail.job_type)}</h4>
     <div class="card-meta">
@@ -1348,7 +1401,9 @@ function renderJobDetail() {
       ${payload.resume_mode ? `<span class="tag">resume ${escapeHtml(payload.resume_mode)}</span>` : "<span class='tag'>new run</span>"}
       ${payload.episodes ? `<span class="tag">${escapeHtml(String(payload.episodes))} episodes</span>` : ""}
       ${payload.evaluation_episodes ? `<span class="tag">${escapeHtml(String(payload.evaluation_episodes))} eval eps</span>` : ""}
+      ${payload.autopilot_after_completion ? "<span class='tag'>autopilot</span>" : ""}
     </div>
+    ${resumeLabel ? `<div class="checkpoint-subtitle path-wrap">From: ${escapeHtml(resumeLabel)}</div>` : ""}
     <div class="checkpoint-subtitle path-wrap">${escapeHtml(state.jobDetail.run_dir || "")}</div>
     ${state.jobDetail.error_message ? `<p>${escapeHtml(state.jobDetail.error_message)}</p>` : "<p>No error message.</p>"}
     <div class="inline-actions">
@@ -1828,18 +1883,22 @@ function renderTrainingProgress() {
       : `${runLabelFromPath(progress.run_dir)} | ${progressStatus}`;
   const runPath = job?.run_dir || run?.path || progress.run_dir || "";
   const runName = runLabelFromPath(runPath);
+  const completedEpisodes = Number.isFinite(progress.completed_episodes)
+    ? progress.completed_episodes
+    : (progress.start_episode ? Math.max(0, (progress.latest_episode || 0) - progress.start_episode + 1) : (progress.latest_episode || 0));
 
   container.className = "progress-stack";
   container.innerHTML = `
     <div class="list-card">
       <h4>${escapeHtml(runName || "Training run")}</h4>
       <div class="checkpoint-subtitle path-wrap">${escapeHtml(runPath)}</div>
-      <p>${progress.total_episodes ? `${progress.latest_episode} / ${progress.total_episodes} episodes` : `${progress.latest_episode} episodes logged`}</p>
+      <p>${progress.total_episodes ? `${completedEpisodes} / ${progress.total_episodes} episodes this run` : `${progress.latest_episode} episodes logged`}</p>
       <div class="progress-track">
         <div class="progress-fill" style="width: ${percent}%"></div>
       </div>
       <div class="card-meta">
         <span class="tag">${percent}%</span>
+        <span class="tag">absolute ep ${progress.latest_episode || 0}</span>
         <span class="tag">epsilon ${formatNumber(latest.epsilon, 4)}</span>
         <span class="tag">status ${escapeHtml(progressStatus)}</span>
       </div>
@@ -1910,6 +1969,7 @@ function renderCheckpointDetail() {
     <div class="card-meta">
       <span class="tag">${checkpoint.checkpoint_format}</span>
       <span class="tag">${checkpoint.checkpoint_type}</span>
+      ${checkpoint.episode != null ? `<span class="tag">ep ${Number(checkpoint.episode).toLocaleString()}</span>` : ""}
       <span class="tag">${checkpoint.compatibility_status}</span>
     </div>
     <div class="card-meta">
@@ -2510,6 +2570,12 @@ async function queueTrainingJob(event) {
   if (mode === "resume" || mode === "fine_tune") {
     payload.resume_from = activeCheckpoint?.path || "";
     payload.resume_mode = mode === "resume" ? "strict" : "fine-tune";
+    payload.resume_episodes_mode = "absolute";
+  }
+
+  // If Logic Autopilot is enabled, mark this job so autopilot triggers after it completes.
+  if (state.autopilotSettings?.logic_enabled) {
+    payload.autopilot_after_completion = true;
   }
 
   const job = await apiRequest("/jobs/train", {

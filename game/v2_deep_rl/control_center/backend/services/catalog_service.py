@@ -377,9 +377,14 @@ def get_run_progress(run_id: str) -> dict | None:
     if not run_dir.exists() or not run_dir.is_dir():
         return None
 
+    metadata_path = run_dir / "run_metadata.json"
+    run_metadata = _read_json_safe(metadata_path) if metadata_path.exists() else {}
     training_config_path = run_dir / "training_config.json"
     training_config = _read_json_safe(training_config_path) if training_config_path.exists() else {}
-    total_episodes = _safe_int(str(training_config.get("episodes", "")))
+    total_episodes = _safe_int(str(run_metadata.get("episodes_this_run", "")))
+    if total_episodes is None:
+        total_episodes = _safe_int(str(training_config.get("episodes", "")))
+    start_episode = _safe_int(str(run_metadata.get("start_episode", ""))) or 1
 
     reports_dir = run_dir / "reports"
     training_rows = _tail_csv_rows(reports_dir / "logs.csv", limit=240)
@@ -419,9 +424,10 @@ def get_run_progress(run_id: str) -> dict | None:
     latest_training = training_series[-1] if training_series else None
     latest_evaluation = evaluation_series[-1] if evaluation_series else None
     latest_episode = latest_training["episode"] if latest_training else 0
+    completed_episodes = max(0, latest_episode - start_episode + 1)
     ratio = 0.0
     if total_episodes and total_episodes > 0:
-        ratio = max(0.0, min(1.0, latest_episode / total_episodes))
+        ratio = max(0.0, min(1.0, completed_episodes / total_episodes))
 
     return {
         "run_id": run_id,
@@ -432,7 +438,9 @@ def get_run_progress(run_id: str) -> dict | None:
         "stdout_log_path": "",
         "error_message": None,
         "total_episodes": total_episodes,
+        "start_episode": start_episode,
         "latest_episode": latest_episode,
+        "completed_episodes": completed_episodes,
         "progress_ratio": ratio,
         "latest_training_row": latest_training,
         "latest_evaluation_row": latest_evaluation,

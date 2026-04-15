@@ -10,24 +10,15 @@ from .app_paths import ensure_engine_import_path
 
 ensure_engine_import_path()
 
-from checkpoint_utils import load_agent_from_checkpoint  # noqa: E402
-from config_manager import load_game_config  # noqa: E402
-from match_runner import (  # noqa: E402
-    HeuristicController,
-    HumanController,
-    ModelController,
-    RandomController,
-    all_seats_done,
-    play_round,
-    start_parallel_match,
-    valid_actions_for_state,
-)
+# torch-dependent engine imports are deferred so the API server starts without torch.
+# They are imported on first use inside each function that needs them.
 
 
 PLAY_SESSIONS: dict[str, dict] = {}
 
 
 def _resolve_game_config(game_config_id: str):
+    from config_manager import load_game_config  # noqa: E402
     for item in list_game_configs():
         if item["id"] == game_config_id or item["path"] == game_config_id:
             return load_game_config(item["path"]), item
@@ -36,6 +27,8 @@ def _resolve_game_config(game_config_id: str):
 
 @lru_cache(maxsize=16)
 def _cached_agent(checkpoint_path: str, game_config_path: str):
+    from checkpoint_utils import load_agent_from_checkpoint  # noqa: E402
+    from config_manager import load_game_config  # noqa: E402
     agent, _, metadata = load_agent_from_checkpoint(
         checkpoint_path,
         game_config=load_game_config(game_config_path),
@@ -45,6 +38,9 @@ def _cached_agent(checkpoint_path: str, game_config_path: str):
 
 
 def _controller_from_payload(payload: dict, game_config_path: str):
+    from match_runner import (  # noqa: E402
+        HeuristicController, HumanController, ModelController, RandomController,
+    )
     controller_type = payload.get("type")
     display_name = payload.get("display_name")
 
@@ -68,6 +64,11 @@ def _controller_from_payload(payload: dict, game_config_path: str):
             display_name=display_name or "Checkpoint AI",
         )
     raise ValueError(f"Unknown controller type: {controller_type}")
+
+
+def _valid_actions_for_state(env, state):
+    from match_runner import valid_actions_for_state  # noqa: E402
+    return valid_actions_for_state(env, state)
 
 
 def _seat_payload(seat: dict) -> dict:
@@ -99,13 +100,14 @@ def _seat_payload(seat: dict) -> dict:
                 "action_id": action_id,
                 "label": env.action_name(action_id),
             }
-            for action_id in valid_actions_for_state(env, state)
+            for action_id in _valid_actions_for_state(env, state)
         ],
         "steps": seat["steps"],
     }
 
 
 def _session_payload(session_id: str, match_state: dict) -> dict:
+    from match_runner import all_seats_done  # noqa: E402
     return {
         "id": session_id,
         "base_seed": match_state["base_seed"],
@@ -120,6 +122,7 @@ def list_sessions() -> list[dict]:
 
 
 def create_session(payload: dict) -> dict:
+    from match_runner import start_parallel_match  # noqa: E402
     game_config, game_config_item = _resolve_game_config(payload["game_config_id"])
     controllers_payload = payload.get("controllers") or []
     if not controllers_payload:
@@ -148,6 +151,7 @@ def get_session(session_id: str) -> dict:
 
 
 def advance_session(session_id: str, payload: dict | None = None) -> dict:
+    from match_runner import play_round  # noqa: E402
     match_state = PLAY_SESSIONS.get(session_id)
     if match_state is None:
         raise ValueError(f"Play session `{session_id}` was not found.")

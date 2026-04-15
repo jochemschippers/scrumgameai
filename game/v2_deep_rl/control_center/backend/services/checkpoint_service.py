@@ -14,8 +14,13 @@ from .catalog_service import list_game_configs
 
 ensure_engine_import_path()
 
-from checkpoint_utils import build_agent_for_config, load_checkpoint_payload  # noqa: E402
-from config_manager import compute_rule_signature, load_game_config  # noqa: E402
+# torch-dependent engine imports are deferred to function call time so the API
+# server starts successfully even when torch is not installed in the web venv.
+# The system Python (used by job_runner subprocesses) has torch available.
+def _engine_imports():
+    from checkpoint_utils import build_agent_for_config, load_checkpoint_payload  # noqa: E402
+    from config_manager import compute_rule_signature, load_game_config  # noqa: E402
+    return build_agent_for_config, load_checkpoint_payload, compute_rule_signature, load_game_config
 
 
 def _checkpoint_id(checkpoint_path: Path) -> str:
@@ -25,6 +30,8 @@ def _checkpoint_id(checkpoint_path: Path) -> str:
 def _checkpoint_type(checkpoint_path: Path) -> str:
     if checkpoint_path.name == "best_scrum_model.pth" or checkpoint_path.name.startswith("best_scrum_model"):
         return "best"
+    if checkpoint_path.name == "latest_scrum_model.pth" or checkpoint_path.name.startswith("latest_scrum_model"):
+        return "latest"
     return "intermediate"
 
 
@@ -75,6 +82,7 @@ def _checkpoint_catalog_paths() -> list[tuple[Path, str, str | None]]:
 
 
 def _resolve_game_config_reference(game_config_id: str):
+    _, _, _, load_game_config = _engine_imports()
     candidate_path = Path(game_config_id)
     if candidate_path.exists():
         return load_game_config(candidate_path)
@@ -89,7 +97,38 @@ def _resolve_game_config_reference(game_config_id: str):
 def list_checkpoints() -> list[dict]:
     items = []
     for checkpoint_path, source_type, source_run in _checkpoint_catalog_paths():
+        checkpoint_type = _checkpoint_type(checkpoint_path)
+        # Loading every intermediate checkpoint payload is very expensive once runs
+        # accumulate many large files; index those lazily and load on demand.
+        eager_load = (
+            checkpoint_type in {"best", "latest"}
+            or source_type in {"reference_v1", "playable_model_v1"}
+        )
+
+        if not eager_load:
+            items.append(
+                {
+                    "id": _checkpoint_id(checkpoint_path),
+                    "label": checkpoint_path.name,
+                    "display_label": f"{_source_label(source_type, source_run)} | {checkpoint_path.name}",
+                    "path": str(checkpoint_path),
+                    "source_type": source_type,
+                    "source_run": source_run,
+                    "checkpoint_type": checkpoint_type,
+                    "checkpoint_format": "managed",
+                    "legacy_read_only": False,
+                    "rule_signature": None,
+                    "training_signature": None,
+                    "state_dim": None,
+                    "num_actions": None,
+                    "episode": None,
+                    "compatibility_status": "deferred",
+                }
+            )
+            continue
+
         try:
+            _, load_checkpoint_payload, _, _ = _engine_imports()
             payload = load_checkpoint_payload(checkpoint_path, map_location="cpu")
             metadata = payload.get("metadata", {})
             state_dict = payload.get("model_state_dict", {})
@@ -113,13 +152,14 @@ def list_checkpoints() -> list[dict]:
                     "path": str(checkpoint_path),
                     "source_type": source_type,
                     "source_run": source_run,
-                    "checkpoint_type": _checkpoint_type(checkpoint_path),
+                    "checkpoint_type": checkpoint_type,
                     "checkpoint_format": "legacy" if legacy_checkpoint else "managed",
                     "legacy_read_only": legacy_checkpoint or source_type in {"reference_v1", "playable_model_v1"},
                     "rule_signature": rule_signature,
                     "training_signature": training_signature,
                     "state_dim": checkpoint_state_dim,
                     "num_actions": checkpoint_num_actions,
+                    "episode": metadata.get("episode"),
                     "compatibility_status": compatibility_status,
                 }
             )
@@ -132,9 +172,10 @@ def list_checkpoints() -> list[dict]:
                     "path": str(checkpoint_path),
                     "source_type": source_type,
                     "source_run": source_run,
-                    "checkpoint_type": _checkpoint_type(checkpoint_path),
+                    "checkpoint_type": checkpoint_type,
                     "checkpoint_format": "unknown",
                     "legacy_read_only": True,
+                    "episode": None,
                     "compatibility_status": "error",
                     "error": str(error),
                 }
@@ -154,6 +195,7 @@ def get_checkpoint_compatibility(checkpoint_id: str, game_config_id: str) -> dic
     if checkpoint is None:
         raise ValueError(f"Checkpoint `{checkpoint_id}` was not found.")
 
+    build_agent_for_config, load_checkpoint_payload, compute_rule_signature, _ = _engine_imports()
     target_game_config = _resolve_game_config_reference(game_config_id)
     target_rule_signature = compute_rule_signature(target_game_config)
     target_agent, _ = build_agent_for_config(target_game_config)

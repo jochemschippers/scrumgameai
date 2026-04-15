@@ -23,6 +23,18 @@ class ReplayBuffer:
     def __len__(self):
         return len(self.buffer)
 
+    def state_dict(self):
+        """Return a torch-serializable snapshot of replay memory."""
+        return {
+            "capacity": self.buffer.maxlen,
+            "buffer": list(self.buffer),
+        }
+
+    def load_state_dict(self, state):
+        """Restore replay memory from a checkpoint snapshot."""
+        capacity = int(state.get("capacity") or self.buffer.maxlen or 100000)
+        self.buffer = deque(state.get("buffer", []), maxlen=capacity)
+
 
 class QNetwork(nn.Module):
     """MLP that maps the normalized Scrum Game state vector to action-values."""
@@ -73,6 +85,26 @@ class DQNAgent:
         self.loss_function = nn.SmoothL1Loss()
         self.replay_buffer = ReplayBuffer(capacity=replay_capacity)
         self.training_steps = 0
+
+    def training_state_dict(self):
+        """Return optimizer and replay state needed for strict continuation."""
+        return {
+            "optimizer_state_dict": self.optimizer.state_dict(),
+            "replay_buffer": self.replay_buffer.state_dict(),
+            "training_steps": self.training_steps,
+        }
+
+    def load_training_state_dict(self, state, include_replay=True):
+        """Restore mutable training state from a checkpoint snapshot."""
+        optimizer_state = state.get("optimizer_state_dict")
+        if optimizer_state is not None:
+            self.optimizer.load_state_dict(optimizer_state)
+
+        if include_replay and state.get("replay_buffer") is not None:
+            self.replay_buffer.load_state_dict(state["replay_buffer"])
+
+        if state.get("training_steps") is not None:
+            self.training_steps = int(state["training_steps"])
 
     def choose_action(self, state_vector, epsilon):
         """Select an action using epsilon-greedy exploration."""

@@ -12,10 +12,50 @@ if str(BACKEND_DIR) not in sys.path:
 from services.app_paths import BACKEND_DIR, ENGINE_ROOT
 from storage.jobs_db import get_job, init_db, update_job, utc_now_iso
 
+_CACHED_PYTHON_COMMAND: str | None = None
+
+
+def _choose_python_command() -> str:
+    """Return a Python executable that can import torch.
+
+    job_runner may itself be spawned by the venv Python (which lacks torch),
+    so we must not blindly use sys.executable to run training scripts.
+    """
+    global _CACHED_PYTHON_COMMAND
+    if _CACHED_PYTHON_COMMAND is not None:
+        return _CACHED_PYTHON_COMMAND
+
+    try:
+        import torch  # noqa: F401
+        _CACHED_PYTHON_COMMAND = sys.executable
+        return _CACHED_PYTHON_COMMAND
+    except ImportError:
+        pass
+
+    import shutil
+    for candidate in ("python", "python3", "py"):
+        exe = shutil.which(candidate)
+        if not exe:
+            continue
+        try:
+            probe = subprocess.run(
+                [exe, "-c", "import torch"],
+                capture_output=True,
+                timeout=15,
+            )
+            if probe.returncode == 0:
+                _CACHED_PYTHON_COMMAND = exe
+                return _CACHED_PYTHON_COMMAND
+        except Exception:
+            continue
+
+    _CACHED_PYTHON_COMMAND = sys.executable
+    return _CACHED_PYTHON_COMMAND
+
 
 def build_command(job: dict) -> list[str]:
     payload = job["payload"]
-    python_command = sys.executable
+    python_command = _choose_python_command()
 
     if job["job_type"] in {"train", "fine_tune"}:
         command = [
@@ -45,6 +85,8 @@ def build_command(job: dict) -> list[str]:
         if payload.get("resume_from"):
             command.extend(["--resume-from", str(payload["resume_from"])])
             command.extend(["--resume-mode", str(payload.get("resume_mode", "strict"))])
+            if payload.get("resume_episodes_mode"):
+                command.extend(["--resume-episodes-mode", str(payload["resume_episodes_mode"])])
         return command
 
     if job["job_type"] in {"evaluate", "robustness"}:
@@ -97,19 +139,21 @@ def run_job(job_id: int) -> int:
         )
         return_code = 1
 
-    # If a training job completed successfully, trigger the autopilot cycle
-    # (if logic is enabled) before dispatching the next queued job.
+    # If a training job completed successfully and was started by the autopilot,
+    # trigger the next autopilot cycle before dispatching the next queued job.
+    # Manual jobs without autopilot_after_completion do NOT trigger autopilot.
     if return_code == 0 and job["job_type"] in {"train", "fine_tune"}:
         payload = job.get("payload") or {}
-        run_id = Path(job["run_dir"]).name
-        context = payload.get("autopilot_context") or {}
-        try:
-            from services.training_autopilot import get_settings, run_autopilot
-            if get_settings().get("logic_enabled", True):
-                run_autopilot(run_id, context=context)
-        except Exception as autopilot_error:
-            with stdout_log_path.open("ab") as log_handle:
-                log_handle.write(f"\n[autopilot] Error during autopilot cycle: {autopilot_error}\n".encode())
+        if payload.get("autopilot_after_completion"):
+            run_id = Path(job["run_dir"]).name
+            context = payload.get("autopilot_context") or {}
+            try:
+                from services.training_autopilot import get_settings, run_autopilot
+                if get_settings().get("logic_enabled", True):
+                    run_autopilot(run_id, context=context)
+            except Exception as autopilot_error:
+                with stdout_log_path.open("ab") as log_handle:
+                    log_handle.write(f"\n[autopilot] Error during autopilot cycle: {autopilot_error}\n".encode())
 
     # Hand off immediately to the next queued job once this worker has
     # persisted its terminal state.

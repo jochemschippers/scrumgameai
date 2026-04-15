@@ -7,7 +7,12 @@ import random
 import matplotlib.pyplot as plt
 import torch
 
-from checkpoint_utils import build_agent_for_config, load_agent_from_checkpoint, save_checkpoint
+from checkpoint_utils import (
+    build_agent_for_config,
+    load_agent_from_checkpoint,
+    load_checkpoint_payload,
+    save_checkpoint,
+)
 from config_manager import (
     GameConfig,
     TrainingConfig,
@@ -254,6 +259,7 @@ def initialize_agent_from_checkpoint(
     if resume_mode not in {"strict", "fine-tune"}:
         raise ValueError("resume_mode must be either 'strict' or 'fine-tune'.")
 
+    checkpoint_path = Path(checkpoint_path)
     strict_signature = resume_mode == "strict"
     try:
         _, _, checkpoint_metadata = load_agent_from_checkpoint(
@@ -266,26 +272,42 @@ def initialize_agent_from_checkpoint(
             f"Could not resume from checkpoint `{checkpoint_path}` under mode `{resume_mode}`: {error}"
         ) from error
 
-    payload = torch.load(checkpoint_path, map_location=agent.device)
-    if isinstance(payload, dict) and "model_state_dict" in payload:
-        state_dict = payload["model_state_dict"]
-    else:
-        state_dict = payload
+    payload = load_checkpoint_payload(checkpoint_path, map_location=agent.device)
+    state_dict = payload["model_state_dict"]
 
     try:
         agent.policy_network.load_state_dict(state_dict)
-        agent.target_network.load_state_dict(state_dict)
+        agent.target_network.load_state_dict(payload.get("target_model_state_dict", state_dict))
     except RuntimeError as error:
         raise RuntimeError(
             "Checkpoint tensor shapes do not match the requested game config. "
             "Resume/fine-tune only works when the model architecture is still compatible."
         ) from error
 
+    if resume_mode == "strict":
+        try:
+            agent.load_training_state_dict(payload, include_replay=True)
+        except (RuntimeError, ValueError, KeyError) as error:
+            raise RuntimeError(
+                "Checkpoint training state could not be restored for strict resume. "
+                "Use fine-tune mode to load only compatible model weights."
+            ) from error
+
     agent.policy_network.train()
     agent.target_network.eval()
+    checkpoint_episode = checkpoint_metadata.get("episode")
+    if checkpoint_episode is None:
+        checkpoint_episode = 0
+    checkpoint_average_reward = checkpoint_metadata.get("average_reward")
     return {
         "resume_checkpoint_path": str(checkpoint_path),
         "resume_mode": resume_mode,
+        "resume_checkpoint_episode": int(checkpoint_episode),
+        "resume_checkpoint_average_reward": checkpoint_average_reward,
+        "resume_restored_optimizer": bool(resume_mode == "strict" and payload.get("optimizer_state_dict") is not None),
+        "resume_restored_replay_buffer": bool(resume_mode == "strict" and payload.get("replay_buffer") is not None),
+        "resume_replay_buffer_size": len(agent.replay_buffer),
+        "resume_training_steps": agent.training_steps,
         "resume_checkpoint_rule_signature": (
             checkpoint_metadata.get("checkpoint_rule_signature")
             or checkpoint_metadata.get("rule_signature")
@@ -383,8 +405,12 @@ def train_dqn_agent(
     training_config_path=None,
     resume_from=None,
     resume_mode="strict",
+    resume_episodes_mode="incremental",
 ):
     """Train a Double DQN agent on the advanced Scrum Game environment."""
+    if resume_episodes_mode not in {"incremental", "absolute"}:
+        raise ValueError("resume_episodes_mode must be either 'incremental' or 'absolute'.")
+
     resolved_game_config = game_config or load_game_config(game_config_path)
     resolved_training_config = resolve_training_config(
         training_config=training_config,
@@ -438,6 +464,7 @@ def train_dqn_agent(
         "training_signature": compute_training_signature(resolved_training_config),
         "resume_checkpoint_path": str(resume_from) if resume_from else None,
         "resume_mode": resume_mode if resume_from else None,
+        "resume_episodes_mode": resume_episodes_mode if resume_from else None,
     }
 
     if run_path is not None:
@@ -459,12 +486,32 @@ def train_dqn_agent(
         resolved_game_config,
         resume_mode,
     )
+    resume_start_episode = int((resume_metadata or {}).get("resume_checkpoint_episode") or 0)
+    first_episode = resume_start_episode + 1
+    configured_episodes = int(resolved_training_config.episodes)
+    if resume_metadata and resume_episodes_mode == "absolute":
+        final_episode = configured_episodes
+    else:
+        final_episode = resume_start_episode + configured_episodes
+    episodes_this_run = max(0, final_episode - resume_start_episode)
+    best_average_reward = float("-inf")
+    if resume_metadata and resume_metadata.get("resume_checkpoint_average_reward") is not None:
+        best_average_reward = float(resume_metadata["resume_checkpoint_average_reward"])
+
+    run_metadata.update(
+        {
+            "episodes_this_run": episodes_this_run,
+            "start_episode": first_episode,
+            "end_episode": final_episode,
+            "resume_start_episode": resume_start_episode if resume_metadata else None,
+        }
+    )
     if resume_metadata:
         run_metadata.update(resume_metadata)
-        if run_path is not None:
-            save_metrics_json(run_metadata, str(run_path / "run_metadata.json"))
-        else:
-            save_metrics_json(run_metadata, str(report_dir / "run_metadata.json"))
+    if run_path is not None:
+        save_metrics_json(run_metadata, str(run_path / "run_metadata.json"))
+    else:
+        save_metrics_json(run_metadata, str(report_dir / "run_metadata.json"))
 
     training_rewards = []
     training_losses = []
@@ -474,10 +521,26 @@ def train_dqn_agent(
     recent_action_counts = []
     invalid_action_flags = []
 
-    best_average_reward = float("-inf")
     best_checkpoint_path = checkpoint_dir / "best_scrum_model.pth"
+    evaluations_completed = 0
+    if resume_metadata:
+        save_checkpoint(
+            best_checkpoint_path,
+            agent,
+            resolved_game_config,
+            resolved_training_config,
+            extra_metadata={
+                "episode": resume_start_episode,
+                "average_reward": (
+                    best_average_reward if best_average_reward != float("-inf") else None
+                ),
+                "is_best_checkpoint": True,
+                **resume_metadata,
+            },
+        )
 
-    for episode in range(1, resolved_training_config.episodes + 1):
+    for episode in range(first_episode, final_episode + 1):
+        block_episode = episode - resume_start_episode
         state = env.reset(seed=resolved_training_config.seed + episode)
         state_vector = encode_state(state, env)
         done = False
@@ -521,7 +584,7 @@ def train_dqn_agent(
         recent_action_counts.append(episode_action_counts)
         invalid_action_flags.append(invalid_actions_this_episode)
 
-        if episode % 100 == 0:
+        if block_episode % 100 == 0:
             recent_rewards = training_rewards[-100:]
             recent_losses = training_losses[-100:] if training_losses else []
             recent_loan_durations = episode_loan_durations[-100:]
@@ -548,7 +611,7 @@ def train_dqn_agent(
                 action_counts=block_action_counts,
             )
 
-        if episode % resolved_training_config.checkpoint_interval == 0:
+        if block_episode % resolved_training_config.checkpoint_interval == 0:
             checkpoint_path = checkpoint_dir / f"checkpoint_episode_{episode:06d}.pth"
             save_checkpoint(
                 checkpoint_path,
@@ -562,7 +625,7 @@ def train_dqn_agent(
             )
             print(f"Checkpoint saved at episode {episode}: {checkpoint_path}")
 
-        if episode % resolved_training_config.evaluation_interval == 0:
+        if block_episode % resolved_training_config.evaluation_interval == 0:
             evaluation_metrics = evaluate_dqn_agent(
                 agent,
                 num_episodes=resolved_training_config.evaluation_episodes,
@@ -570,6 +633,7 @@ def train_dqn_agent(
                 game_config=resolved_game_config,
             )
             append_evaluation_log(evaluation_log_path, episode, evaluation_metrics)
+            evaluations_completed += 1
 
             if evaluation_metrics["average_reward"] > best_average_reward:
                 best_average_reward = evaluation_metrics["average_reward"]
@@ -590,18 +654,33 @@ def train_dqn_agent(
                     f"(avg reward {best_average_reward:.2f})"
                 )
 
-    if not best_checkpoint_path.exists():
+    if not best_checkpoint_path.exists() or evaluations_completed == 0:
         save_checkpoint(
             best_checkpoint_path,
             agent,
             resolved_game_config,
             resolved_training_config,
             extra_metadata={
-                "episode": resolved_training_config.episodes,
+                "episode": final_episode,
                 "is_best_checkpoint": True,
                 **(resume_metadata or {}),
             },
         )
+
+    # Always save the agent state at the final episode so autopilot continuations
+    # can resume from here rather than from the (potentially earlier) best checkpoint.
+    latest_checkpoint_path = checkpoint_dir / "latest_scrum_model.pth"
+    save_checkpoint(
+        latest_checkpoint_path,
+        agent,
+        resolved_game_config,
+        resolved_training_config,
+        extra_metadata={
+            "episode": final_episode,
+            "is_latest_checkpoint": True,
+            **(resume_metadata or {}),
+        },
+    )
 
     plot_path = plot_dir / "dqn_training_curve.png"
     save_training_plot(training_rewards, output_path=plot_path)
@@ -622,6 +701,10 @@ def train_dqn_agent(
         {
             "model": "Double DQN",
             "training_episodes": resolved_training_config.episodes,
+            "episodes_this_run": episodes_this_run,
+            "start_episode": first_episode,
+            "end_episode": final_episode,
+            "resume_start_episode": resume_start_episode if resume_metadata else None,
             "evaluation_episodes": len(final_evaluation["rewards"]),
             "average_reward_per_episode": final_evaluation["average_reward"],
             "average_ending_money": final_evaluation["average_ending_money"],
@@ -642,16 +725,22 @@ def train_dqn_agent(
             "training_signature": compute_training_signature(resolved_training_config),
             "resume_checkpoint_path": str(resume_from) if resume_from else None,
             "resume_mode": resume_mode if resume_from else None,
+            "resume_episodes_mode": resume_episodes_mode if resume_from else None,
+            "resume_checkpoint_episode": (resume_metadata or {}).get("resume_checkpoint_episode"),
+            "resume_restored_optimizer": (resume_metadata or {}).get("resume_restored_optimizer"),
+            "resume_restored_replay_buffer": (resume_metadata or {}).get("resume_restored_replay_buffer"),
+            "resume_replay_buffer_size": (resume_metadata or {}).get("resume_replay_buffer_size"),
+            "resume_training_steps": (resume_metadata or {}).get("resume_training_steps"),
             "resume_checkpoint_rule_signature": (resume_metadata or {}).get("resume_checkpoint_rule_signature"),
             "resume_target_rule_signature": (resume_metadata or {}).get("resume_target_rule_signature"),
             "resume_legacy_checkpoint": (resume_metadata or {}).get("resume_legacy_checkpoint"),
             "final_epsilon": epsilon_by_episode(
-                resolved_training_config.episodes - 1,
+                final_episode - 1,
                 epsilon_start=resolved_training_config.epsilon_start,
                 epsilon_min=resolved_training_config.epsilon_min,
                 epsilon_decay_episodes=resolved_training_config.epsilon_decay_episodes,
             ),
-            "mean_training_reward": sum(training_rewards) / len(training_rewards),
+            "mean_training_reward": (sum(training_rewards) / len(training_rewards)) if training_rewards else None,
             "mean_training_loss": (sum(training_losses) / len(training_losses)) if training_losses else None,
             "best_intermediate_evaluation_reward": best_average_reward,
             "run_notes": resolved_training_config.run_notes,
@@ -684,6 +773,15 @@ def parse_args():
         default="strict",
         help="Use 'strict' for same-rule resume or 'fine-tune' to allow rule-signature mismatch when shapes match.",
     )
+    parser.add_argument(
+        "--resume-episodes-mode",
+        choices=["incremental", "absolute"],
+        default="incremental",
+        help=(
+            "For resumed runs: 'incremental' treats --episodes as additional episodes, "
+            "'absolute' treats --episodes as the final absolute episode target."
+        ),
+    )
     parser.add_argument("--notes", default="", help="Optional run notes saved with the artifacts.")
     return parser.parse_args()
 
@@ -706,6 +804,7 @@ def main():
         training_config_path=args.training_config,
         resume_from=args.resume_from,
         resume_mode=args.resume_mode,
+        resume_episodes_mode=args.resume_episodes_mode,
     )
 
     print(f"Training episodes completed: {len(training_rewards)}")

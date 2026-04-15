@@ -66,9 +66,12 @@ def save_checkpoint(
         metadata.update(extra_metadata)
 
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    training_state = agent.training_state_dict()
     torch.save(
         {
             "model_state_dict": agent.policy_network.state_dict(),
+            "target_model_state_dict": agent.target_network.state_dict(),
+            **training_state,
             "metadata": metadata,
         },
         checkpoint_path,
@@ -162,7 +165,7 @@ def load_agent_from_checkpoint(
 
     state_dict = payload["model_state_dict"]
     agent.policy_network.load_state_dict(state_dict)
-    agent.target_network.load_state_dict(state_dict)
+    agent.target_network.load_state_dict(payload.get("target_model_state_dict", state_dict))
     agent.policy_network.eval()
     agent.target_network.eval()
 
