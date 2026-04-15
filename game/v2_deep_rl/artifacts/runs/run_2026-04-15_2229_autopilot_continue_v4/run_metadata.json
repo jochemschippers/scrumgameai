@@ -1,0 +1,20 @@
+{
+  "run_name": "run_2026-04-15_2229_autopilot_continue_v4",
+  "run_path": "C:\\Users\\joche\\OneDrive\\Documenten\\GitClones\\scrumgameai\\game\\v2_deep_rl\\artifacts\\runs\\run_2026-04-15_2229_autopilot_continue_v4",
+  "created_at": "2026-04-15T22:29:45.700818",
+  "training_episodes": 50000,
+  "learning_rate": 0.0005,
+  "gamma": 0.85,
+  "checkpoint_interval": 10000,
+  "evaluation_interval": 10000,
+  "evaluation_episodes": 100,
+  "seed": 42,
+  "run_notes": "",
+  "game_config_path": "C:\\Users\\joche\\OneDrive\\Documenten\\GitClones\\scrumgameai\\game\\v2_deep_rl\\artifacts\\runs\\run_2026-04-15_2229_autopilot_continue_v4\\game_config.json",
+  "training_config_path": "C:\\Users\\joche\\OneDrive\\Documenten\\GitClones\\scrumgameai\\game\\v2_deep_rl\\artifacts\\runs\\run_2026-04-15_2229_autopilot_continue_v4\\training_config.json",
+  "rule_signature": "2a51abc7075cf9ea12df50d6aaf6c26fdc711621a7e2812de24b9d949d18a4b6",
+  "training_signature": "d06bb78bb55f215af4464edfb0841dbe7f94d654539f3719f4a2b1ac2f4e9a14",
+  "resume_checkpoint_path": "C:\\Users\\joche\\OneDrive\\Documenten\\GitClones\\scrumgameai\\game\\v2_deep_rl\\artifacts\\runs\\run_2026-04-15_2208_autopilot_continue_v3\\checkpoints\\best_scrum_model.pth",
+  "resume_mode": "strict",
+  "resume_episodes_mode": "incremental"
+}

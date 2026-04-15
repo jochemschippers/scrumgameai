@@ -667,21 +667,6 @@ def train_dqn_agent(
             },
         )
 
-    # Always save the agent state at the final episode so autopilot continuations
-    # can resume from here rather than from the (potentially earlier) best checkpoint.
-    latest_checkpoint_path = checkpoint_dir / "latest_scrum_model.pth"
-    save_checkpoint(
-        latest_checkpoint_path,
-        agent,
-        resolved_game_config,
-        resolved_training_config,
-        extra_metadata={
-            "episode": final_episode,
-            "is_latest_checkpoint": True,
-            **(resume_metadata or {}),
-        },
-    )
-
     plot_path = plot_dir / "dqn_training_curve.png"
     save_training_plot(training_rewards, output_path=plot_path)
 
