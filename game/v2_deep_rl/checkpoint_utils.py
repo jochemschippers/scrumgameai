@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -76,6 +77,43 @@ def save_checkpoint(
         },
         checkpoint_path,
     )
+
+    # Write a lightweight sidecar so the UI can read metadata without loading
+    # the full .pth file (which includes the replay buffer and is slow to load).
+    sidecar_path = checkpoint_path.with_suffix(".json")
+    with sidecar_path.open("w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=2, default=str)
+
+
+def backfill_checkpoint_sidecars(runs_dir: Path) -> int:
+    """Write missing sidecar .json files for all .pth checkpoints under runs_dir.
+
+    Safe to run while training is active — skips files that already have a sidecar.
+    Returns the number of sidecars written.
+    """
+    written = 0
+    for pth_path in sorted(runs_dir.rglob("*.pth")):
+        sidecar = pth_path.with_suffix(".json")
+        if sidecar.exists():
+            continue
+        try:
+            payload = torch.load(pth_path, map_location="cpu", weights_only=False)
+            metadata = payload.get("metadata", {}) if isinstance(payload, dict) else {}
+            with sidecar.open("w", encoding="utf-8") as f:
+                json.dump(metadata, f, indent=2, default=str)
+            written += 1
+            print(f"  wrote {sidecar.name} for {pth_path.parent.parent.name}/{pth_path.name}")
+        except Exception as exc:
+            print(f"  skipped {pth_path.name}: {exc}")
+    return written
+
+
+if __name__ == "__main__":
+    import sys
+    target = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent / "artifacts" / "runs"
+    print(f"Backfilling checkpoint sidecars under {target} ...")
+    n = backfill_checkpoint_sidecars(target)
+    print(f"Done — {n} sidecar(s) written.")
 
 
 def load_checkpoint_payload(checkpoint_path, map_location=None):

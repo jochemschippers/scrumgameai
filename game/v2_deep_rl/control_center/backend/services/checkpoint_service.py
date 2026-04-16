@@ -130,6 +130,46 @@ def list_checkpoints() -> list[dict]:
             or source_type in {"reference_v1", "playable_model_v1"}
         )
 
+        # Try the lightweight sidecar JSON first — avoids loading the full .pth
+        # (which includes the replay buffer and can be very slow).
+        sidecar_path = checkpoint_path.with_suffix(".json")
+        if sidecar_path.exists():
+            try:
+                import json as _json
+                with sidecar_path.open("r", encoding="utf-8") as _f:
+                    metadata = _json.load(_f)
+                legacy_checkpoint = bool(metadata.get("legacy_checkpoint", False))
+                rule_signature = metadata.get("rule_signature")
+                training_signature = metadata.get("training_signature")
+                checkpoint_state_dim = metadata.get("state_dim")
+                checkpoint_num_actions = metadata.get("num_actions")
+                if legacy_checkpoint and not rule_signature:
+                    compatibility_status = "legacy-unknown"
+                else:
+                    compatibility_status = "tracked"
+                items.append(
+                    {
+                        "id": _checkpoint_id(checkpoint_path),
+                        "label": checkpoint_path.name,
+                        "display_label": f"{_source_label(source_type, source_run)} | {checkpoint_path.name}",
+                        "path": str(checkpoint_path),
+                        "source_type": source_type,
+                        "source_run": source_run,
+                        "checkpoint_type": checkpoint_type,
+                        "checkpoint_format": "legacy" if legacy_checkpoint else "managed",
+                        "legacy_read_only": legacy_checkpoint or source_type in {"reference_v1", "playable_model_v1"},
+                        "rule_signature": rule_signature,
+                        "training_signature": training_signature,
+                        "state_dim": checkpoint_state_dim,
+                        "num_actions": checkpoint_num_actions,
+                        "episode": metadata.get("episode"),
+                        "compatibility_status": compatibility_status,
+                    }
+                )
+                continue
+            except Exception:
+                pass  # Fall through to full .pth load below
+
         if not eager_load:
             items.append(
                 {
