@@ -220,21 +220,33 @@ function clearCompatibilityResult() {
   renderContextCard();
 }
 
-async function apiRequest(path, options = {}) {
-  const response = await fetch(`${state.apiBaseUrl}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-    ...options,
-  });
+async function apiRequest(path, options = {}, timeoutMs = 20000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${state.apiBaseUrl}${path}`, {
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+      ...options,
+    });
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Request failed: ${response.status}`);
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Request failed: ${response.status}`);
+    }
+
+    return response.json();
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error(`Request timed out: ${path}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
   }
-
-  return response.json();
 }
 
 function formatJson(value) {
@@ -444,7 +456,7 @@ async function _runPollCycle() {
   if (_pollInFlight) return;
   _pollInFlight = true;
   try {
-    // Refresh the jobs list so we can detect autopilot-created continuation jobs.
+    // Refresh the jobs list first — subsequent fetches depend on the updated job state.
     const jobsPayload = await apiRequest("/jobs").catch(() => null);
     if (jobsPayload) {
       state.jobs = jobsPayload.items || [];
@@ -463,18 +475,23 @@ async function _runPollCycle() {
       }
     }
 
-    if (state.activeProgressJobId) {
-      await fetchTrainingProgress(state.activeProgressJobId, false).catch(() => {});
-    }
-
+    // Determine autopilot run ID from existing state (stale-ok for this cycle).
     const runId =
       state.activeRunId ||
       (state.trainingProgress?.run_dir ? runLabelFromPath(state.trainingProgress.run_dir) : null) ||
       (state.jobDetail?.run_dir ? runLabelFromPath(state.jobDetail.run_dir) : null);
-    if (runId) {
-      await fetchAutopilotData(runId).catch(() => {});
-      renderAutopilotTrainingPanel();
-    }
+
+    // Fire progress + autopilot requests in parallel — they're independent of each other.
+    await Promise.all([
+      state.activeProgressJobId
+        ? fetchTrainingProgress(state.activeProgressJobId, false).catch(() => {})
+        : Promise.resolve(),
+      runId
+        ? fetchAutopilotData(runId).catch(() => {})
+        : Promise.resolve(),
+    ]);
+
+    if (runId) renderAutopilotTrainingPanel();
   } finally {
     _pollInFlight = false;
   }

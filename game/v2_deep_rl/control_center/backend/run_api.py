@@ -29,7 +29,7 @@ if __name__ == "__main__":
             "pip install -r game/v2_deep_rl/control_center/backend/requirements.txt"
         ) from error
 
-    host = "127.0.0.1"
+    host = "0.0.0.0"
     preferred_port = 8000
     port = _find_available_port(host, preferred_port)
     if port != preferred_port:
