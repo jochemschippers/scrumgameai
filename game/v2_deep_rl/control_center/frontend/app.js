@@ -2494,14 +2494,28 @@ async function openInspectForJob(jobId, announce = true) {
   }
 }
 
+async function refreshCheckpoints() {
+  // Checkpoints load .pth files via torch and can be slow on first call.
+  // Fetched separately so a slow response never blocks the connect flow.
+  try {
+    const checkpoints = await apiRequest("/checkpoints", {}, 120000);
+    state.checkpoints = checkpoints.items || [];
+    renderCheckpointDetail();
+    renderTrainingSelectionSummary();
+    renderTrainingPreflight();
+    renderCompatibility();
+  } catch (_err) {
+    // Non-fatal — UI still works without checkpoints loaded.
+  }
+}
+
 async function refreshAll() {
   clearMessage();
-  const [health, gameConfigs, trainingConfigs, runs, checkpoints, jobs] = await Promise.all([
+  const [health, gameConfigs, trainingConfigs, runs, jobs] = await Promise.all([
     apiRequest("/health"),
     apiRequest("/configs/game"),
     apiRequest("/configs/training"),
     apiRequest("/runs"),
-    apiRequest("/checkpoints"),
     apiRequest("/jobs"),
   ]);
 
@@ -2509,8 +2523,10 @@ async function refreshAll() {
   state.gameConfigs = gameConfigs.items || [];
   state.trainingConfigs = trainingConfigs.items || [];
   state.runs = runs.items || [];
-  state.checkpoints = checkpoints.items || [];
   state.jobs = jobs.items || [];
+
+  // Load checkpoints in the background — slow on first call (torch init + .pth loads).
+  refreshCheckpoints();
 
   syncSelectors();
   renderGameConfigs();

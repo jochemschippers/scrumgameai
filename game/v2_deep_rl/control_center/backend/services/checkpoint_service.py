@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from .app_paths import (
@@ -13,6 +14,20 @@ from .app_paths import (
 from .catalog_service import list_game_configs
 
 ensure_engine_import_path()
+
+# Cache for list_checkpoints() — loading .pth files via torch is expensive.
+# Invalidated after 60 seconds or when a new run directory appears.
+_checkpoint_cache: list[dict] | None = None
+_checkpoint_cache_time: float = 0.0
+_checkpoint_cache_run_count: int = 0
+_CHECKPOINT_CACHE_TTL: float = 60.0
+
+
+def _invalidate_checkpoint_cache() -> None:
+    global _checkpoint_cache, _checkpoint_cache_time
+    _checkpoint_cache = None
+    _checkpoint_cache_time = 0.0
+
 
 # torch-dependent engine imports are deferred to function call time so the API
 # server starts successfully even when torch is not installed in the web venv.
@@ -95,6 +110,16 @@ def _resolve_game_config_reference(game_config_id: str):
 
 
 def list_checkpoints() -> list[dict]:
+    global _checkpoint_cache, _checkpoint_cache_time, _checkpoint_cache_run_count
+    now = time.monotonic()
+    current_run_count = sum(1 for p in RUNS_DIR.iterdir() if p.is_dir()) if RUNS_DIR.exists() else 0
+    if (
+        _checkpoint_cache is not None
+        and now - _checkpoint_cache_time < _CHECKPOINT_CACHE_TTL
+        and current_run_count == _checkpoint_cache_run_count
+    ):
+        return _checkpoint_cache
+
     items = []
     for checkpoint_path, source_type, source_run in _checkpoint_catalog_paths():
         checkpoint_type = _checkpoint_type(checkpoint_path)
@@ -180,6 +205,9 @@ def list_checkpoints() -> list[dict]:
                     "error": str(error),
                 }
             )
+    _checkpoint_cache = items
+    _checkpoint_cache_time = now
+    _checkpoint_cache_run_count = current_run_count
     return items
 
 
