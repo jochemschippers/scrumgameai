@@ -1,3 +1,17 @@
 *.pth
 *.npy
 .venv/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Test/tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Misc
+.DS_Store
