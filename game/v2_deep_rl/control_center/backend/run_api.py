@@ -1,8 +1,45 @@
 from __future__ import annotations
 
 import socket
+import subprocess
+import sys
+from pathlib import Path
 
 from app import app
+
+# ---------------------------------------------------------------------------
+# Startup test validation
+# ---------------------------------------------------------------------------
+# Run the test suite once when the API server starts.  This catches regressions
+# early and gives a clear signal if the deployed code is broken.  Tests run in
+# a subprocess so torch stubs/real-torch import isolation doesn't bleed into
+# the live server process.
+
+_TESTS_DIR = Path(__file__).resolve().parents[2] / "tests"
+
+
+def _run_startup_tests() -> None:
+    if not _TESTS_DIR.exists():
+        print(f"[startup] tests directory not found at {_TESTS_DIR}, skipping.", flush=True)
+        return
+
+    print(f"[startup] Running test suite at {_TESTS_DIR} ...", flush=True)
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", str(_TESTS_DIR), "-q", "--tb=short", "--no-header"],
+        capture_output=False,   # stream output directly to the terminal
+        text=True,
+    )
+    if result.returncode == 0:
+        print("[startup] All tests passed.", flush=True)
+    elif result.returncode == 5:
+        # exit code 5 = no tests collected (e.g. empty dir) — not a failure
+        print("[startup] No tests collected — continuing.", flush=True)
+    else:
+        print(
+            f"[startup] WARNING: test suite exited with code {result.returncode}. "
+            "The server will still start, but please investigate the failures above.",
+            flush=True,
+        )
 
 
 def _find_available_port(host: str, preferred_port: int, fallback_count: int = 15) -> int:
@@ -28,6 +65,8 @@ if __name__ == "__main__":
             "uvicorn is not installed. Install backend requirements first: "
             "pip install -r game/v2_deep_rl/control_center/backend/requirements.txt"
         ) from error
+
+    _run_startup_tests()
 
     host = "0.0.0.0"
     preferred_port = 8000
