@@ -667,6 +667,22 @@ def train_dqn_agent(
             },
         )
 
+    # Always save the final state so autopilot can chain continuations from the
+    # true last episode rather than from the (potentially much earlier) best-reward
+    # episode stored in best_scrum_model.pth.
+    latest_checkpoint_path = checkpoint_dir / "latest_scrum_model.pth"
+    save_checkpoint(
+        latest_checkpoint_path,
+        agent,
+        resolved_game_config,
+        resolved_training_config,
+        extra_metadata={
+            "episode": final_episode,
+            "average_reward": best_average_reward if best_average_reward != float("-inf") else None,
+            **(resume_metadata or {}),
+        },
+    )
+
     plot_path = plot_dir / "dqn_training_curve.png"
     save_training_plot(training_rewards, output_path=plot_path)
 
