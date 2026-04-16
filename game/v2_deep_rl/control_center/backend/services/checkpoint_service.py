@@ -270,13 +270,12 @@ def get_checkpoint_compatibility(checkpoint_id: str, game_config_id: str) -> dic
     target_rule_signature = compute_rule_signature(target_game_config)
     target_agent, _ = build_agent_for_config(target_game_config)
 
-    # Use sidecar JSON when available to avoid loading the full .pth (replay buffer).
-    # Shape inference requires the model_state_dict, so fall back to torch.load only
-    # when state_dim / num_actions are missing from the sidecar.
+    # Read metadata from sidecar JSON only — never torch.load the full .pth here,
+    # as that loads the replay buffer (~100k entries) and hangs the server.
+    # Run checkpoint_utils.py on the server to backfill missing sidecars.
     import json as _json
     sidecar_path = Path(checkpoint["path"]).with_suffix(".json")
     metadata: dict = {}
-    state_dict = {}
     if sidecar_path.exists():
         try:
             with sidecar_path.open("r", encoding="utf-8") as _f:
@@ -284,16 +283,9 @@ def get_checkpoint_compatibility(checkpoint_id: str, game_config_id: str) -> dic
         except Exception:
             pass
 
-    if not metadata or (metadata.get("state_dim") is None and metadata.get("num_actions") is None):
-        from checkpoint_utils import load_checkpoint_payload as _load
-        payload = _load(checkpoint["path"], map_location="cpu")
-        metadata = payload.get("metadata", {})
-        state_dict = payload.get("model_state_dict", {})
-
     checkpoint_rule_signature = metadata.get("rule_signature")
-    inferred_state_dim, inferred_num_actions = _infer_shape_from_state_dict(state_dict)
-    checkpoint_state_dim = metadata.get("state_dim") or inferred_state_dim
-    checkpoint_num_actions = metadata.get("num_actions") or inferred_num_actions
+    checkpoint_state_dim = metadata.get("state_dim")
+    checkpoint_num_actions = metadata.get("num_actions")
     legacy_checkpoint = bool(metadata.get("legacy_checkpoint", False))
 
     shape_compatible = (
