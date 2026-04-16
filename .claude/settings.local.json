@@ -16,7 +16,12 @@
       "Bash(python -c \"import sys; print\\(sys.executable\\)\")",
       "Bash(\".venv/Scripts/python\" -c \"import sys; print\\(sys.executable\\)\")",
       "Bash(python -c ' *)",
-      "Bash(python *)"
+      "Bash(python *)",
+      "mcp__plugin_claude-mem_mcp-search__get_observations",
+      "mcp__plugin_claude-mem_mcp-search__smart_outline",
+      "Bash(sed -n '44,55p' \"C:/Users/joche/OneDrive/Documenten/GitHub/scrumgameai/game/v2_deep_rl/control_center/backend/jobs/queue_manager.py\")",
+      "Bash(sed -n '123,165p' \"C:/Users/joche/OneDrive/Documenten/GitHub/scrumgameai/game/v2_deep_rl/control_center/backend/jobs/queue_manager.py\")",
+      "Bash(sed -n '185,215p' \"C:/Users/joche/OneDrive/Documenten/GitHub/scrumgameai/game/v2_deep_rl/control_center/backend/jobs/queue_manager.py\")"
     ]
   }
 }

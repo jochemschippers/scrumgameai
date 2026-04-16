@@ -8,6 +8,7 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import threading
 import time
 
 from services.app_paths import BACKEND_DIR, ENGINE_ROOT, RUNS_DIR, ensure_engine_import_path
@@ -42,6 +43,12 @@ VALID_JOB_TYPES = {"train", "fine_tune", "evaluate", "robustness"}
 RUNNER_PATH = BACKEND_DIR / "jobs" / "job_runner.py"
 
 _CACHED_PYTHON_COMMAND: str | None = None
+
+# Throttle refresh_job_states() so concurrent requests don't all hammer SQLite
+# with PID checks and writes simultaneously.
+_REFRESH_LOCK = threading.Lock()
+_LAST_REFRESH_TIME: float = 0.0
+_REFRESH_INTERVAL: float = 3.0  # seconds
 
 
 def _choose_python_command() -> str:
@@ -121,7 +128,21 @@ def _default_stdout_log(run_dir: Path, job_type: str) -> Path:
 
 
 def refresh_job_states() -> list[dict]:
+    """Check running job PIDs and mark dead ones as failed.
+
+    Throttled to run at most once every _REFRESH_INTERVAL seconds so that
+    concurrent frontend requests (detail + progress + log) don't all race to
+    hammer SQLite with PID checks and writes simultaneously.
+    """
+    global _LAST_REFRESH_TIME
     init_db()
+    now = time.monotonic()
+    with _REFRESH_LOCK:
+        if now - _LAST_REFRESH_TIME < _REFRESH_INTERVAL:
+            # Another request refreshed recently — just return current DB state.
+            return list_jobs_db()
+        _LAST_REFRESH_TIME = now
+
     jobs = list_jobs_db()
     for job in jobs:
         if job["status"] == "running" and not _is_pid_running(job.get("worker_pid")):
@@ -173,7 +194,6 @@ def dispatch_next_job() -> dict | None:
             **popen_kwargs,
         )
 
-    time.sleep(0.2)
     return update_job(
         queued_job["id"],
         status="running",
@@ -191,7 +211,6 @@ def list_jobs() -> list[dict]:
 
 def get_job_details(job_id: int) -> dict | None:
     init_db()
-    refresh_job_states()
     return get_job(job_id)
 
 
