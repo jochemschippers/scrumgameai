@@ -170,7 +170,9 @@ def list_checkpoints() -> list[dict]:
             except Exception:
                 pass  # Fall through to full .pth load below
 
-        if not eager_load:
+        # No sidecar available — skip the slow torch.load entirely for listing.
+        # Metadata will be resolved on demand via the compatibility endpoint.
+        if not eager_load or source_type not in {"reference_v1", "playable_model_v1"}:
             items.append(
                 {
                     "id": _checkpoint_id(checkpoint_path),
@@ -181,7 +183,7 @@ def list_checkpoints() -> list[dict]:
                     "source_run": source_run,
                     "checkpoint_type": checkpoint_type,
                     "checkpoint_format": "managed",
-                    "legacy_read_only": False,
+                    "legacy_read_only": source_type in {"reference_v1", "playable_model_v1"},
                     "rule_signature": None,
                     "training_signature": None,
                     "state_dim": None,
