@@ -25,7 +25,13 @@
       "Bash(sed -n '220,240p' \"C:/Users/joche/OneDrive/Documenten/GitHub/scrumgameai/game/v2_deep_rl/control_center/frontend/app.js\")",
       "Bash(sed -n '438,500p' \"C:/Users/joche/OneDrive/Documenten/GitHub/scrumgameai/game/v2_deep_rl/control_center/frontend/app.js\")",
       "Bash(sed -n '2760,2800p' \"C:/Users/joche/OneDrive/Documenten/GitHub/scrumgameai/game/v2_deep_rl/control_center/frontend/app.js\")",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(\"C:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/.venv/Scripts/python.exe\" -m pytest tests/ -v)",
+      "Bash(\"C:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/.venv/Scripts/pip.exe\" install *)",
+      "Bash(pip show *)",
+      "Bash(where pytest *)",
+      "Bash(py -3 -m pytest --version)",
+      "Bash(pip install *)"
     ]
   }
 }
