@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/root/scrumgameai/game/v2_deep_rl/train_dqn.py", line 7, in <module>
+    import matplotlib.pyplot as plt
+ModuleNotFoundError: No module named 'matplotlib'

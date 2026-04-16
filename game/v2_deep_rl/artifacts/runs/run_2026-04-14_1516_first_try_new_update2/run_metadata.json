@@ -1,0 +1,19 @@
+{
+  "run_name": "run_2026-04-14_1516_first_try_new_update2",
+  "run_path": "/root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2",
+  "created_at": "2026-04-14T15:16:45.998057",
+  "training_episodes": 200000,
+  "learning_rate": 0.0005,
+  "gamma": 0.85,
+  "checkpoint_interval": 10000,
+  "evaluation_interval": 10000,
+  "evaluation_episodes": 100,
+  "seed": 42,
+  "run_notes": "",
+  "game_config_path": "/root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/game_config.json",
+  "training_config_path": "/root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/training_config.json",
+  "rule_signature": "5ac0a93a41f442a279ce8ce0e96b8c9b94e095702da1f58f12012cc58ac7a857",
+  "training_signature": "cb704b924873f09113f59688efea2a77445766d93be51e596558e4d38394bd27",
+  "resume_checkpoint_path": null,
+  "resume_mode": null
+}

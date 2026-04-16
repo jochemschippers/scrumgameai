@@ -1,0 +1,13 @@
+{
+  "run_name": "run_2026-04-08_0822",
+  "run_path": "/root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-08_0822",
+  "created_at": "2026-04-08T08:22:52.081577",
+  "training_episodes": 500000,
+  "learning_rate": 0.0005,
+  "gamma": 0.85,
+  "checkpoint_interval": 10000,
+  "evaluation_interval": 10000,
+  "evaluation_episodes": 100,
+  "seed": 42,
+  "run_notes": "test2"
+}

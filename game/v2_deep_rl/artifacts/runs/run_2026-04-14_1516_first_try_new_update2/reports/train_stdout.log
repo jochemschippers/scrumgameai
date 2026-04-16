@@ -1,0 +1,32 @@
+Checkpoint saved at episode 10000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_010000.pth
+Updated best model at episode 10000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/best_scrum_model.pth (avg reward -30782.50)
+Checkpoint saved at episode 20000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_020000.pth
+Checkpoint saved at episode 30000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_030000.pth
+Checkpoint saved at episode 40000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_040000.pth
+Updated best model at episode 40000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/best_scrum_model.pth (avg reward -28010.00)
+Checkpoint saved at episode 50000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_050000.pth
+Updated best model at episode 50000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/best_scrum_model.pth (avg reward -3422.50)
+Checkpoint saved at episode 60000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_060000.pth
+Checkpoint saved at episode 70000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_070000.pth
+Checkpoint saved at episode 80000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_080000.pth
+Checkpoint saved at episode 90000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_090000.pth
+Checkpoint saved at episode 100000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_100000.pth
+Checkpoint saved at episode 110000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_110000.pth
+Checkpoint saved at episode 120000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_120000.pth
+Checkpoint saved at episode 130000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_130000.pth
+Checkpoint saved at episode 140000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_140000.pth
+Checkpoint saved at episode 150000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_150000.pth
+Checkpoint saved at episode 160000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_160000.pth
+Checkpoint saved at episode 170000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_170000.pth
+Checkpoint saved at episode 180000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_180000.pth
+Checkpoint saved at episode 190000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_190000.pth
+Checkpoint saved at episode 200000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/checkpoint_episode_200000.pth
+Training episodes completed: 200000
+Evaluation episodes completed: 1000
+Average reward per episode during evaluation: -16035.00
+Average ending money during evaluation: 38726.00
+Bankruptcy rate during evaluation: 0.364
+Saved best model checkpoint to: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/checkpoints/best_scrum_model.pth
+Saved training curve to: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/plots/dqn_training_curve.png
+Saved live training log to: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/reports/logs.csv
+Saved periodic evaluation log to: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-14_1516_first_try_new_update2/reports/evaluation_history.csv

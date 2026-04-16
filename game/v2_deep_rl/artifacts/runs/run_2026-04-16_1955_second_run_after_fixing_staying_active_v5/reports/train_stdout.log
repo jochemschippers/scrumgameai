@@ -1,0 +1,14 @@
+Checkpoint saved at episode 60000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-16_1955_second_run_after_fixing_staying_active_v5/checkpoints/checkpoint_episode_060000.pth
+Checkpoint saved at episode 70000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-16_1955_second_run_after_fixing_staying_active_v5/checkpoints/checkpoint_episode_070000.pth
+Checkpoint saved at episode 80000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-16_1955_second_run_after_fixing_staying_active_v5/checkpoints/checkpoint_episode_080000.pth
+Checkpoint saved at episode 90000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-16_1955_second_run_after_fixing_staying_active_v5/checkpoints/checkpoint_episode_090000.pth
+Checkpoint saved at episode 100000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-16_1955_second_run_after_fixing_staying_active_v5/checkpoints/checkpoint_episode_100000.pth
+Training episodes completed: 50000
+Evaluation episodes completed: 1000
+Average reward per episode during evaluation: -16035.00
+Average ending money during evaluation: 38726.00
+Bankruptcy rate during evaluation: 0.364
+Saved best model checkpoint to: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-16_1955_second_run_after_fixing_staying_active_v5/checkpoints/best_scrum_model.pth
+Saved training curve to: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-16_1955_second_run_after_fixing_staying_active_v5/plots/dqn_training_curve.png
+Saved live training log to: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-16_1955_second_run_after_fixing_staying_active_v5/reports/logs.csv
+Saved periodic evaluation log to: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-16_1955_second_run_after_fixing_staying_active_v5/reports/evaluation_history.csv

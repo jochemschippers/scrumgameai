@@ -1,0 +1,17 @@
+Checkpoint saved at episode 10000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-15_0042_autopilot_continue/checkpoints/checkpoint_episode_010000.pth
+Updated best model at episode 10000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-15_0042_autopilot_continue/checkpoints/best_scrum_model.pth (avg reward -36462.50)
+Checkpoint saved at episode 20000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-15_0042_autopilot_continue/checkpoints/checkpoint_episode_020000.pth
+Updated best model at episode 20000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-15_0042_autopilot_continue/checkpoints/best_scrum_model.pth (avg reward -19385.00)
+Checkpoint saved at episode 30000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-15_0042_autopilot_continue/checkpoints/checkpoint_episode_030000.pth
+Checkpoint saved at episode 40000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-15_0042_autopilot_continue/checkpoints/checkpoint_episode_040000.pth
+Checkpoint saved at episode 50000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-15_0042_autopilot_continue/checkpoints/checkpoint_episode_050000.pth
+Updated best model at episode 50000: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-15_0042_autopilot_continue/checkpoints/best_scrum_model.pth (avg reward -14102.50)
+Training episodes completed: 50000
+Evaluation episodes completed: 1000
+Average reward per episode during evaluation: -31343.25
+Average ending money during evaluation: 40531.00
+Bankruptcy rate during evaluation: 0.524
+Saved best model checkpoint to: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-15_0042_autopilot_continue/checkpoints/best_scrum_model.pth
+Saved training curve to: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-15_0042_autopilot_continue/plots/dqn_training_curve.png
+Saved live training log to: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-15_0042_autopilot_continue/reports/logs.csv
+Saved periodic evaluation log to: /root/scrumgameai/game/v2_deep_rl/artifacts/runs/run_2026-04-15_0042_autopilot_continue/reports/evaluation_history.csv
