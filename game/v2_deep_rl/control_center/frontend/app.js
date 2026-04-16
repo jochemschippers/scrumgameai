@@ -2500,6 +2500,7 @@ async function refreshCheckpoints() {
   try {
     const checkpoints = await apiRequest("/checkpoints", {}, 120000);
     state.checkpoints = checkpoints.items || [];
+    syncSelectors();
     renderCheckpointDetail();
     renderTrainingSelectionSummary();
     renderTrainingPreflight();
