@@ -260,6 +260,23 @@ def get_checkpoint_by_id(checkpoint_id: str) -> dict | None:
     return None
 
 
+def resolve_checkpoint_path(checkpoint_id: str) -> Path:
+    checkpoint = get_checkpoint_by_id(checkpoint_id)
+    if checkpoint is None:
+        raise ValueError(f"Checkpoint `{checkpoint_id}` was not found.")
+
+    checkpoint_path = Path(checkpoint["path"]).resolve()
+    try:
+        checkpoint_path.relative_to(REPO_ROOT.resolve())
+    except ValueError as error:
+        raise ValueError(f"Checkpoint `{checkpoint_id}` is outside the tracked repository.") from error
+
+    if not checkpoint_path.is_file():
+        raise ValueError(f"Checkpoint file for `{checkpoint_id}` does not exist.")
+
+    return checkpoint_path
+
+
 def get_checkpoint_compatibility(checkpoint_id: str, game_config_id: str) -> dict:
     checkpoint = get_checkpoint_by_id(checkpoint_id)
     if checkpoint is None:

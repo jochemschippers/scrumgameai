@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
 
-from services.checkpoint_service import get_checkpoint_compatibility, list_checkpoints
+from services.checkpoint_service import (
+    get_checkpoint_compatibility,
+    list_checkpoints,
+    resolve_checkpoint_path,
+)
 
 
 router = APIRouter(tags=["checkpoints"])
@@ -24,3 +29,14 @@ def get_checkpoint_compatibility_route(
         return get_checkpoint_compatibility(checkpoint_id, game_config_id)
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.get("/checkpoints/{checkpoint_id:path}/download")
+def download_checkpoint_route(checkpoint_id: str):
+    """Download a tracked checkpoint file directly."""
+    try:
+        checkpoint_path = resolve_checkpoint_path(checkpoint_id)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+    return FileResponse(path=checkpoint_path, filename=checkpoint_path.name, media_type="application/octet-stream")

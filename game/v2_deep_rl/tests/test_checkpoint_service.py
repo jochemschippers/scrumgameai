@@ -209,6 +209,32 @@ class TestCompatibilityNoTorchLoad:
 
 
 # ---------------------------------------------------------------------------
+# Tests: resolve_checkpoint_path only returns tracked checkpoint files
+# ---------------------------------------------------------------------------
+
+class TestResolveCheckpointPath:
+    def test_resolves_tracked_checkpoint_id(self, _patch_runs_dir):
+        runs_dir = _patch_runs_dir
+        checkpoint_path = _make_checkpoint(runs_dir / "run_001" / "checkpoints", "best_scrum_model.pth")
+
+        import services.checkpoint_service as svc
+
+        items = svc.list_checkpoints()
+        resolved = svc.resolve_checkpoint_path(items[0]["id"])
+
+        assert resolved == checkpoint_path.resolve()
+
+    def test_rejects_untracked_path_traversal_id(self, _patch_runs_dir):
+        runs_dir = _patch_runs_dir
+        _make_checkpoint(runs_dir / "run_001" / "checkpoints", "best_scrum_model.pth")
+
+        import services.checkpoint_service as svc
+
+        with pytest.raises(ValueError, match="was not found"):
+            svc.resolve_checkpoint_path("../../Windows/system32/config/SAM")
+
+
+# ---------------------------------------------------------------------------
 # Tests: sidecar written by save_checkpoint
 # ---------------------------------------------------------------------------
 

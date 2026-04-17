@@ -447,6 +447,16 @@ function downloadCsvFile(fileName, headers, rows) {
   URL.revokeObjectURL(url);
 }
 
+function downloadCheckpointFile(checkpoint) {
+  if (!checkpoint?.id) {
+    throw new Error("Select a brain before downloading.");
+  }
+  const anchor = document.createElement("a");
+  anchor.href = `${state.apiBaseUrl}/checkpoints/${encodeURIComponent(checkpoint.id)}/download`;
+  anchor.download = checkpoint.label || "checkpoint.pth";
+  anchor.click();
+}
+
 // Guard flag: prevents a new poll from starting before the previous one finishes.
 // This replaces setInterval (which fires regardless of async completion) and
 // prevents request accumulation when the server is slow during training.
@@ -1997,9 +2007,19 @@ function renderCheckpointDetail() {
       <span class="tag">${checkpoint.rule_signature || "legacy-unknown-rule"}</span>
     </div>
     <div class="inline-actions">
+      <button class="button secondary download-brain-button" type="button">Download Brain</button>
       ${checkpoint.source_type === "run" && checkpoint.source_run ? `<button class="button secondary open-brain-inspect-button" data-run-id="${escapeHtml(checkpoint.source_run)}" type="button">Open Inspect</button>` : ""}
     </div>
   `;
+
+  container.querySelector(".download-brain-button")?.addEventListener("click", () => {
+    try {
+      downloadCheckpointFile(checkpoint);
+      showMessage(`Downloading ${checkpoint.label}.`);
+    } catch (error) {
+      showMessage(error.message, "error");
+    }
+  });
 
   container.querySelector(".open-brain-inspect-button")?.addEventListener("click", async (event) => {
     try {
