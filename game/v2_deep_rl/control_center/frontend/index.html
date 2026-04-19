@@ -4,83 +4,51 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Scrum Game Control Center</title>
-  <link rel="stylesheet" href="./styles/app.css?v=14" />
+  <link rel="stylesheet" href="./styles/app.css?v=15" />
 </head>
 <body>
   <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand">
-        <h1>Control Center</h1>
-        <p>Unified Scrum Game workspace</p>
-      </div>
-
+    <header class="app-header">
+      <span class="brand-name">Control Center</span>
       <nav class="nav" aria-label="Primary">
         <button class="nav-button is-active" data-page="rules">Design</button>
         <button class="nav-button" data-page="training">Train</button>
+        <button class="nav-button" data-page="inspect">Inspect</button>
         <button class="nav-button" data-page="evaluate">Evaluate</button>
         <button class="nav-button" data-page="play">Play</button>
       </nav>
-
-      <section class="sidebar-section">
-        <h2>Backend</h2>
-        <label class="field">
-          <span>API Base URL</span>
-          <input id="apiBaseUrlInput" type="text" value="http://127.0.0.1:8000" />
+      <div class="header-workspace">
+        <label class="ws-label">Blueprint <select id="activeGameConfigSelect"></select></label>
+        <label class="ws-label">Profile <select id="activeTrainingConfigSelect"></select></label>
+        <label class="ws-label">Brain <select id="activeCheckpointSelect"></select></label>
+        <label class="ws-label ws-check">
+          <input id="activeCheckpointIncludeAllToggle" type="checkbox" />
+          Snapshots
         </label>
-        <div class="button-row">
+      </div>
+      <div class="header-backend">
+        <div id="backendStatusCard" class="status-card status-muted"><span>Connecting...</span></div>
+        <div id="backendManualConnect" style="display:none;" class="header-connect-form">
+          <input id="apiBaseUrlInput" type="text" value="http://127.0.0.1:8000" />
           <button id="connectButton" class="button primary" type="button">Connect</button>
+        </div>
+        <div id="backendConnectedActions" style="display:none;" class="header-connect-actions">
           <button id="refreshAllButton" class="button secondary" type="button">Refresh</button>
+          <button id="switchBackendButton" class="button secondary" type="button">Switch URL</button>
         </div>
-        <div id="backendStatusCard" class="status-card status-muted">
-          <strong>Status</strong>
-          <span>Not connected</span>
-        </div>
-      </section>
+      </div>
+    </header>
 
-      <section class="sidebar-section">
-        <h2>Workspace</h2>
-        <div class="selection-stack">
-          <label class="field">
-            <span>Active Blueprint</span>
-            <select id="activeGameConfigSelect"></select>
-          </label>
-          <label class="field">
-            <span>Active Training Profile</span>
-            <select id="activeTrainingConfigSelect"></select>
-          </label>
-          <label class="field">
-            <span>Active Brain</span>
-            <select id="activeCheckpointSelect"></select>
-          </label>
-          <label class="field checkbox-inline compact-checkbox sidebar-checkbox">
-            <input id="activeCheckpointIncludeAllToggle" type="checkbox" />
-            <span>Include Checkpoints</span>
-          </label>
-        </div>
-      </section>
-    </aside>
+    <!-- Hidden elements preserved for JS compatibility -->
+    <span id="pageTitle" class="hidden"></span>
+    <span id="pageSubtitle" class="hidden"></span>
+    <span id="contextPageUsage" class="hidden"></span>
+    <span id="summaryRuleSignature" class="hidden"></span>
+    <span id="summaryCheckpointStatus" class="hidden"></span>
+    <span id="summaryJobCount" class="hidden"></span>
+    <div id="contextCardBody" class="hidden"></div>
 
     <main class="main-panel">
-      <header class="topbar">
-        <div>
-          <h2 id="pageTitle">Design</h2>
-          <p id="pageSubtitle">Define the blueprint the agent learns against.</p>
-        </div>
-        <div class="summary-pills">
-          <span id="summaryRuleSignature" class="pill">Blueprint: -</span>
-          <span id="summaryCheckpointStatus" class="pill">Brain: -</span>
-          <span id="summaryJobCount" class="pill">Jobs: 0</span>
-        </div>
-      </header>
-
-      <section id="contextCard" class="context-card">
-        <div class="context-card-head">
-          <strong>Active Workspace</strong>
-          <span id="contextPageUsage" class="meta-count">Design uses the active blueprint and training profile.</span>
-        </div>
-        <div id="contextCardBody" class="context-grid"></div>
-      </section>
-
       <section id="globalMessage" class="message hidden"></section>
 
       <section id="page-rules" class="page is-active">
@@ -135,7 +103,7 @@
                   <span>Config Name</span>
                   <input id="configNameInput" type="text" />
                 </label>
-                <label class="field">
+                <label class="field hidden">
                   <span>Schema Version</span>
                   <input id="schemaVersionInput" type="text" />
                 </label>
@@ -241,57 +209,60 @@
           </div>
         </article>
 
-        <div class="grid two rules-editor-grid">
-          <article class="panel">
-            <div class="panel-head">
-              <h3>Game Config JSON</h3>
-              <div class="inline-actions">
-                <button id="validateGameConfigButton" class="button secondary" type="button">Validate</button>
-                <button id="loadActiveGameConfigButton" class="button secondary" type="button">Load Active</button>
+        <details class="advanced-panel rules-editor-grid">
+          <summary>Advanced JSON editor</summary>
+          <div class="grid two advanced-json-grid">
+            <article class="panel">
+              <div class="panel-head">
+                <h3>Game Config JSON</h3>
+                <div class="inline-actions">
+                  <button id="validateGameConfigButton" class="button secondary" type="button">Validate</button>
+                  <button id="loadActiveGameConfigButton" class="button secondary" type="button">Load Active</button>
+                </div>
               </div>
-            </div>
-            <div class="form-stack">
-              <label class="field">
-                <span>Save File Name</span>
-                <input id="gameConfigFileNameInput" type="text" placeholder="my_game_config" />
-              </label>
-              <label class="field">
-                <span>Canonical JSON</span>
-                <textarea id="gameConfigEditor" rows="22"></textarea>
-              </label>
-              <div class="button-row">
-                <button id="saveGameConfigButton" class="button primary" type="button">Save As New</button>
-                <button id="overwriteGameConfigButton" class="button secondary" type="button">Overwrite Active</button>
+              <div class="form-stack">
+                <label class="field">
+                  <span>Save File Name</span>
+                  <input id="gameConfigFileNameInput" type="text" placeholder="my_game_config" />
+                </label>
+                <label class="field">
+                  <span>Canonical JSON</span>
+                  <textarea id="gameConfigEditor" rows="22"></textarea>
+                </label>
+                <div class="button-row">
+                  <button id="saveGameConfigButton" class="button primary" type="button">Save As New</button>
+                  <button id="overwriteGameConfigButton" class="button secondary" type="button">Overwrite Active</button>
+                </div>
+                <div id="gameConfigValidationCard" class="empty-state">Validate the current game config to see structural errors.</div>
               </div>
-              <div id="gameConfigValidationCard" class="empty-state">Validate the current game config to see derived metadata and structural errors.</div>
-            </div>
-          </article>
+            </article>
 
-          <article class="panel">
-            <div class="panel-head">
-              <h3>Training Config JSON</h3>
-              <div class="inline-actions">
-                <button id="validateTrainingConfigButton" class="button secondary" type="button">Validate</button>
-                <button id="loadActiveTrainingConfigButton" class="button secondary" type="button">Load Active</button>
+            <article class="panel">
+              <div class="panel-head">
+                <h3>Training Config JSON</h3>
+                <div class="inline-actions">
+                  <button id="validateTrainingConfigButton" class="button secondary" type="button">Validate</button>
+                  <button id="loadActiveTrainingConfigButton" class="button secondary" type="button">Load Active</button>
+                </div>
               </div>
-            </div>
-            <div class="form-stack">
-              <label class="field">
-                <span>Save File Name</span>
-                <input id="trainingConfigFileNameInput" type="text" placeholder="my_training_config" />
-              </label>
-              <label class="field">
-                <span>Canonical JSON</span>
-                <textarea id="trainingConfigEditor" rows="22"></textarea>
-              </label>
-              <div class="button-row">
-                <button id="saveTrainingConfigButton" class="button primary" type="button">Save As New</button>
-                <button id="overwriteTrainingConfigButton" class="button secondary" type="button">Overwrite Active</button>
+              <div class="form-stack">
+                <label class="field">
+                  <span>Save File Name</span>
+                  <input id="trainingConfigFileNameInput" type="text" placeholder="my_training_config" />
+                </label>
+                <label class="field">
+                  <span>Canonical JSON</span>
+                  <textarea id="trainingConfigEditor" rows="22"></textarea>
+                </label>
+                <div class="button-row">
+                  <button id="saveTrainingConfigButton" class="button primary" type="button">Save As New</button>
+                  <button id="overwriteTrainingConfigButton" class="button secondary" type="button">Overwrite Active</button>
+                </div>
+                <div id="trainingConfigValidationCard" class="empty-state">Validate the current training config to see structural errors.</div>
               </div>
-              <div id="trainingConfigValidationCard" class="empty-state">Validate the current training config to see derived metadata and structural errors.</div>
-            </div>
-          </article>
-        </div>
+            </article>
+          </div>
+        </details>
 
         <article class="panel rules-editor-grid">
           <div class="panel-head">
@@ -315,7 +286,7 @@
             <form id="trainJobForm" class="form-stack">
               <div id="trainingSelectionSummary" class="list-card">
                 <h4>Current Selection</h4>
-                <p>Choose the active config and checkpoint from the left sidebar.</p>
+                <p>Set the active blueprint, profile, and brain in the top bar.</p>
               </div>
               <div id="trainingPreflightCard" class="empty-state">
                 Choose a mode to see whether the current config and checkpoint pair is safe to launch.
@@ -362,9 +333,7 @@
             <div class="panel-head">
               <h3>Inspection</h3>
             </div>
-            <div class="empty-state">
-              Open a queued, running, completed, or cataloged brain in the dedicated Inspect page for logs, run detail, and learning charts.
-            </div>
+            <div class="empty-state">Open a job to view logs, training charts, and run details.</div>
           </article>
 
           <article class="panel">
@@ -400,9 +369,9 @@
           <article class="panel">
             <div class="panel-head">
               <h3>Job Log Tail</h3>
-              <span class="meta-count">stdout preview</span>
+              <span class="meta-count">Latest log</span>
             </div>
-            <div id="jobLogCard" class="empty-state">Open a job to inspect the latest stdout lines.</div>
+            <div id="jobLogCard" class="empty-state">Open a job to inspect the latest log lines.</div>
           </article>
 
           <article class="panel">
@@ -462,7 +431,7 @@
       </section>
 
       <section id="page-evaluate" class="page">
-        <div class="grid two-wide">
+        <div class="grid">
           <article class="panel">
             <div class="panel-head">
               <h3>Active Brain</h3>
@@ -493,12 +462,8 @@
             <form id="directEvaluationForm" class="form-stack evaluation-form-stack">
               <div id="directEvaluationActiveBrainCard" class="list-card">
                 <h4>Active Brain</h4>
-                <p>The direct evaluation always uses the active brain from the sidebar workspace.</p>
+                <p>Always uses the active brain from the workspace selector.</p>
               </div>
-              <label class="field">
-                <span>Testing Brain</span>
-                <input id="directEvaluationBrainInput" type="text" readonly />
-              </label>
               <label class="field">
                 <span>Seeds</span>
                 <input id="testingSeedsInput" type="text" value="42,123,999,2026,31415" />
@@ -506,12 +471,21 @@
               <button class="button primary" type="submit">Run Direct Evaluation</button>
             </form>
             <div id="directEvaluationResult" class="empty-state">Run a direct evaluation for the active brain and blueprint.</div>
+            <div id="directEvaluationMetrics" class="summary-grid rules-editor-grid"></div>
             <div class="rules-editor-grid">
               <div class="chart-card">
                 <h4>Reward By Seed</h4>
                 <div id="directEvaluationChart" class="empty-state">Run a direct evaluation to see the reward chart.</div>
               </div>
-              <div class="chart-card rules-editor-grid">
+              <div class="chart-card">
+                <h4>Ending Money By Seed</h4>
+                <div id="directEvaluationMoneyChart" class="empty-state">Run a direct evaluation to see the money chart.</div>
+              </div>
+              <div class="chart-card">
+                <h4>Turns Played By Seed</h4>
+                <div id="directEvaluationTurnsChart" class="empty-state">Run a direct evaluation to see the turns chart.</div>
+              </div>
+              <div class="chart-card">
                 <h4>Per-Seed Results</h4>
                 <div id="directEvaluationTable" class="empty-state">Per-seed evaluation rows will appear here.</div>
               </div>
@@ -529,7 +503,7 @@
             <form id="checkpointCompareForm" class="form-stack evaluation-form-stack">
               <div class="list-card">
                 <h4>Left Brain</h4>
-                <p>The left side always uses the active brain from the sidebar workspace.</p>
+                <p>Always uses the active brain from the workspace selector.</p>
               </div>
               <label class="field">
                 <span>Compare Against</span>
@@ -541,13 +515,18 @@
               </label>
               <button class="button primary" type="submit">Compare Against Active Brain</button>
             </form>
-            <div id="checkpointCompareResult" class="empty-state">Compare the selected right-side brain against the active brain from the sidebar.</div>
+            <div id="checkpointCompareResult" class="empty-state">Compare the selected right-side brain against the active brain from the top bar.</div>
+            <div id="comparisonMetrics" class="summary-grid rules-editor-grid"></div>
             <div class="rules-editor-grid">
               <div class="chart-card">
                 <h4>Reward Delta By Seed</h4>
                 <div id="comparisonChart" class="empty-state">Run a comparison to see per-seed reward deltas.</div>
               </div>
-              <div class="chart-card rules-editor-grid">
+              <div class="chart-card">
+                <h4>Bank Delta By Seed</h4>
+                <div id="comparisonMoneyChart" class="empty-state">Run a comparison to see per-seed bank deltas.</div>
+              </div>
+              <div class="chart-card">
                 <h4>Per-Seed Comparison</h4>
                 <div id="comparisonTable" class="empty-state">Per-seed comparison rows will appear here.</div>
               </div>
@@ -585,37 +564,14 @@
           <article class="panel">
             <div class="panel-head">
               <h3>Start Play Session</h3>
+              <button id="addPlaySeatButton" class="button secondary" type="button">Add Seat</button>
             </div>
             <form id="playSessionForm" class="form-stack">
               <label class="field">
                 <span>Match Seed</span>
                 <input id="playSeedInput" type="number" min="0" value="42" />
               </label>
-              <label class="field checkbox-inline">
-                <input id="playIncludeHumanInput" type="checkbox" checked />
-                <span>Include Human Seat</span>
-              </label>
-              <label class="field">
-                <span>Opponent A</span>
-                <select id="playOpponentASelect">
-                  <option value="model-expert">Checkpoint Expert</option>
-                  <option value="model-balanced">Checkpoint Balanced</option>
-                  <option value="model-beginner">Checkpoint Beginner</option>
-                  <option value="heuristic">Heuristic</option>
-                  <option value="random">Random</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>Opponent B</span>
-                <select id="playOpponentBSelect">
-                  <option value="">None</option>
-                  <option value="model-expert">Checkpoint Expert</option>
-                  <option value="model-balanced">Checkpoint Balanced</option>
-                  <option value="model-beginner">Checkpoint Beginner</option>
-                  <option value="heuristic">Heuristic</option>
-                  <option value="random">Random</option>
-                </select>
-              </label>
+              <div id="playSeatEditor" class="list-stack"></div>
               <button class="button primary" type="submit">Start Session</button>
             </form>
           </article>
@@ -640,10 +596,31 @@
             </div>
           </article>
         </div>
+        <article class="panel rules-editor-grid">
+          <div class="panel-head">
+            <h3>Shared Board</h3>
+            <span id="playBoardStatus" class="meta-count">No session</span>
+          </div>
+          <div id="playBoardCard" class="empty-state">Start a shared session to see the board.</div>
+        </article>
+        <div class="grid two rules-editor-grid">
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Standings</h3>
+            </div>
+            <div id="playStandingsCard" class="empty-state">Standings will appear after a session starts.</div>
+          </article>
+          <article class="panel">
+            <div class="panel-head">
+              <h3>Turn Log</h3>
+            </div>
+            <div id="playTurnLogCard" class="empty-state">Turns will appear after the first round.</div>
+          </article>
+        </div>
       </section>
     </main>
   </div>
 
-  <script src="./app.js?v=14"></script>
+  <script src="./app.js?v=15"></script>
 </body>
 </html>

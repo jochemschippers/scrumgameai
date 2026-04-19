@@ -21,7 +21,7 @@
   "mandatory_loan_amount": 50000,
   "loan_interest": 5000,
   "penalty_negative": 1000,
-  "penalty_positive": 5000,
+  "penalty_positive": 1000,
   "daily_scrums_per_sprint": 5,
   "daily_scrum_target": 12,
   "board_ring_values": [

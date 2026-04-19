@@ -613,17 +613,22 @@ def train_dqn_agent(
 
         if block_episode % resolved_training_config.checkpoint_interval == 0:
             checkpoint_path = checkpoint_dir / f"checkpoint_episode_{episode:06d}.pth"
-            save_checkpoint(
-                checkpoint_path,
-                agent,
-                resolved_game_config,
-                resolved_training_config,
-                extra_metadata={
-                    "episode": episode,
-                    **(resume_metadata or {}),
-                },
-            )
-            print(f"Checkpoint saved at episode {episode}: {checkpoint_path}")
+            try:
+                save_checkpoint(
+                    checkpoint_path,
+                    agent,
+                    resolved_game_config,
+                    resolved_training_config,
+                    extra_metadata={
+                        "episode": episode,
+                        **(resume_metadata or {}),
+                    },
+                )
+                print(f"Checkpoint saved at episode {episode}: {checkpoint_path}")
+            except Exception as _ckpt_err:
+                # Non-fatal — OneDrive/antivirus can lock .pth files on Windows.
+                # Log the failure and continue training rather than crashing the run.
+                print(f"[WARNING] Checkpoint save failed at episode {episode} (skipping): {_ckpt_err}")
 
         if block_episode % resolved_training_config.evaluation_interval == 0:
             evaluation_metrics = evaluate_dqn_agent(
@@ -637,51 +642,60 @@ def train_dqn_agent(
 
             if evaluation_metrics["average_reward"] > best_average_reward:
                 best_average_reward = evaluation_metrics["average_reward"]
-                save_checkpoint(
-                    best_checkpoint_path,
-                    agent,
-                    resolved_game_config,
-                    resolved_training_config,
-                    extra_metadata={
-                        "episode": episode,
-                        "average_reward": best_average_reward,
-                        "is_best_checkpoint": True,
-                        **(resume_metadata or {}),
-                    },
-                )
-                print(
-                    f"Updated best model at episode {episode}: {best_checkpoint_path} "
-                    f"(avg reward {best_average_reward:.2f})"
-                )
+                try:
+                    save_checkpoint(
+                        best_checkpoint_path,
+                        agent,
+                        resolved_game_config,
+                        resolved_training_config,
+                        extra_metadata={
+                            "episode": episode,
+                            "average_reward": best_average_reward,
+                            "is_best_checkpoint": True,
+                            **(resume_metadata or {}),
+                        },
+                    )
+                    print(
+                        f"Updated best model at episode {episode}: {best_checkpoint_path} "
+                        f"(avg reward {best_average_reward:.2f})"
+                    )
+                except Exception as _ckpt_err:
+                    print(f"[WARNING] Best-model save failed at episode {episode} (skipping): {_ckpt_err}")
 
     if not best_checkpoint_path.exists() or evaluations_completed == 0:
-        save_checkpoint(
-            best_checkpoint_path,
-            agent,
-            resolved_game_config,
-            resolved_training_config,
-            extra_metadata={
-                "episode": final_episode,
-                "is_best_checkpoint": True,
-                **(resume_metadata or {}),
-            },
-        )
+        try:
+            save_checkpoint(
+                best_checkpoint_path,
+                agent,
+                resolved_game_config,
+                resolved_training_config,
+                extra_metadata={
+                    "episode": final_episode,
+                    "is_best_checkpoint": True,
+                    **(resume_metadata or {}),
+                },
+            )
+        except Exception as _ckpt_err:
+            print(f"[WARNING] Final best-model save failed: {_ckpt_err}")
 
     # Always save the final state so autopilot can chain continuations from the
     # true last episode rather than from the (potentially much earlier) best-reward
     # episode stored in best_scrum_model.pth.
     latest_checkpoint_path = checkpoint_dir / "latest_scrum_model.pth"
-    save_checkpoint(
-        latest_checkpoint_path,
-        agent,
-        resolved_game_config,
-        resolved_training_config,
-        extra_metadata={
-            "episode": final_episode,
-            "average_reward": best_average_reward if best_average_reward != float("-inf") else None,
-            **(resume_metadata or {}),
-        },
-    )
+    try:
+        save_checkpoint(
+            latest_checkpoint_path,
+            agent,
+            resolved_game_config,
+            resolved_training_config,
+            extra_metadata={
+                "episode": final_episode,
+                "average_reward": best_average_reward if best_average_reward != float("-inf") else None,
+                **(resume_metadata or {}),
+            },
+        )
+    except Exception as _ckpt_err:
+        print(f"[WARNING] Final latest-model save failed: {_ckpt_err}")
 
     plot_path = plot_dir / "dqn_training_curve.png"
     save_training_plot(training_rewards, output_path=plot_path)

@@ -19,6 +19,10 @@ const state = {
   playSession: null,
   directEvaluation: null,
   comparisonEvaluation: null,
+  playSeatDrafts: [
+    { id: "draft_1", type: "human", display_name: "Player" },
+    { id: "draft_2", type: "model-expert", display_name: "AI Expert" },
+  ],
   activeProgressJobId: null,
   activeProgressRunId: null,
   trainingProgress: null,
@@ -35,6 +39,8 @@ const state = {
   autopilotSettings: null,
   autopilotHistory: [],
   autopilotStopRequested: false,
+  runRating: null,
+  messageTimer: null,
 };
 
 const DEFAULT_GAME_CONFIG = {
@@ -197,13 +203,28 @@ function $(id) {
 
 function showMessage(text, type = "success") {
   const box = $("globalMessage");
-  box.textContent = text;
+  if (state.messageTimer) {
+    clearTimeout(state.messageTimer);
+    state.messageTimer = null;
+  }
+  box.innerHTML = `
+    <span>${escapeHtml(text)}</span>
+    <button class="message-close" type="button" aria-label="Dismiss message">x</button>
+  `;
   box.className = `message ${type}`;
+  box.querySelector(".message-close")?.addEventListener("click", clearMessage);
+  if (type !== "error") {
+    state.messageTimer = setTimeout(clearMessage, 2600);
+  }
 }
 
 function clearMessage() {
   const box = $("globalMessage");
-  box.textContent = "";
+  if (state.messageTimer) {
+    clearTimeout(state.messageTimer);
+    state.messageTimer = null;
+  }
+  box.innerHTML = "";
   box.className = "message hidden";
 }
 
@@ -332,9 +353,9 @@ function formatRunSourceLabel(runName) {
 
 function checkpointCompatibilityTone(status) {
   const value = String(status || "").toLowerCase();
+  if (value.includes("mismatch") || value.includes("incompatible")) return "bad";
   if (value.includes("compatible")) return "good";
   if (value.includes("unknown")) return "warn";
-  if (value.includes("mismatch") || value.includes("incompatible")) return "bad";
   return "";
 }
 
@@ -466,7 +487,7 @@ async function _runPollCycle() {
   if (_pollInFlight) return;
   _pollInFlight = true;
   try {
-    // Refresh the jobs list first — subsequent fetches depend on the updated job state.
+    // Refresh the jobs list first. Subsequent fetches depend on the updated job state.
     const jobsPayload = await apiRequest("/jobs").catch(() => null);
     if (jobsPayload) {
       state.jobs = jobsPayload.items || [];
@@ -475,8 +496,11 @@ async function _runPollCycle() {
     }
 
     // Auto-advance to a new running training job when the tracked job is completed.
+    // Skip if the user is actively inspecting a specific job. Replacing activeProgressJobId
+    // would swap out that job's training charts for the running job's, causing a visible jump.
     const trackedJob = state.jobs.find((j) => j.id === state.activeProgressJobId);
-    if (!state.activeProgressJobId || trackedJob?.status === "completed") {
+    const userInspectingJob = state.activePage === "inspect" && state.activeJobDetailId != null;
+    if (!userInspectingJob && (!state.activeProgressJobId || trackedJob?.status === "completed")) {
       const runningJob = state.jobs.find(
         (j) => j.status === "running" && ["train", "fine_tune"].includes(j.job_type)
       );
@@ -491,7 +515,7 @@ async function _runPollCycle() {
       (state.trainingProgress?.run_dir ? runLabelFromPath(state.trainingProgress.run_dir) : null) ||
       (state.jobDetail?.run_dir ? runLabelFromPath(state.jobDetail.run_dir) : null);
 
-    // Fire progress + autopilot requests in parallel — they're independent of each other.
+    // Fire progress + autopilot requests in parallel. They are independent of each other.
     await Promise.all([
       state.activeProgressJobId
         ? fetchTrainingProgress(state.activeProgressJobId, false).catch(() => {})
@@ -640,11 +664,11 @@ function updateStatusCard() {
   const card = $("backendStatusCard");
   if (!state.health) {
     card.className = "status-card status-muted";
-    card.innerHTML = "<strong>Status</strong><span>Not connected</span>";
+    card.innerHTML = "<span>Not connected</span>";
     return;
   }
   card.className = "status-card status-ok";
-  card.innerHTML = `<strong>Status</strong><span>${state.health.status} | API ${state.health.api_version}</span>`;
+  card.innerHTML = `<span>${state.health.status} | v${state.health.api_version}</span>`;
 }
 
 function updateSummaryPills() {
@@ -983,7 +1007,7 @@ function renderVisualIncidentCards() {
         <button class="button secondary" type="button" data-remove-incident="${index}">Remove</button>
       </div>
       <div class="grid three">
-        <label class="field"><span>Card ID</span><input id="incidentId_${index}" type="number" value="${card.card_id}" /></label>
+        <label class="field hidden"><span>Card ID</span><input id="incidentId_${index}" type="number" value="${card.card_id}" /></label>
         <label class="field"><span>Name</span><input id="incidentName_${index}" type="text" value="${escapeHtml(card.name)}" /></label>
         <label class="field"><span>Effect Type</span><input id="incidentEffect_${index}" type="text" value="${escapeHtml(card.effect_type)}" /></label>
         <label class="field span-2"><span>Description</span><textarea id="incidentDescription_${index}" rows="2">${escapeHtml(card.description)}</textarea></label>
@@ -1040,15 +1064,11 @@ function renderGameConfigs() {
     const card = document.createElement("article");
     card.className = "list-card";
     card.innerHTML = `
-      <h4>${config.config_name || config.label}</h4>
-      <p>${config.label}</p>
+      <h4>${escapeHtml(config.config_name || config.label)}</h4>
       <div class="card-meta">
-        <span class="tag">${config.source}</span>
-        <span class="tag">${config.products_count} products</span>
-        <span class="tag">${config.sprints_per_product} sprints</span>
-      </div>
-      <div class="card-meta">
-        <span class="tag">${config.rule_signature}</span>
+        <span class="tag">${escapeHtml(config.source)}</span>
+        <span class="tag">${escapeHtml(String(config.products_count))} products</span>
+        <span class="tag">${escapeHtml(String(config.sprints_per_product))} sprints</span>
       </div>
     `;
     container.appendChild(card);
@@ -1063,15 +1083,12 @@ function renderTrainingConfigs() {
     const card = document.createElement("article");
     card.className = "list-card";
     card.innerHTML = `
-      <h4>${config.label}</h4>
-      <p>${config.source} training asset</p>
+      <h4>${escapeHtml(config.label)}</h4>
       <div class="card-meta">
-        <span class="tag">${config.episodes} episodes</span>
-        <span class="tag">lr ${config.learning_rate}</span>
-        <span class="tag">gamma ${config.gamma}</span>
-      </div>
-      <div class="card-meta">
-        <span class="tag">${config.training_signature}</span>
+        <span class="tag">${escapeHtml(config.source)} profile</span>
+        <span class="tag">${escapeHtml(String(config.episodes))} episodes</span>
+        <span class="tag">lr ${escapeHtml(String(config.learning_rate))}</span>
+        <span class="tag">gamma ${escapeHtml(String(config.gamma))}</span>
       </div>
     `;
     container.appendChild(card);
@@ -1082,7 +1099,7 @@ function renderGameConfigValidation() {
   const container = $("gameConfigValidationCard");
   if (!state.gameConfigValidation) {
     container.className = "empty-state";
-    container.textContent = "Validate the current game config to see derived metadata and structural errors.";
+    container.textContent = "Validate the current game config to see structural errors.";
     return;
   }
   if (!state.gameConfigValidation.valid) {
@@ -1095,9 +1112,6 @@ function renderGameConfigValidation() {
     <h4>Validation OK</h4>
     <div class="card-meta">
       <span class="tag good">valid</span>
-      <span class="tag">${escapeHtml(state.gameConfigValidation.rule_signature)}</span>
-    </div>
-    <div class="card-meta">
       <span class="tag">${escapeHtml(String(state.gameConfigValidation.products_count))} products</span>
       <span class="tag">${escapeHtml(String(state.gameConfigValidation.sprints_per_product))} sprints</span>
       <span class="tag">${escapeHtml(String(state.gameConfigValidation.actions_count))} actions</span>
@@ -1109,7 +1123,7 @@ function renderTrainingConfigValidation() {
   const container = $("trainingConfigValidationCard");
   if (!state.trainingConfigValidation) {
     container.className = "empty-state";
-    container.textContent = "Validate the current training config to see derived metadata and structural errors.";
+    container.textContent = "Validate the current training config to see structural errors.";
     return;
   }
   if (!state.trainingConfigValidation.valid) {
@@ -1122,9 +1136,6 @@ function renderTrainingConfigValidation() {
     <h4>Validation OK</h4>
     <div class="card-meta">
       <span class="tag good">valid</span>
-      <span class="tag">${escapeHtml(state.trainingConfigValidation.training_signature)}</span>
-    </div>
-    <div class="card-meta">
       <span class="tag">${escapeHtml(String(state.trainingConfigValidation.episodes))} episodes</span>
       <span class="tag">lr ${escapeHtml(String(state.trainingConfigValidation.learning_rate))}</span>
       <span class="tag">gamma ${escapeHtml(String(state.trainingConfigValidation.gamma))}</span>
@@ -1213,7 +1224,7 @@ function renderJobs() {
   }
 
   if (!visibleJobs.length) {
-    container.innerHTML = `<div class="empty-state">No queued, running, completed, failed, or stopped jobs.</div>`;
+    container.innerHTML = `<div class="empty-state">No jobs yet.</div>`;
     if (!state.activeProgressJobId) {
       renderTrainingProgress();
     }
@@ -1221,10 +1232,15 @@ function renderJobs() {
   }
 
   if (!state.activeProgressJobId) {
-    const preferredJob = state.jobs.find((job) => ["running", "queued"].includes(job.status) && ["train", "fine_tune"].includes(job.job_type))
-      || state.jobs.find((job) => ["train", "fine_tune"].includes(job.job_type));
-    if (preferredJob) {
-      state.activeProgressJobId = preferredJob.id;
+    // Don't auto-select a job to track when the user is actively inspecting a specific
+    // one. It would silently replace the inspected run's progress with the running job's.
+    const userInspectingJob = state.activePage === "inspect" && state.activeJobDetailId != null;
+    if (!userInspectingJob) {
+      const preferredJob = state.jobs.find((job) => ["running", "queued"].includes(job.status) && ["train", "fine_tune"].includes(job.job_type))
+        || state.jobs.find((job) => ["train", "fine_tune"].includes(job.job_type));
+      if (preferredJob) {
+        state.activeProgressJobId = preferredJob.id;
+      }
     }
   }
 
@@ -1252,8 +1268,7 @@ function renderJobs() {
       : "";
     const inspectButton = `<button class="button secondary open-inspect-job-button" data-job-id="${job.id}" type="button">Open Inspect</button>`;
     card.innerHTML = `
-      <h4>Job #${job.id} | ${job.job_type}</h4>
-      <p>${job.status}</p>
+      <h4>Job #${job.id} - ${escapeHtml(job.job_type)}</h4>
       <div class="card-meta">
         <span class="tag ${statusTone}">${job.status}</span>
         ${queueTag}
@@ -1332,24 +1347,39 @@ function renderRunDetail() {
   const metrics = state.runDetail.metrics || {};
   const checkpoints = state.runDetail.checkpoints || [];
   const bestCheckpoint = checkpointByPath(metadata.best_checkpoint_path || state.runDetail.metadata?.best_checkpoint_path || state.runs.find((item) => item.id === state.runDetail.id)?.best_checkpoint_path);
+  const rating = state.runRating;
+  const gradeColors = { S: "#7c3aed", A: "#16a34a", B: "#0284c7", C: "#ca8a04", D: "#ea580c", F: "#dc2626" };
+  const ratingHtml = (() => {
+    if (!rating) return "";
+    if (rating.grade === "N/A") return `<span class="tag">rating unavailable</span>`;
+    const color = gradeColors[rating.grade] || "#6b7280";
+    const sn = rating.snapshot || {};
+    const brPct = sn.bankruptcy_rate != null ? `${(sn.bankruptcy_rate * 100).toFixed(0)}%` : "?";
+    const reward = sn.average_reward != null ? Math.round(sn.average_reward).toLocaleString() : "?";
+    return `
+      <div class="rating-card">
+        <div class="rating-grade" style="background:${color};">${escapeHtml(rating.grade)}</div>
+        <div>
+          <strong>${escapeHtml(String(rating.score))}/100</strong>
+          <div class="checkpoint-subtitle">bankruptcies ${escapeHtml(brPct)} | avg reward ${escapeHtml(reward)}</div>
+        </div>
+      </div>`;
+  })();
+
   container.className = "list-card";
   container.innerHTML = `
     <h4>${escapeHtml(state.runDetail.label)}</h4>
-    <div class="checkpoint-subtitle path-wrap">${escapeHtml(state.runDetail.path || "")}</div>
     <div class="card-meta">
       <span class="tag">${escapeHtml(metadata.created_at || "-")}</span>
       <span class="tag">${escapeHtml(metadata.resume_mode || "new")}</span>
-      <span class="tag">${escapeHtml(metadata.rule_signature || "-")}</span>
     </div>
     <div class="card-meta">
       <span class="tag">avg reward ${escapeHtml(String(metrics.average_reward_per_episode ?? "-"))}</span>
       <span class="tag">bankruptcy ${escapeHtml(String(metrics.bankruptcy_rate ?? "-"))}</span>
       <span class="tag">${checkpoints.length} checkpoints</span>
     </div>
-    <p>${escapeHtml(metadata.run_notes || "No notes")}</p>
-    <div class="card-meta">
-      ${checkpoints.map((checkpoint) => `<span class="tag">${escapeHtml(checkpoint.name)}</span>`).join("") || "<span class='tag'>no checkpoints</span>"}
-    </div>
+    ${ratingHtml}
+    ${metadata.run_notes ? `<p>${escapeHtml(metadata.run_notes)}</p>` : ""}
     <div class="inline-actions">
       ${bestCheckpoint ? `<button class="button secondary use-run-detail-best-button" type="button">Use Best Brain</button>` : ""}
       <button class="button secondary open-run-inspect-button" type="button">Open Inspect</button>
@@ -1418,7 +1448,7 @@ function renderJobDetail() {
       ? resumeFrom.replace(/\\/g, "/").split("/").slice(-3).join("/")
       : "";
   container.innerHTML = `
-    <h4>Job #${state.jobDetail.id} | ${escapeHtml(state.jobDetail.job_type)}</h4>
+    <h4>Job #${state.jobDetail.id} - ${escapeHtml(state.jobDetail.job_type)}</h4>
     <div class="card-meta">
       <span class="tag">${escapeHtml(state.jobDetail.status)}</span>
       <span class="tag">${escapeHtml(state.jobDetail.created_at || "-")}</span>
@@ -1431,8 +1461,7 @@ function renderJobDetail() {
       ${payload.autopilot_after_completion ? "<span class='tag'>autopilot</span>" : ""}
     </div>
     ${resumeLabel ? `<div class="checkpoint-subtitle path-wrap">From: ${escapeHtml(resumeLabel)}</div>` : ""}
-    <div class="checkpoint-subtitle path-wrap">${escapeHtml(state.jobDetail.run_dir || "")}</div>
-    ${state.jobDetail.error_message ? `<p>${escapeHtml(state.jobDetail.error_message)}</p>` : "<p>No error message.</p>"}
+    ${state.jobDetail.error_message ? `<p>${escapeHtml(state.jobDetail.error_message)}</p>` : ""}
     <div class="inline-actions">
       ${state.jobDetail.run_dir ? `<button class="button secondary open-job-run-button" data-run-id="${escapeHtml(runId)}" type="button">Open Run</button>` : ""}
       <button class="button secondary refresh-job-log-button" data-job-id="${state.jobDetail.id}" type="button">Refresh Log</button>
@@ -1463,11 +1492,11 @@ function renderJobLog() {
   const container = $("jobLogCard");
   if (!state.jobLog) {
     container.className = "empty-state";
-    container.textContent = "Select a job to inspect the latest stdout lines.";
+    container.textContent = "Select a job to inspect the latest log lines.";
     return;
   }
   container.className = "log-card";
-  container.textContent = (state.jobLog.lines || []).join("\n") || "(no stdout yet)";
+  container.textContent = (state.jobLog.lines || []).join("\n") || "(no log yet)";
 }
 
 function renderTrainingSelectionSummary() {
@@ -1544,7 +1573,6 @@ function renderTrainingPreflight() {
       <span class="tag ${checkpointCompatibilityTone(state.trainingPreflight.fine_tune_status)}">fine-tune ${escapeHtml(state.trainingPreflight.fine_tune_status)}</span>
     </div>
     <div class="card-meta">
-      <span class="tag">shape ${escapeHtml(String(state.trainingPreflight.shape_compatible))}</span>
       <span class="tag">brain ${escapeHtml(checkpointUiLabel(checkpoint))}</span>
     </div>
   `;
@@ -1626,9 +1654,9 @@ function renderAutopilotPanel() {
         if (!runId) { showMessage("No run selected.", "error"); return; }
         try {
           startLoopBtn.disabled = true;
-          startLoopBtn.textContent = "Running…";
+          startLoopBtn.textContent = "Running...";
           const result = await apiRequest(`/autopilot/run/${runId}`, { method: "POST", body: JSON.stringify({}) });
-          showMessage(`Autopilot loop started: ${result.action} — ${result.reason}`);
+          showMessage(`Autopilot loop started: ${result.action} - ${result.reason}`);
           await fetchAutopilotData(runId);
         } catch (error) {
           showMessage(error.message, "error");
@@ -1729,7 +1757,7 @@ function renderAutopilotPanel() {
         </div>
         <p class="decision-reason">${escapeHtml(d.reason || "")}</p>
         <div class="card-meta">
-          ${m.latest_epsilon != null ? `<span class="tag">ε=${formatNumber(m.latest_epsilon, 3)}</span>` : ""}
+          ${m.latest_epsilon != null ? `<span class="tag">eps ${formatNumber(m.latest_epsilon, 3)}</span>` : ""}
           ${m.latest_reward != null ? `<span class="tag">reward ${formatNumber(m.latest_reward)}</span>` : ""}
           ${m.bankruptcy_rate != null ? `<span class="tag">bankruptcy ${formatNumber(m.bankruptcy_rate, 3)}</span>` : ""}
           ${m.invalid_action_rate != null ? `<span class="tag">invalid ${formatNumber(m.invalid_action_rate, 3)}</span>` : ""}
@@ -1737,7 +1765,7 @@ function renderAutopilotPanel() {
         </div>
         ${d.next_payload ? `<div class="card-meta">
           <span class="tag info">lr ${formatNumber(d.next_payload.learning_rate, 6)}</span>
-          <span class="tag info">ε-decay ${d.next_payload.epsilon_decay_episodes?.toLocaleString()}</span>
+          <span class="tag info">eps decay ${d.next_payload.epsilon_decay_episodes?.toLocaleString()}</span>
           <span class="tag info">${d.next_payload.episodes?.toLocaleString()} ep</span>
         </div>` : ""}
       </div>
@@ -1827,9 +1855,9 @@ function renderAutopilotTrainingPanel() {
       if (!runId) { showMessage("No completed run to analyze.", "error"); return; }
       try {
         startLoopTrainingBtn.disabled = true;
-        startLoopTrainingBtn.textContent = "Running…";
+        startLoopTrainingBtn.textContent = "Running...";
         const result = await apiRequest(`/autopilot/run/${runId}`, { method: "POST", body: JSON.stringify({}) });
-        showMessage(`Autopilot loop started: ${result.action} — ${result.reason}`);
+        showMessage(`Autopilot loop started: ${result.action} - ${result.reason}`);
         await fetchAutopilotData(runId);
       } catch (error) {
         showMessage(error.message, "error");
@@ -1872,7 +1900,7 @@ async function refreshAutopilotSettings() {
     state.autopilotSettings = settings;
     state.autopilotStopRequested = stopStatus.stop_requested || false;
   } catch (_error) {
-    // Non-fatal — leave previous state.
+    // Non-fatal. Leave previous state.
   }
   renderAutopilotTrainingPanel();
   renderAutopilotPanel();
@@ -1918,14 +1946,12 @@ function renderTrainingProgress() {
   container.innerHTML = `
     <div class="list-card">
       <h4>${escapeHtml(runName || "Training run")}</h4>
-      <div class="checkpoint-subtitle path-wrap">${escapeHtml(runPath)}</div>
       <p>${progress.total_episodes ? `${completedEpisodes} / ${progress.total_episodes} episodes this run` : `${progress.latest_episode} episodes logged`}</p>
       <div class="progress-track">
         <div class="progress-fill" style="width: ${percent}%"></div>
       </div>
       <div class="card-meta">
         <span class="tag">${percent}%</span>
-        <span class="tag">absolute ep ${progress.latest_episode || 0}</span>
         <span class="tag">epsilon ${formatNumber(latest.epsilon, 4)}</span>
         <span class="tag">status ${escapeHtml(progressStatus)}</span>
       </div>
@@ -1967,15 +1993,10 @@ function renderCompatibility() {
   container.className = "list-card";
   container.innerHTML = `
     <h4>Compatibility Result</h4>
-    <p>${state.compatibility.message}</p>
+    <p>${escapeHtml(state.compatibility.message)}</p>
     <div class="card-meta">
-      <span class="tag">Strict: ${state.compatibility.strict_resume_status}</span>
-      <span class="tag">Fine-Tune: ${state.compatibility.fine_tune_status}</span>
-      <span class="tag">Shape: ${state.compatibility.shape_compatible}</span>
-    </div>
-    <div class="card-meta">
-      <span class="tag">Brain rule: ${state.compatibility.checkpoint_rule_signature || "legacy-unknown"}</span>
-      <span class="tag">Blueprint rule: ${state.compatibility.target_rule_signature}</span>
+      <span class="tag ${checkpointCompatibilityTone(state.compatibility.strict_resume_status)}">Strict: ${escapeHtml(state.compatibility.strict_resume_status)}</span>
+      <span class="tag ${checkpointCompatibilityTone(state.compatibility.fine_tune_status)}">Fine-Tune: ${escapeHtml(state.compatibility.fine_tune_status)}</span>
     </div>
   `;
 }
@@ -1991,20 +2012,16 @@ function renderCheckpointDetail() {
 
   container.className = "list-card";
   container.innerHTML = `
-    <h4>${checkpoint.label}</h4>
-    <p>${checkpointUiLabel(checkpoint)}</p>
+    <h4>${escapeHtml(checkpoint.label)}</h4>
+    <p>${escapeHtml(checkpointUiLabel(checkpoint))}</p>
     <div class="card-meta">
-      <span class="tag">${checkpoint.checkpoint_format}</span>
-      <span class="tag">${checkpoint.checkpoint_type}</span>
+      <span class="tag">${escapeHtml(checkpoint.checkpoint_type)}</span>
       ${checkpoint.episode != null ? `<span class="tag">ep ${Number(checkpoint.episode).toLocaleString()}</span>` : ""}
-      <span class="tag">${checkpoint.compatibility_status}</span>
+      <span class="tag ${checkpointCompatibilityTone(checkpoint.compatibility_status)}">${escapeHtml(checkpoint.compatibility_status)}</span>
     </div>
     <div class="card-meta">
       <span class="tag">state ${checkpoint.state_dim || "-"}</span>
       <span class="tag">actions ${checkpoint.num_actions || "-"}</span>
-    </div>
-    <div class="card-meta">
-      <span class="tag">${checkpoint.rule_signature || "legacy-unknown-rule"}</span>
     </div>
     <div class="inline-actions">
       <button class="button secondary download-brain-button" type="button">Download Brain</button>
@@ -2030,35 +2047,194 @@ function renderCheckpointDetail() {
   });
 }
 
-function playControllerPayload(choice) {
-  if (!choice) return null;
-  if (choice === "heuristic") return { type: "heuristic", display_name: "Heuristic AI" };
-  if (choice === "random") return { type: "random", display_name: "Random AI" };
-  if (choice === "model-expert") {
+function defaultSeatName(type, index) {
+  if (type === "human") return "Player";
+  if (type === "model-expert") return `AI Expert ${index}`;
+  if (type === "model-balanced") return `AI Balanced ${index}`;
+  if (type === "model-beginner") return `AI Beginner ${index}`;
+  if (type === "heuristic") return `Heuristic AI ${index}`;
+  return `Random AI ${index}`;
+}
+
+function playSeatPayload(draft, index) {
+  const displayName = String(draft.display_name || "").trim() || defaultSeatName(draft.type, index + 1);
+  if (draft.type === "human") return { type: "human", display_name: displayName };
+  if (draft.type === "heuristic") return { type: "heuristic", display_name: displayName };
+  if (draft.type === "random") return { type: "random", display_name: displayName };
+  if (draft.type?.startsWith("model-")) {
     return {
       type: "model",
       checkpoint_id: state.activeCheckpointId,
-      profile_name: "expert",
-      display_name: "Checkpoint Expert",
-    };
-  }
-  if (choice === "model-balanced") {
-    return {
-      type: "model",
-      checkpoint_id: state.activeCheckpointId,
-      profile_name: "balanced",
-      display_name: "Checkpoint Balanced",
-    };
-  }
-  if (choice === "model-beginner") {
-    return {
-      type: "model",
-      checkpoint_id: state.activeCheckpointId,
-      profile_name: "beginner",
-      display_name: "Checkpoint Beginner",
+      profile_name: draft.type.replace("model-", ""),
+      display_name: displayName,
     };
   }
   return null;
+}
+
+function renderPlaySeatEditor() {
+  const host = $("playSeatEditor");
+  if (!host) return;
+  host.innerHTML = state.playSeatDrafts.map((seat, index) => `
+    <article class="list-row play-seat-row" data-seat-index="${index}">
+      <div class="list-row-head">
+        <strong>Seat ${index + 1}</strong>
+        <button class="button secondary remove-play-seat-button" type="button" data-seat-index="${index}" ${state.playSeatDrafts.length <= 1 ? "disabled" : ""}>Remove</button>
+      </div>
+      <div class="grid two">
+        <label class="field">
+          <span>Seat Type</span>
+          <select class="play-seat-type" data-seat-index="${index}">
+            <option value="human" ${seat.type === "human" ? "selected" : ""}>Human</option>
+            <option value="model-expert" ${seat.type === "model-expert" ? "selected" : ""}>Active Brain Expert</option>
+            <option value="model-balanced" ${seat.type === "model-balanced" ? "selected" : ""}>Active Brain Balanced</option>
+            <option value="model-beginner" ${seat.type === "model-beginner" ? "selected" : ""}>Active Brain Beginner</option>
+            <option value="heuristic" ${seat.type === "heuristic" ? "selected" : ""}>Heuristic AI</option>
+            <option value="random" ${seat.type === "random" ? "selected" : ""}>Random AI</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Name</span>
+          <input class="play-seat-name" data-seat-index="${index}" type="text" value="${escapeHtml(seat.display_name || "")}" />
+        </label>
+      </div>
+    </article>
+  `).join("");
+
+  host.querySelectorAll(".play-seat-type").forEach((select) => {
+    select.addEventListener("change", (event) => {
+      const index = Number(event.target.dataset.seatIndex);
+      state.playSeatDrafts[index].type = event.target.value;
+      state.playSeatDrafts[index].display_name = defaultSeatName(event.target.value, index + 1);
+      renderPlaySeatEditor();
+    });
+  });
+  host.querySelectorAll(".play-seat-name").forEach((input) => {
+    input.addEventListener("input", (event) => {
+      const index = Number(event.target.dataset.seatIndex);
+      state.playSeatDrafts[index].display_name = event.target.value;
+    });
+  });
+  host.querySelectorAll(".remove-play-seat-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (state.playSeatDrafts.length <= 1) return;
+      state.playSeatDrafts.splice(Number(button.dataset.seatIndex), 1);
+      renderPlaySeatEditor();
+    });
+  });
+}
+
+function renderPlayBoard() {
+  const host = $("playBoardCard");
+  const label = $("playBoardStatus");
+  if (!host || !label) return;
+  const board = state.playSession?.board;
+  if (!board) {
+    label.textContent = "No session";
+    host.className = "empty-state";
+    host.textContent = "Start a shared session to see the board.";
+    return;
+  }
+
+  const products = board.products || [];
+  const cellWidth = 112;
+  const rowHeight = 58;
+  const labelWidth = 120;
+  const width = labelWidth + cellWidth * Math.max(1, products[0]?.cells?.length || 1) + 24;
+  const height = 36 + rowHeight * products.length + 12;
+  const markers = (state.playSession.seats || []).map((seat, index) => ({
+    seat,
+    color: ["#557287", "#4f8d68", "#c58b2f", "#cc5f5f"][index % 4],
+    index,
+  }));
+  const rows = products.map((product, rowIndex) => {
+    const y = 32 + rowIndex * rowHeight;
+    const cells = (product.cells || []).map((cell, cellIndex) => {
+      const x = labelWidth + cellIndex * cellWidth;
+      const classes = ["play-board-cell"];
+      if (cell.completed) classes.push("is-complete");
+      if (cell.active) classes.push("is-active");
+      const badges = [
+        cell.incident_delta || cell.incident_override !== null ? "I" : "",
+        cell.refinement_delta ? "R" : "",
+      ].filter(Boolean);
+      return `
+        <g>
+          <rect class="${classes.join(" ")}" x="${x}" y="${y}" width="${cellWidth - 10}" height="44" rx="6"></rect>
+          <text class="play-board-sprint" x="${x + 10}" y="${y + 17}">S${cell.sprint}</text>
+          <text class="play-board-meta" x="${x + 10}" y="${y + 34}">${formatNumber(cell.sprint_value, 0)} / f${cell.features_required}</text>
+          ${badges.map((badge, badgeIndex) => `<text class="play-board-badge" x="${x + cellWidth - 28 - badgeIndex * 16}" y="${y + 17}">${badge}</text>`).join("")}
+        </g>
+      `;
+    }).join("");
+    const productMarkers = markers
+      .filter(({ seat }) => Number(seat.state?.current_product) === Number(product.product_id) && !seat.done)
+      .map(({ color, index }, markerIndex) => {
+        const markerX = labelWidth - 18 - markerIndex * 18;
+        return `<circle cx="${markerX}" cy="${y + 23}" r="7" fill="${color}"><title>Seat ${index + 1}</title></circle>`;
+      }).join("");
+    return `
+      <g>
+        <text class="play-board-product" x="10" y="${y + 25}">${escapeHtml(product.name)}</text>
+        ${productMarkers}
+        ${cells}
+      </g>
+    `;
+  }).join("");
+
+  label.textContent = board.incident?.active ? `Incident: ${board.incident.name}` : "Shared board";
+  host.className = "play-board-wrap";
+  host.innerHTML = `
+    <svg class="play-board-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Shared play board">
+      <text class="play-board-header" x="${labelWidth}" y="18">Shared products and sprints</text>
+      ${rows}
+    </svg>
+  `;
+}
+
+function renderPlayStandings() {
+  const host = $("playStandingsCard");
+  if (!host) return;
+  const rows = state.playSession?.standings || [];
+  if (!rows.length) {
+    host.className = "empty-state";
+    host.textContent = "Standings will appear after a session starts.";
+    return;
+  }
+  renderTable(
+    "playStandingsCard",
+    [
+      { key: "controller", label: "Seat" },
+      { key: "ending_money", label: "Bank" },
+      { key: "total_reward", label: "Reward" },
+      { key: "turns_played", label: "Turns" },
+      { key: "done", label: "Done" },
+    ],
+    rows
+  );
+}
+
+function renderPlayTurnLog() {
+  const host = $("playTurnLogCard");
+  if (!host) return;
+  const rows = state.playSession?.turn_log || [];
+  if (!rows.length) {
+    host.className = "empty-state";
+    host.textContent = "Turns will appear after the first round.";
+    return;
+  }
+  renderTable(
+    "playTurnLogCard",
+    [
+      { key: "round", label: "Round" },
+      { key: "controller", label: "Seat" },
+      { key: "action", label: "Action" },
+      { key: "outcome", label: "Result" },
+      { key: "reward", label: "Reward" },
+      { key: "bank", label: "Bank" },
+    ],
+    rows.slice(-20).reverse()
+  );
 }
 
 function renderPlaySession() {
@@ -2068,26 +2244,22 @@ function renderPlaySession() {
     card.className = "empty-state";
     card.textContent = "Start a session to play or inspect AI seats.";
     humanWrap.className = "form-stack hidden";
+    renderPlayBoard();
+    renderPlayStandings();
+    renderPlayTurnLog();
     return;
   }
 
   const seatBlocks = state.playSession.seats.map((seat, index) => `
     <article class="list-card">
-      <h4>Seat ${index + 1} | ${seat.controller.display_name}</h4>
-      <p>${seat.controller.type}</p>
+      <h4>Seat ${index + 1} - ${escapeHtml(seat.controller.display_name)}</h4>
       <div class="card-meta">
         <span class="tag">bank ${seat.state.current_money}</span>
         <span class="tag">product ${seat.state.current_product}</span>
         <span class="tag">sprint ${seat.state.current_sprint}</span>
         <span class="tag">reward ${seat.total_reward}</span>
+        <span class="tag">${seat.state.loan_active ? "loan active" : "no loan"}</span>
         <span class="tag">${seat.done ? "done" : "active"}</span>
-      </div>
-      <div class="card-meta">
-        <span class="tag">expected ${Number(seat.state.expected_value).toFixed(2)}</span>
-        <span class="tag">win ${Number(seat.state.win_probability).toFixed(3)}</span>
-      </div>
-      <div class="card-meta">
-        ${(seat.valid_actions || []).map((action) => `<span class="tag">${action.label}</span>`).join("")}
       </div>
     </article>
   `).join("");
@@ -2097,13 +2269,16 @@ function renderPlaySession() {
     <div class="list-stack">
       <div class="list-card">
         <h4>Session ${state.playSession.id}</h4>
-        <p>Round ${state.playSession.round_number} | ${state.playSession.done ? "complete" : "in progress"}</p>
+        <p>Round ${state.playSession.round_number} - ${state.playSession.done ? "complete" : "in progress"}</p>
       </div>
       ${seatBlocks}
     </div>
   `;
 
   const humanSeat = state.playSession.seats.find((seat) => seat.controller.type === "human" && !seat.done);
+  renderPlayBoard();
+  renderPlayStandings();
+  renderPlayTurnLog();
   if (!humanSeat) {
     humanWrap.className = "form-stack hidden";
     return;
@@ -2121,32 +2296,61 @@ function parseSeedList(value) {
 }
 
 function renderDirectEvaluation() {
-  const activeBrainInput = $("directEvaluationBrainInput");
-  const checkpoint = selectedCheckpoint();
-  if (activeBrainInput) {
-    activeBrainInput.value = checkpoint ? checkpointUiLabel(checkpoint) : "";
-    activeBrainInput.placeholder = checkpoint ? "" : "Select an active brain from the sidebar";
-  }
   const host = $("directEvaluationResult");
+  const metricsHost = $("directEvaluationMetrics");
   if (!state.directEvaluation) {
     host.className = "empty-state";
     host.textContent = "Run a direct evaluation for the active brain and blueprint.";
+    if (metricsHost) metricsHost.innerHTML = "";
     renderBarChart("directEvaluationChart", [], "episode_reward", "seed", "#6b8aa3", "#cc5f5f", "");
+    renderBarChart("directEvaluationMoneyChart", [], "ending_money", "seed", "#6b8aa3", "#cc5f5f", "");
+    renderBarChart("directEvaluationTurnsChart", [], "turns_played", "seed", "#5a9e7a", "#5a9e7a", "");
     renderTable("directEvaluationTable", [], []);
     return;
   }
   const summary = state.directEvaluation.summary;
+  const winRate = ((1 - summary.bankruptcies / summary.episodes) * 100).toFixed(1);
   host.className = "list-card";
   host.innerHTML = `
-    <h4>${state.directEvaluation.checkpoint.label}</h4>
-    <p>Direct greedy evaluation of the active brain.</p>
-    <div class="card-meta">
-      <span class="tag">mean reward ${Number(summary.mean_reward).toFixed(2)}</span>
-      <span class="tag">mean bank ${Number(summary.mean_ending_money).toFixed(2)}</span>
-      <span class="tag">bankruptcies ${summary.bankruptcies}/${summary.episodes}</span>
-      <span class="tag">invalid ${summary.invalid_actions}</span>
-    </div>
+    <h4>${escapeHtml(state.directEvaluation.checkpoint.label)}</h4>
+    <p>Greedy evaluation across ${summary.episodes} episode${summary.episodes !== 1 ? "s" : ""}.</p>
   `;
+  if (metricsHost) {
+    metricsHost.innerHTML = `
+      <div class="metric-card">
+        <span>Mean Reward</span>
+        <strong>${Number(summary.mean_reward).toFixed(2)}</strong>
+      </div>
+      <div class="metric-card">
+        <span>Mean Bank</span>
+        <strong>${Number(summary.mean_ending_money).toFixed(2)}</strong>
+      </div>
+      <div class="metric-card">
+        <span>Win Rate</span>
+        <strong>${winRate}%</strong>
+      </div>
+      <div class="metric-card">
+        <span>Bankruptcies</span>
+        <strong>${summary.bankruptcies} / ${summary.episodes}</strong>
+      </div>
+      <div class="metric-card">
+        <span>Avg Turns</span>
+        <strong>${Number(summary.mean_turns_played).toFixed(1)}</strong>
+      </div>
+      <div class="metric-card">
+        <span>Avg Loans Taken</span>
+        <strong>${Number(summary.mean_loans_taken).toFixed(2)}</strong>
+      </div>
+      <div class="metric-card">
+        <span>Reward Range</span>
+        <strong>${Number(summary.min_reward).toFixed(1)} - ${Number(summary.max_reward).toFixed(1)}</strong>
+      </div>
+      <div class="metric-card">
+        <span>Invalid Actions</span>
+        <strong>${summary.invalid_actions}</strong>
+      </div>
+    `;
+  }
   renderBarChart(
     "directEvaluationChart",
     state.directEvaluation.results || [],
@@ -2156,16 +2360,35 @@ function renderDirectEvaluation() {
     "#cc5f5f",
     "episode reward by seed"
   );
+  renderBarChart(
+    "directEvaluationMoneyChart",
+    state.directEvaluation.results || [],
+    "ending_money",
+    "seed",
+    "#6b8aa3",
+    "#cc5f5f",
+    "ending money by seed"
+  );
+  renderBarChart(
+    "directEvaluationTurnsChart",
+    state.directEvaluation.results || [],
+    "turns_played",
+    "seed",
+    "#5a9e7a",
+    "#5a9e7a",
+    "turns played by seed"
+  );
   renderTable(
     "directEvaluationTable",
     [
       { key: "seed", label: "Seed" },
       { key: "episode_reward", label: "Reward" },
-      { key: "ending_money", label: "Ending Money" },
+      { key: "ending_money", label: "Bank" },
+      { key: "turns_played", label: "Turns" },
       { key: "loan_turns", label: "Loan Turns" },
       { key: "loans_taken", label: "Loans" },
-      { key: "invalid_action_count", label: "Invalid Actions" },
-      { key: "terminal_reason", label: "Terminal Reason" },
+      { key: "invalid_action_count", label: "Invalid" },
+      { key: "terminal_reason", label: "End" },
     ],
     state.directEvaluation.results || []
   );
@@ -2173,13 +2396,16 @@ function renderDirectEvaluation() {
 
 function renderCheckpointComparison() {
   const host = $("checkpointCompareResult");
+  const metricsHost = $("comparisonMetrics");
   const compareOptions = sidebarCheckpointOptions()
     .filter((item) => item.id !== state.activeCheckpointId);
   buildOptions("compareCheckpointSelect", compareOptions, "id", "ui_label", "No comparison brains");
   if (!state.comparisonEvaluation) {
     host.className = "empty-state";
-    host.textContent = "Compare the selected right-side brain against the active brain from the sidebar.";
+    host.textContent = "Compare the selected right-side brain against the active brain from the top bar.";
+    if (metricsHost) metricsHost.innerHTML = "";
     renderBarChart("comparisonChart", [], "reward_delta", "seed", "#6b8aa3", "#cc5f5f", "");
+    renderBarChart("comparisonMoneyChart", [], "bank_delta", "seed", "#6b8aa3", "#cc5f5f", "");
     renderTable("comparisonTable", [], []);
     return;
   }
@@ -2195,23 +2421,55 @@ function renderCheckpointComparison() {
       left_bank: leftRow.ending_money,
       right_bank: rightRow.ending_money,
       bank_delta: Number(leftRow.ending_money || 0) - Number(rightRow.ending_money || 0),
+      left_turns: leftRow.turns_played,
+      right_turns: rightRow.turns_played,
       left_terminal: leftRow.terminal_reason || "completed",
       right_terminal: rightRow.terminal_reason || "completed",
     };
   });
   host.className = "list-card";
   host.innerHTML = `
-    <h4>Comparison Result</h4>
-    <p>${left.checkpoint.label} vs ${right.checkpoint.label}</p>
-    <div class="card-meta">
-      <span class="tag">delta reward ${Number(state.comparisonEvaluation.delta_mean_reward).toFixed(2)}</span>
-      <span class="tag">delta bank ${Number(state.comparisonEvaluation.delta_mean_ending_money).toFixed(2)}</span>
-    </div>
-    <div class="card-meta">
-      <span class="tag">left mean reward ${Number(left.summary.mean_reward).toFixed(2)}</span>
-      <span class="tag">right mean reward ${Number(right.summary.mean_reward).toFixed(2)}</span>
-    </div>
+    <h4>${escapeHtml(left.checkpoint.label)} <span style="color:var(--muted)">vs</span> ${escapeHtml(right.checkpoint.label)}</h4>
+    <p>Left is the active brain. Positive delta means left wins.</p>
   `;
+  if (metricsHost) {
+    const leftWinRate = ((1 - left.summary.bankruptcies / left.summary.episodes) * 100).toFixed(1);
+    const rightWinRate = ((1 - right.summary.bankruptcies / right.summary.episodes) * 100).toFixed(1);
+    metricsHost.innerHTML = `
+      <div class="metric-card">
+        <span>Delta Reward</span>
+        <strong>${Number(state.comparisonEvaluation.delta_mean_reward).toFixed(2)}</strong>
+      </div>
+      <div class="metric-card">
+        <span>Delta Bank</span>
+        <strong>${Number(state.comparisonEvaluation.delta_mean_ending_money).toFixed(2)}</strong>
+      </div>
+      <div class="metric-card">
+        <span>Left Reward</span>
+        <strong>${Number(left.summary.mean_reward).toFixed(2)}</strong>
+      </div>
+      <div class="metric-card">
+        <span>Right Reward</span>
+        <strong>${Number(right.summary.mean_reward).toFixed(2)}</strong>
+      </div>
+      <div class="metric-card">
+        <span>Left Win Rate</span>
+        <strong>${leftWinRate}%</strong>
+      </div>
+      <div class="metric-card">
+        <span>Right Win Rate</span>
+        <strong>${rightWinRate}%</strong>
+      </div>
+      <div class="metric-card">
+        <span>Left Bank</span>
+        <strong>${Number(left.summary.mean_ending_money).toFixed(2)}</strong>
+      </div>
+      <div class="metric-card">
+        <span>Right Bank</span>
+        <strong>${Number(right.summary.mean_ending_money).toFixed(2)}</strong>
+      </div>
+    `;
+  }
   renderBarChart(
     "comparisonChart",
     comparisonRows,
@@ -2221,18 +2479,29 @@ function renderCheckpointComparison() {
     "#cc5f5f",
     "left minus right reward by seed"
   );
+  renderBarChart(
+    "comparisonMoneyChart",
+    comparisonRows,
+    "bank_delta",
+    "seed",
+    "#6b8aa3",
+    "#cc5f5f",
+    "left minus right bank by seed"
+  );
   renderTable(
     "comparisonTable",
     [
       { key: "seed", label: "Seed" },
-      { key: "left_reward", label: "Left Reward" },
-      { key: "right_reward", label: "Right Reward" },
-      { key: "reward_delta", label: "Reward Delta" },
-      { key: "left_bank", label: "Left Bank" },
-      { key: "right_bank", label: "Right Bank" },
-      { key: "bank_delta", label: "Bank Delta" },
-      { key: "left_terminal", label: "Left End" },
-      { key: "right_terminal", label: "Right End" },
+      { key: "left_reward", label: "L Reward" },
+      { key: "right_reward", label: "R Reward" },
+      { key: "reward_delta", label: "Delta Reward" },
+      { key: "left_bank", label: "L Bank" },
+      { key: "right_bank", label: "R Bank" },
+      { key: "bank_delta", label: "Delta Bank" },
+      { key: "left_turns", label: "L Turns" },
+      { key: "right_turns", label: "R Turns" },
+      { key: "left_terminal", label: "L End" },
+      { key: "right_terminal", label: "R End" },
     ],
     comparisonRows
   );
@@ -2441,8 +2710,14 @@ async function refreshPlaySession() {
 
 async function fetchRunDetail(runId, announce = false) {
   state.activeRunId = runId;
+  state.runRating = null;
   state.runDetail = await apiRequest(`/runs/${encodeURIComponent(runId)}`);
   renderRunDetail();
+  // Fetch rating in the background. It does not block the inspect panel.
+  apiRequest(`/runs/${encodeURIComponent(runId)}/rating`).then((rating) => {
+    state.runRating = rating;
+    renderRunDetail();
+  }).catch(() => {});
   if (announce) {
     showMessage(`Loaded run ${runId}.`);
   }
@@ -2526,7 +2801,7 @@ async function refreshCheckpoints() {
     renderTrainingPreflight();
     renderCompatibility();
   } catch (_err) {
-    // Non-fatal — UI still works without checkpoints loaded.
+    // Non-fatal. UI still works without checkpoints loaded.
   }
 }
 
@@ -2546,7 +2821,7 @@ async function refreshAll() {
   state.runs = runs.items || [];
   state.jobs = jobs.items || [];
 
-  // Load checkpoints in the background — slow on first call (torch init + .pth loads).
+  // Load checkpoints in the background. Slow on first call (torch init + .pth loads).
   refreshCheckpoints();
 
   syncSelectors();
@@ -2668,24 +2943,32 @@ async function createPlaySession(event) {
     showMessage("Select a game config first.", "error");
     return;
   }
-  const controllers = [];
-  if ($("playIncludeHumanInput").checked) {
-    controllers.push({ type: "human", display_name: "Human" });
+  const seats = state.playSeatDrafts
+    .map((draft, index) => playSeatPayload(draft, index))
+    .filter(Boolean);
+  if (!seats.length) {
+    showMessage("Add at least one seat.", "error");
+    return;
   }
-  const opponentA = playControllerPayload($("playOpponentASelect").value);
-  const opponentB = playControllerPayload($("playOpponentBSelect").value);
-  if (opponentA) controllers.push(opponentA);
-  if (opponentB) controllers.push(opponentB);
-  if (!controllers.length) {
-    showMessage("Add at least one controller.", "error");
+  if (seats.length > 4) {
+    showMessage("Shared play supports at most 4 seats.", "error");
+    return;
+  }
+  if (seats.filter((seat) => seat.type === "human").length > 1) {
+    showMessage("Shared play supports at most one human seat.", "error");
+    return;
+  }
+  if (seats.some((seat) => seat.type === "model") && !state.activeCheckpointId) {
+    showMessage("Select an active brain before adding Active Brain seats.", "error");
     return;
   }
   state.playSession = await apiRequest("/play/session", {
     method: "POST",
     body: JSON.stringify({
+      mode: "shared",
       game_config_id: state.activeGameConfigId,
       base_seed: Number($("playSeedInput").value),
-      controllers,
+      seats,
     }),
   });
   renderPlaySession();
@@ -2697,7 +2980,10 @@ async function advancePlayRound(humanAction = null) {
     showMessage("Start a play session first.", "error");
     return;
   }
-  const payload = humanAction === null ? {} : { human_action: Number(humanAction) };
+  const humanSeat = state.playSession.seats?.find((seat) => seat.controller.type === "human" && !seat.done);
+  const payload = humanAction === null
+    ? {}
+    : { human_actions: { [humanSeat?.id || "seat_1"]: Number(humanAction) } };
   state.playSession = await apiRequest(`/play/session/${encodeURIComponent(state.playSession.id)}/action`, {
     method: "POST",
     body: JSON.stringify(payload),
@@ -2809,16 +3095,60 @@ function exportComparisonCsv() {
   showMessage("Exported checkpoint comparison CSV.");
 }
 
+const AUTO_CONNECT_URLS = [
+  "http://127.0.0.1:8000",
+  "http://188.166.52.37",
+];
+
+function _showConnectedUi() {
+  const manual = $("backendManualConnect");
+  const actions = $("backendConnectedActions");
+  if (manual) manual.style.display = "none";
+  if (actions) actions.style.display = "";
+}
+
+function _showManualConnectUi() {
+  const manual = $("backendManualConnect");
+  const actions = $("backendConnectedActions");
+  if (manual) manual.style.display = "";
+  if (actions) actions.style.display = "none";
+}
+
+async function _tryConnect(url) {
+  state.apiBaseUrl = url.replace(/\/$/, "");
+  await refreshAll();
+}
+
+async function autoConnect() {
+  for (const url of AUTO_CONNECT_URLS) {
+    try {
+      await _tryConnect(url);
+      _showConnectedUi();
+      showMessage(`Connected to ${url}`);
+      return;
+    } catch (_err) {
+      // try next
+    }
+  }
+  // All candidates failed. Show manual fields so user can enter a custom URL.
+  _showManualConnectUi();
+  state.health = null;
+  updateStatusCard();
+  showMessage("Could not auto-connect. Enter the backend URL manually.", "error");
+}
+
 function attachEvents() {
   document.querySelectorAll(".nav-button").forEach((button) => {
     button.addEventListener("click", () => setPage(button.dataset.page));
   });
 
   $("connectButton").addEventListener("click", async () => {
-    state.apiBaseUrl = $("apiBaseUrlInput").value.trim().replace(/\/$/, "");
+    const inputUrl = $("apiBaseUrlInput").value.trim().replace(/\/$/, "");
+    state.apiBaseUrl = inputUrl;
     try {
       await refreshAll();
-      showMessage("Connected to backend.");
+      _showConnectedUi();
+      showMessage(`Connected to ${inputUrl}`);
     } catch (error) {
       state.health = null;
       updateStatusCard();
@@ -2833,6 +3163,12 @@ function attachEvents() {
     } catch (error) {
       showMessage(error.message, "error");
     }
+  });
+
+  $("switchBackendButton").addEventListener("click", () => {
+    const input = $("apiBaseUrlInput");
+    if (input) input.value = state.apiBaseUrl;
+    _showManualConnectUi();
   });
 
   $("refreshJobsButton").addEventListener("click", async () => {
@@ -2940,6 +3276,20 @@ function attachEvents() {
     } catch (error) {
       showMessage(error.message, "error");
     }
+  });
+
+  $("addPlaySeatButton").addEventListener("click", () => {
+    if (state.playSeatDrafts.length >= 4) {
+      showMessage("Shared play supports at most 4 seats.", "error");
+      return;
+    }
+    const nextIndex = state.playSeatDrafts.length + 1;
+    state.playSeatDrafts.push({
+      id: `draft_${Date.now()}`,
+      type: "random",
+      display_name: `Random AI ${nextIndex}`,
+    });
+    renderPlaySeatEditor();
   });
 
   $("refreshPlayButton").addEventListener("click", async () => {
@@ -3246,4 +3596,6 @@ state.visualGameConfig = clone(DEFAULT_GAME_CONFIG);
 renderVisualEditor();
 renderTrainingSelectionSummary();
 renderTrainingProgress();
+renderPlaySeatEditor();
 startProgressPolling();
+autoConnect();

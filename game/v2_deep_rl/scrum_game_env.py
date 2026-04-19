@@ -320,7 +320,7 @@ class ScrumGameEnv:
         done = False
         terminal_reason = None
         if self.current_money < 0:
-            reward -= 100000
+            reward -= 40000
             done = True
             terminal_reason = "bankruptcy"
         elif self.turn_count >= self.max_turns:
@@ -342,17 +342,25 @@ class ScrumGameEnv:
         """Calculate the shaped reward used for deep-RL training."""
         reward = new_money - old_money
 
+        # Mild additional pressure per debt turn — interest is already in the money
+        # delta so this is kept small to avoid double-penalising loans.
         if self.loan_active:
-            reward -= 500 * self.turns_with_loan
+            reward -= 100 * self.turns_with_loan
 
-        if result == "Success" and not self.loan_active:
-            reward += 2000
+        # Success bonus rewards completing sprints well, regardless of loan state.
+        # Previous +2000 was too small relative to sprint values (5k–35k swings).
+        if result == "Success":
+            reward += 5000
 
+        # Encourage switching when funds are critically low.
         if action > 0 and old_money < 10000 and result in {"Success", "Failure"}:
             reward += 1000
 
+        # Mandatory loans are forced by the game — the agent cannot choose to avoid
+        # them. A small signal is enough; -20000 was teaching the model to prefer
+        # bankruptcy over debt, which is backwards.
         if self.just_took_mandatory_loan:
-            reward -= 20000
+            reward -= 3000
 
         if info.get("invalid_action"):
             reward -= 2000

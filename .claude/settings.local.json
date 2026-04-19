@@ -33,7 +33,12 @@
       "Bash(py -3 -m pytest --version)",
       "Bash(pip install *)",
       "Bash(rm -f .graphify_detect.json .graphify_extract.json .graphify_ast.json .graphify_semantic.json .graphify_analysis.json .graphify_labels.json .graphify_cached.json .graphify_uncached.txt .graphify_semantic_new.json .graphify_python)",
-      "Bash(rm -f graphify-out/.graphify_chunk_*.json)"
+      "Bash(rm -f graphify-out/.graphify_chunk_*.json)",
+      "Bash(.venv/Scripts/pip install *)",
+      "Bash(attrib +P \"c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/v2_deep_rl/artifacts\" /S /D)",
+      "Bash(grep -n \"^function \\\\$\\\\|^const \\\\$ \" \"c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/v2_deep_rl/control_center/frontend/app.js\")",
+      "Bash(grep -n \"function \\\\$\\\\b\\\\|const \\\\$ =\\\\|var \\\\$ \" \"c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/v2_deep_rl/control_center/frontend/app.js\")",
+      "Bash(grep -n \"getElementById\\\\|\\\\bfunction \\\\b\\\\$\" \"c:/Users/joche/OneDrive/Documenten/GitClones/scrumgameai/game/v2_deep_rl/control_center/frontend/app.js\")"
     ]
   }
 }

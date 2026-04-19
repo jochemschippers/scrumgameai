@@ -66,6 +66,7 @@ def _patch_runs_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(svc, "CURRENT_CHECKPOINT_DIR", empty)
     monkeypatch.setattr(svc, "REFERENCE_V1_DIR", empty)
     monkeypatch.setattr(svc, "PLAYABLE_MODEL_V1_DIR", empty)
+    monkeypatch.setattr(svc, "DROPLET_RUNS_DIR", empty)
     yield tmp_path
 
 

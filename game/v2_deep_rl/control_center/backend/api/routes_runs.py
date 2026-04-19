@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from services.catalog_service import list_runs, get_run, get_run_progress
+from services.training_autopilot import compute_run_rating
 
 router = APIRouter(tags=["runs"])
 
@@ -29,3 +30,12 @@ def get_run_progress_route(run_id: str):
     if payload is None:
         raise HTTPException(status_code=404, detail=f"Run `{run_id}` was not found.")
     return payload
+
+
+@router.get("/runs/{run_id}/rating")
+def get_run_rating(run_id: str):
+    """Compute a 0–100 quality score and letter grade for a run from its evaluation history."""
+    try:
+        return compute_run_rating(run_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))

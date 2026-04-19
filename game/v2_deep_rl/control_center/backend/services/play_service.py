@@ -106,10 +106,33 @@ def _seat_payload(seat: dict) -> dict:
     }
 
 
+def _shared_session_payload(session_id: str, match_state: dict) -> dict:
+    from shared_match_runner import (  # noqa: E402
+        all_shared_seats_done,
+        board_payload,
+        seat_payload,
+        standings,
+    )
+    return {
+        "id": session_id,
+        "mode": "shared",
+        "base_seed": match_state["base_seed"],
+        "round_number": match_state["round_number"],
+        "done": all_shared_seats_done(match_state),
+        "board": board_payload(match_state),
+        "seats": [seat_payload(seat) for seat in match_state["seats"]],
+        "standings": standings(match_state),
+        "turn_log": list(match_state.get("turn_log", [])),
+    }
+
+
 def _session_payload(session_id: str, match_state: dict) -> dict:
+    if match_state.get("mode") == "shared":
+        return _shared_session_payload(session_id, match_state)
     from match_runner import all_seats_done  # noqa: E402
     return {
         "id": session_id,
+        "mode": "parallel",
         "base_seed": match_state["base_seed"],
         "round_number": match_state["round_number"],
         "done": all_seats_done(match_state),
@@ -121,22 +144,48 @@ def list_sessions() -> list[dict]:
     return [_session_payload(session_id, match_state) for session_id, match_state in PLAY_SESSIONS.items()]
 
 
+def _seat_payloads_from_request(payload: dict) -> list[dict]:
+    seats_payload = payload.get("seats")
+    if seats_payload is None:
+        seats_payload = payload.get("controllers") or []
+    if not isinstance(seats_payload, list):
+        raise ValueError("Seats must be a list.")
+    if len(seats_payload) < 1:
+        raise ValueError("At least one seat is required.")
+    if len(seats_payload) > 4:
+        raise ValueError("Shared play supports at most 4 seats.")
+    human_count = sum(1 for seat in seats_payload if seat.get("type") == "human")
+    if human_count > 1:
+        raise ValueError("Shared play supports at most one human seat.")
+    return seats_payload
+
+
 def create_session(payload: dict) -> dict:
-    from match_runner import start_parallel_match  # noqa: E402
     game_config, game_config_item = _resolve_game_config(payload["game_config_id"])
-    controllers_payload = payload.get("controllers") or []
-    if not controllers_payload:
-        raise ValueError("At least one controller is required.")
+    mode = payload.get("mode", "shared")
+    controllers_payload = _seat_payloads_from_request(payload)
 
     controllers = [
         _controller_from_payload(controller_payload, game_config_item["path"])
         for controller_payload in controllers_payload
     ]
-    match_state = start_parallel_match(
-        game_config=game_config,
-        controllers=controllers,
-        base_seed=int(payload.get("base_seed", 42)),
-    )
+    if mode == "parallel":
+        from match_runner import start_parallel_match  # noqa: E402
+        match_state = start_parallel_match(
+            game_config=game_config,
+            controllers=controllers,
+            base_seed=int(payload.get("base_seed", 42)),
+        )
+        match_state["mode"] = "parallel"
+    elif mode == "shared":
+        from shared_match_runner import start_shared_match  # noqa: E402
+        match_state = start_shared_match(
+            game_config=game_config,
+            controllers=controllers,
+            base_seed=int(payload.get("base_seed", 42)),
+        )
+    else:
+        raise ValueError(f"Unknown play mode: {mode}")
 
     session_id = str(uuid.uuid4())
     PLAY_SESSIONS[session_id] = match_state
@@ -151,11 +200,15 @@ def get_session(session_id: str) -> dict:
 
 
 def advance_session(session_id: str, payload: dict | None = None) -> dict:
-    from match_runner import play_round  # noqa: E402
     match_state = PLAY_SESSIONS.get(session_id)
     if match_state is None:
         raise ValueError(f"Play session `{session_id}` was not found.")
 
-    human_action = None if payload is None else payload.get("human_action")
-    play_round(match_state, human_action=human_action)
+    if match_state.get("mode") == "shared":
+        from shared_match_runner import play_shared_round  # noqa: E402
+        play_shared_round(match_state, payload or {})
+    else:
+        from match_runner import play_round  # noqa: E402
+        human_action = None if payload is None else payload.get("human_action")
+        play_round(match_state, human_action=human_action)
     return _session_payload(session_id, match_state)

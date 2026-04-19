@@ -16,9 +16,11 @@ _SETTINGS_PATH = ARTIFACTS_DIR / "autopilot_settings.json"
 
 # --- Logic decision thresholds ---
 IMPROVEMENT_MIN_RATIO = 0.02    # below this over the window = plateau
+REGRESSION_THRESHOLD = 0.10     # reward dropped >10% over window = active regression
 VARIANCE_THRESHOLD = 0.20       # coefficient of variation above this = unstable
 PLATEAU_WINDOW = 4              # number of evaluation rows to assess
 INVALID_ACTION_HIGH = 0.10      # invalid action rate above this = under-explored
+BANKRUPTCY_IMPROVEMENT_THRESHOLD = 0.05  # 5pp drop in bankruptcy rate = real progress
 
 # While epsilon is above this the agent is still heavily exploring.
 # Plateau detection is meaningless during exploration, so autopilot
@@ -167,9 +169,28 @@ def _call_ai_advisor(
             "advisor": "ai",
         }
 
-    prompt = f"""You are a hyperparameter tuning advisor for a Double DQN reinforcement learning agent
-that learns to play a Scrum project-management game.
+    bankruptcy_trend_str = ""
+    if metrics.get("bankruptcy_rate_first") is not None and metrics.get("bankruptcy_rate_last") is not None:
+        br_first = metrics["bankruptcy_rate_first"]
+        br_last = metrics["bankruptcy_rate_last"]
+        direction = "improving" if br_first > br_last else "worsening"
+        bankruptcy_trend_str = f"Bankruptcy rate trend       : {br_first:.1%} → {br_last:.1%} ({direction})"
+    else:
+        bankruptcy_trend_str = "Bankruptcy rate trend       : insufficient data"
 
+    prompt = f"""You are a hyperparameter tuning advisor for a Double DQN reinforcement learning agent
+that learns to play a Scrum board game called "Scrum Game".
+
+=== Game context ===
+- Each episode is a single game consisting of at most 6 sprints (turns).
+- The agent starts with €25,000 and a mandatory loan of €50,000 (€75,000 total).
+- Per sprint the agent chooses a product to work on and rolls dice to determine sprint outcome.
+- A failed sprint (dice roll too high) costs money proportional to the deviation; a successful sprint earns money.
+- Bankruptcy (running out of money mid-game) ends the episode early with a large penalty.
+- A "good" trained agent achieves: bankruptcy rate <20%, average ending money >€50,000,
+  and average reward >0 (net positive after penalties and loan repayment).
+
+=== Situation ===
 The deterministic autopilot has decided to STOP training for the following reason:
 "{stop_reason}"
 
@@ -178,19 +199,29 @@ After {MAX_AI_INTERVENTIONS} interventions the run must stop regardless of your 
 
 === Recent evaluation metrics ===
 Evaluation windows analysed : {metrics.get("eval_windows_analyzed")}
-Latest average reward        : {metrics.get("latest_reward")}
-Reward improvement ratio     : {metrics.get("reward_improvement_ratio")}
-Reward coefficient of var.   : {metrics.get("reward_cv")}
-Bankruptcy rate              : {metrics.get("bankruptcy_rate")}
-Invalid action rate          : {metrics.get("invalid_action_rate")}
+Latest average reward        : {metrics.get("latest_reward")} (€; positive = profitable)
+Average ending money         : {metrics.get("average_ending_money")} (€; None if unavailable)
+Reward improvement ratio     : {metrics.get("reward_improvement_ratio")} (fraction; >0.02 = improving)
+Reward coefficient of var.   : {metrics.get("reward_cv")} (>0.20 = high variance)
+Bankruptcy rate              : {metrics.get("bankruptcy_rate")} (fraction; target <0.20)
+{bankruptcy_trend_str}
+Invalid action rate          : {metrics.get("invalid_action_rate")} (fraction; >0.10 = under-explored)
 
 === Current hyperparameters ===
-learning_rate          : {current_config.get("learning_rate")}
-epsilon_decay_episodes : {current_config.get("epsilon_decay_episodes")}
+learning_rate          : {current_config.get("learning_rate")} (safe range: {_LR_MIN}–{_LR_MAX})
+epsilon_decay_episodes : {current_config.get("epsilon_decay_episodes")} (safe range: {_EPSILON_DECAY_MIN}–{_EPSILON_DECAY_MAX})
 
 === Your task ===
 Decide whether ONE specific hyperparameter change is likely to help the agent escape
 the current plateau, or whether the run should truly stop.
+
+Guidance:
+- If bankruptcy rate is still high (>40%) and reward is flat, the agent may benefit from
+  more exploration (increase epsilon_decay_episodes) or a lower, more stable learning rate.
+- If bankruptcy rate is already low (<20%) but reward is flat, the agent may have converged —
+  consider stopping unless variance is high (then lower learning_rate first).
+- If average_ending_money is positive but reward is flat, the agent may be close to optimal
+  and further tuning is unlikely to help much.
 
 Respond with a JSON object and nothing else:
 {{
@@ -319,6 +350,18 @@ def analyze_run(run_id: str, context: dict | None = None) -> dict:
     last_row = eval_rows[-1] if eval_rows else {}
     invalid_action_rate = _safe_float(last_row.get("invalid_action_rate")) or 0.0
     bankruptcy_rate = _safe_float(last_row.get("bankruptcy_rate")) or 0.0
+    average_ending_money = _safe_float(last_row.get("average_ending_money"))
+
+    # Bankruptcy rate trend over the plateau window (negative = improving)
+    br_window = [_safe_float(r.get("bankruptcy_rate")) for r in eval_rows[-PLATEAU_WINDOW:]]
+    br_window = [r for r in br_window if r is not None]
+    bankruptcy_rate_first = br_window[0] if len(br_window) >= 2 else None
+    bankruptcy_rate_last = br_window[-1] if len(br_window) >= 2 else None
+    bankruptcy_improving = (
+        bankruptcy_rate_first is not None
+        and bankruptcy_rate_last is not None
+        and (bankruptcy_rate_first - bankruptcy_rate_last) >= BANKRUPTCY_IMPROVEMENT_THRESHOLD
+    )
 
     current_lr = float(training_config.get("learning_rate", 0.0005))
     current_epsilon_decay = int(training_config.get("epsilon_decay_episodes", 450000))
@@ -329,6 +372,9 @@ def analyze_run(run_id: str, context: dict | None = None) -> dict:
     latest_epsilon = _safe_float(latest_log.get("epsilon"))
     if latest_epsilon is None:
         latest_epsilon = 1.0  # assume unexplored if no log yet
+
+    improvement = None
+    cv = None
 
     if latest_epsilon > EPSILON_EXPLORE_THRESHOLD:
         # Agent is still heavily exploring — plateau detection is unreliable.
@@ -356,7 +402,15 @@ def analyze_run(run_id: str, context: dict | None = None) -> dict:
         std = math.sqrt(sum((r - mean) ** 2 for r in window) / len(window))
         cv = std / abs(mean) if mean != 0 else 0.0
 
-        if improvement > IMPROVEMENT_MIN_RATIO:
+        if improvement < -REGRESSION_THRESHOLD:
+            # Active regression: reward dropped significantly — skip AI, stop immediately.
+            action = "stop_regression"
+            reason = (
+                f"Reward actively regressed ({improvement:.1%} over {PLATEAU_WINDOW} windows). "
+                f"Bankruptcy rate: {bankruptcy_rate:.1%}. "
+                f"Stopping immediately — AI advisor will not be consulted."
+            )
+        elif improvement > IMPROVEMENT_MIN_RATIO:
             if cv > VARIANCE_THRESHOLD and lr_reduction_count < MAX_LR_REDUCTIONS:
                 action = "lower_lr"
                 reason = (
@@ -378,7 +432,15 @@ def analyze_run(run_id: str, context: dict | None = None) -> dict:
                     f"CV={cv:.2f}). Continuing unchanged."
                 )
         else:
-            if invalid_action_rate > INVALID_ACTION_HIGH:
+            if bankruptcy_improving:
+                # Reward flat but bankruptcy rate is falling meaningfully — real progress.
+                action = "continue"
+                reason = (
+                    f"Reward plateaued ({improvement:.1%} over {PLATEAU_WINDOW} windows) "
+                    f"but bankruptcy rate improving "
+                    f"({bankruptcy_rate_first:.1%} → {bankruptcy_rate_last:.1%}). Continuing."
+                )
+            elif invalid_action_rate > INVALID_ACTION_HIGH:
                 action = "extend_epsilon_decay"
                 reason = (
                     f"Reward plateaued ({improvement:.1%} over {PLATEAU_WINDOW} windows) "
@@ -392,7 +454,7 @@ def analyze_run(run_id: str, context: dict | None = None) -> dict:
                 )
 
     next_payload = None
-    if action != "stop":
+    if action not in {"stop", "stop_regression"}:
         # Apply LR floor so repeated reductions can't go below the safe minimum.
         new_lr = max(_LR_MIN, current_lr * LR_REDUCTION_FACTOR) if action == "lower_lr" else current_lr
         # Epsilon decay: extend by adding episodes on top of the current decay period
@@ -426,6 +488,10 @@ def analyze_run(run_id: str, context: dict | None = None) -> dict:
             "reward_improvement_ratio": improvement,
             "reward_cv": cv,
             "bankruptcy_rate": bankruptcy_rate,
+            "bankruptcy_rate_first": bankruptcy_rate_first,
+            "bankruptcy_rate_last": bankruptcy_rate_last,
+            "bankruptcy_improving": bankruptcy_improving,
+            "average_ending_money": average_ending_money,
             "invalid_action_rate": invalid_action_rate,
         },
         "current_config": {
@@ -467,7 +533,7 @@ def run_autopilot(run_id: str, dry_run: bool = False, context: dict | None = Non
 
     decision = analyze_run(run_id, context=context)
 
-    # --- AI advisor: only when logic says stop and budget remains ---
+    # --- AI advisor: only when logic says stop (not regression) and budget remains ---
     settings = get_settings()
     ai_enabled = settings.get("ai_enabled", True)
     if not dry_run and decision["action"] == "stop" and ai_enabled and ai_intervention_count < MAX_AI_INTERVENTIONS:
@@ -486,7 +552,7 @@ def run_autopilot(run_id: str, dry_run: bool = False, context: dict | None = Non
             decision["next_payload"] = ai_result["next_payload"]
 
     # --- User-requested stop overrides everything except dry_run ---
-    if not dry_run and decision["action"] != "stop" and is_stop_requested():
+    if not dry_run and decision["action"] not in {"stop", "stop_regression"} and is_stop_requested():
         decision["action"] = "stop"
         decision["reason"] = "Stop requested by user via stop-after-cycle flag. " + decision["reason"]
         decision["next_payload"] = None
@@ -494,8 +560,22 @@ def run_autopilot(run_id: str, dry_run: bool = False, context: dict | None = Non
 
     run_dir = RUNS_DIR / run_id
 
-    if dry_run or decision["action"] == "stop" or not decision["next_payload"]:
+    if dry_run or decision["action"] in {"stop", "stop_regression"} or not decision["next_payload"]:
         decision["job_enqueued"] = False
+        # Autopilot truly stopped — auto-queue a final robustness evaluation so the
+        # user gets a fresh rating without having to trigger it manually.
+        if not dry_run and decision["action"] in {"stop", "stop_regression"}:
+            best_pth = run_dir / "checkpoints" / "best_scrum_model.pth"
+            if best_pth.exists():
+                try:
+                    from jobs.queue_manager import enqueue_evaluation_job
+                    eval_job = enqueue_evaluation_job({
+                        "job_type": "robustness",
+                        "run_dir": str(run_dir.resolve()),
+                    })
+                    decision["auto_eval_job_id"] = eval_job["id"]
+                except Exception:
+                    pass
         _write_decision_record(run_dir, decision)
         return decision
 
@@ -553,6 +633,154 @@ def probe_ai_advisor(metrics: dict | None = None, current_config: dict | None = 
         best_checkpoint_path=None,
     )
     return {"probe": True, "test_metrics": test_metrics, "test_config": test_config, "result": result}
+
+
+def compute_run_rating(run_id: str) -> dict:
+    """
+    Compute a 0–100 quality score for a completed run from its evaluation history.
+
+    Scoring breakdown (100 pts total):
+      Bankruptcy rate   35 pts  — primary survival metric
+      Average reward    35 pts  — primary learning objective
+      Avg turns played  20 pts  — proxy for game depth / longevity
+      Invalid actions   10 pts  — exploration quality signal
+
+    Returns a dict with keys: score, grade, breakdown, data_source, episodes_evaluated.
+    Returns grade="N/A" if no evaluation history is available.
+    """
+    run_dir = RUNS_DIR / run_id
+    if not run_dir.exists():
+        raise ValueError(f"Run `{run_id}` not found.")
+
+    eval_rows = _read_csv(run_dir / "reports" / "evaluation_history.csv")
+
+    # Fall back to dqn_metrics.json (final training summary) when evaluation_history.csv
+    # has no rows — this happens for short runs that never hit the periodic eval interval.
+    metrics_path = run_dir / "reports" / "dqn_metrics.json"
+    if not eval_rows and metrics_path.exists():
+        metrics_json = _read_json(metrics_path)
+        bankruptcy_rate = _safe_float(metrics_json.get("bankruptcy_rate"))
+        average_reward = _safe_float(metrics_json.get("average_reward_per_episode"))
+        avg_loan_duration = _safe_float(metrics_json.get("average_loan_duration"))
+        invalid_action_rate = _safe_float(metrics_json.get("invalid_action_rate"))
+        latest_episode = _safe_float(metrics_json.get("training_episodes"))
+        data_source = "dqn_metrics"
+    elif not eval_rows:
+        return {
+            "score": None,
+            "grade": "N/A",
+            "breakdown": {},
+            "data_source": "evaluation_history",
+            "episodes_evaluated": 0,
+        }
+    else:
+        # Use average of last 3 windows for a stable estimate.
+        sample = eval_rows[-3:]
+        def _avg(key: str) -> float | None:
+            vals = [_safe_float(r.get(key)) for r in sample]
+            vals = [v for v in vals if v is not None]
+            return sum(vals) / len(vals) if vals else None
+
+        bankruptcy_rate = _avg("bankruptcy_rate")
+        average_reward = _avg("average_reward")
+        avg_loan_duration = _avg("average_loan_duration")
+        invalid_action_rate = _avg("invalid_action_rate")
+        latest_episode = _safe_float(eval_rows[-1].get("episode"))
+        data_source = "evaluation_history"
+
+    # --- Bankruptcy rate (35 pts) ---
+    if bankruptcy_rate is None:
+        br_score = 0
+    elif bankruptcy_rate < 0.10:
+        br_score = 35
+    elif bankruptcy_rate < 0.20:
+        br_score = 28
+    elif bankruptcy_rate < 0.30:
+        br_score = 20
+    elif bankruptcy_rate < 0.50:
+        br_score = 12
+    elif bankruptcy_rate < 0.70:
+        br_score = 5
+    else:
+        br_score = 0
+
+    # --- Average reward (35 pts) ---
+    if average_reward is None:
+        rw_score = 0
+    elif average_reward > 50_000:
+        rw_score = 35
+    elif average_reward > 0:
+        rw_score = 25
+    elif average_reward > -10_000:
+        rw_score = 15
+    elif average_reward > -25_000:
+        rw_score = 8
+    else:
+        rw_score = 0
+
+    # --- Avg loan duration (20 pts) ---
+    # turns_with_loan resets to 0 each non-loan turn, so the episode value reflects
+    # consecutive loan turns at game end. Low = agent cleared loans before finishing = good.
+    if avg_loan_duration is None:
+        turns_score = 0
+    elif avg_loan_duration <= 1:
+        turns_score = 20
+    elif avg_loan_duration <= 2:
+        turns_score = 15
+    elif avg_loan_duration <= 3:
+        turns_score = 10
+    elif avg_loan_duration <= 4:
+        turns_score = 5
+    else:
+        turns_score = 0
+
+    # --- Invalid action rate (10 pts) ---
+    if invalid_action_rate is None:
+        ia_score = 10  # assume clean if no data
+    elif invalid_action_rate < 0.01:
+        ia_score = 10
+    elif invalid_action_rate < 0.05:
+        ia_score = 5
+    else:
+        ia_score = 0
+
+    total = br_score + rw_score + turns_score + ia_score
+
+    if total >= 90:
+        grade = "S"
+    elif total >= 80:
+        grade = "A"
+    elif total >= 70:
+        grade = "B"
+    elif total >= 60:
+        grade = "C"
+    elif total >= 50:
+        grade = "D"
+    else:
+        grade = "F"
+
+    return {
+        "score": total,
+        "grade": grade,
+        "breakdown": {
+            "bankruptcy_rate_score": br_score,
+            "bankruptcy_rate_max": 35,
+            "reward_score": rw_score,
+            "reward_max": 35,
+            "turns_score": turns_score,
+            "turns_max": 20,
+            "invalid_action_score": ia_score,
+            "invalid_action_max": 10,
+        },
+        "snapshot": {
+            "bankruptcy_rate": bankruptcy_rate,
+            "average_reward": average_reward,
+            "average_loan_duration": avg_loan_duration,
+            "invalid_action_rate": invalid_action_rate,
+        },
+        "data_source": data_source,
+        "episodes_evaluated": int(latest_episode) if latest_episode is not None else None,
+    }
 
 
 def get_autopilot_history(run_id: str) -> list[dict]:

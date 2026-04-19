@@ -8,6 +8,10 @@ from services.play_service import advance_session, create_session, get_session, 
 router = APIRouter(prefix="/play", tags=["play"])
 
 
+def _status_for_error(message: str) -> int:
+    return 404 if "was not found" in message else 400
+
+
 @router.get("/session")
 def get_play_sessions():
     """List active in-memory play sessions."""
@@ -16,11 +20,11 @@ def get_play_sessions():
 
 @router.post("/session")
 def post_play_session(payload: dict):
-    """Create one new parallel-seat play session."""
+    """Create one new play session."""
     try:
       return create_session(payload)
     except ValueError as error:
-      raise HTTPException(status_code=400, detail=str(error)) from error
+      raise HTTPException(status_code=_status_for_error(str(error)), detail=str(error)) from error
 
 
 @router.get("/session/{session_id}")
@@ -29,7 +33,7 @@ def get_play_session(session_id: str):
     try:
       return get_session(session_id)
     except ValueError as error:
-      raise HTTPException(status_code=404, detail=str(error)) from error
+      raise HTTPException(status_code=_status_for_error(str(error)), detail=str(error)) from error
 
 
 @router.post("/session/{session_id}/action")
@@ -38,4 +42,4 @@ def post_play_action(session_id: str, payload: dict | None = None):
     try:
       return advance_session(session_id, payload or {})
     except ValueError as error:
-      raise HTTPException(status_code=404, detail=str(error)) from error
+      raise HTTPException(status_code=_status_for_error(str(error)), detail=str(error)) from error

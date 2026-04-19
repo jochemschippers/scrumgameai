@@ -72,12 +72,21 @@ def _evaluate_one_seed(agent, game_config, seed: int) -> dict:
 def _summarize_results(rows: list[dict]) -> dict:
     rewards = [row["episode_reward"] for row in rows]
     ending_money = [row["ending_money"] for row in rows]
+    turns_played = [row["turns_played"] for row in rows]
+    loans_taken = [row["loans_taken"] for row in rows]
+    loan_turns = [row["loan_turns"] for row in rows]
     bankruptcies = sum(1 for row in rows if row["terminal_reason"] == "bankruptcy")
     invalid_actions = sum(row["invalid_action_count"] for row in rows)
     return {
         "seeds": [row["seed"] for row in rows],
         "mean_reward": statistics.mean(rewards) if rewards else 0.0,
+        "min_reward": min(rewards) if rewards else 0.0,
+        "max_reward": max(rewards) if rewards else 0.0,
+        "stdev_reward": statistics.stdev(rewards) if len(rewards) > 1 else 0.0,
         "mean_ending_money": statistics.mean(ending_money) if ending_money else 0.0,
+        "mean_turns_played": statistics.mean(turns_played) if turns_played else 0.0,
+        "mean_loans_taken": statistics.mean(loans_taken) if loans_taken else 0.0,
+        "mean_loan_turns": statistics.mean(loan_turns) if loan_turns else 0.0,
         "bankruptcies": bankruptcies,
         "invalid_actions": invalid_actions,
         "episodes": len(rows),

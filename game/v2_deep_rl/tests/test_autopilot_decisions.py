@@ -57,6 +57,7 @@ def _make_run(
     eval_rewards: list[float] | None = None,
     invalid_action_rate: float = 0.05,
     bankruptcy_rate: float = 0.30,
+    bankruptcy_rates: list[float] | None = None,
     has_latest_checkpoint: bool = True,
     has_best_checkpoint: bool = True,
     learning_rate: float = 0.0005,
@@ -85,15 +86,16 @@ def _make_run(
 
     # evaluation_history.csv — 4 rows (== PLATEAU_WINDOW) by default
     rewards = eval_rewards or [-5000.0, -5010.0, -4990.0, -5005.0]
+    br_list = bankruptcy_rates if bankruptcy_rates and len(bankruptcy_rates) == len(rewards) else [bankruptcy_rate] * len(rewards)
     eval_rows = [
         [
             (i + 1) * 10_000,   # episode
             r,                   # average_reward
-            bankruptcy_rate,     # bankruptcy_rate
+            br,                  # bankruptcy_rate
             10_000.0,            # average_ending_money
             invalid_action_rate, # invalid_action_rate
         ]
-        for i, r in enumerate(rewards)
+        for i, (r, br) in enumerate(zip(rewards, br_list))
     ]
     _write_csv(reports / "evaluation_history.csv", EVAL_HEADER, eval_rows)
 
@@ -767,3 +769,178 @@ class TestDeriveBaseRunName:
         import services.training_autopilot as autopilot
         result = autopilot._derive_base_run_name("run_2024-01-15_1200_my_long_name")
         assert result == "my_long_name"
+
+
+# ---------------------------------------------------------------------------
+# Regression branch (stop_regression)
+# ---------------------------------------------------------------------------
+
+class TestRegressionBranch:
+    def test_reward_drops_more_than_threshold_gives_stop_regression(self, runs_dir):
+        """Reward dropping >10% over window must produce action=stop_regression."""
+        import services.training_autopilot as autopilot
+
+        # improvement = (-7000 - -5000) / 5000 = -40%  (well below -10% threshold)
+        _make_run(
+            runs_dir, "run_reg",
+            final_epsilon=0.10,
+            eval_rewards=[-5000.0, -5500.0, -6000.0, -7000.0],
+            invalid_action_rate=0.03,
+        )
+
+        decision = autopilot.analyze_run("run_reg")
+        assert decision["action"] == "stop_regression"
+
+    def test_regression_next_payload_is_none(self, runs_dir):
+        import services.training_autopilot as autopilot
+
+        _make_run(
+            runs_dir, "run_reg",
+            final_epsilon=0.10,
+            eval_rewards=[-5000.0, -5500.0, -6000.0, -7000.0],
+        )
+
+        decision = autopilot.analyze_run("run_reg")
+        assert decision["next_payload"] is None
+
+    def test_regression_reason_mentions_regress(self, runs_dir):
+        import services.training_autopilot as autopilot
+
+        _make_run(
+            runs_dir, "run_reg",
+            final_epsilon=0.10,
+            eval_rewards=[-5000.0, -5500.0, -6000.0, -7000.0],
+        )
+
+        decision = autopilot.analyze_run("run_reg")
+        assert "regress" in decision["reason"].lower()
+
+    def test_regression_ai_advisor_not_called(self, runs_dir, monkeypatch):
+        """stop_regression must never trigger the AI advisor."""
+        import services.training_autopilot as autopilot
+
+        _make_run(
+            runs_dir, "run_reg",
+            final_epsilon=0.10,
+            eval_rewards=[-5000.0, -5500.0, -6000.0, -7000.0],
+        )
+
+        ai_mock = MagicMock(return_value={"action": "fine_tune", "reason": "mock", "next_payload": {}, "advisor": "ai"})
+        monkeypatch.setattr(autopilot, "_call_ai_advisor", ai_mock)
+        monkeypatch.setattr(autopilot, "is_stop_requested", lambda: False)
+
+        autopilot.run_autopilot("run_reg", dry_run=False)
+        ai_mock.assert_not_called()
+
+    def test_small_drop_below_threshold_is_not_regression(self, runs_dir):
+        """A drop of exactly 5% (< REGRESSION_THRESHOLD=10%) must NOT be stop_regression."""
+        import services.training_autopilot as autopilot
+
+        # improvement = (-5250 - -5000) / 5000 = -5%
+        _make_run(
+            runs_dir, "run_noreg",
+            final_epsilon=0.10,
+            eval_rewards=[-5000.0, -5050.0, -5150.0, -5250.0],
+            invalid_action_rate=0.03,
+        )
+
+        decision = autopilot.analyze_run("run_noreg")
+        assert decision["action"] != "stop_regression"
+
+
+# ---------------------------------------------------------------------------
+# Bankruptcy improving override (flat reward → continue instead of stop)
+# ---------------------------------------------------------------------------
+
+class TestBankruptcyImprovingOverride:
+    def test_flat_reward_with_improving_bankruptcy_continues(self, runs_dir):
+        """Flat reward + bankruptcy falling ≥5pp must override plateau stop → continue."""
+        import services.training_autopilot as autopilot
+
+        # Flat rewards (improvement ~0%), bankruptcy drops from 60% to 30% over window
+        _make_run(
+            runs_dir, "run_br_improve",
+            final_epsilon=0.10,
+            eval_rewards=[-5000.0, -5010.0, -4995.0, -5002.0],
+            bankruptcy_rates=[0.60, 0.50, 0.40, 0.30],
+            invalid_action_rate=0.03,
+        )
+
+        decision = autopilot.analyze_run("run_br_improve")
+        assert decision["action"] == "continue"
+
+    def test_continuing_on_bankruptcy_improvement_has_next_payload(self, runs_dir):
+        import services.training_autopilot as autopilot
+
+        _make_run(
+            runs_dir, "run_br_improve",
+            final_epsilon=0.10,
+            eval_rewards=[-5000.0, -5010.0, -4995.0, -5002.0],
+            bankruptcy_rates=[0.60, 0.50, 0.40, 0.30],
+            invalid_action_rate=0.03,
+        )
+
+        decision = autopilot.analyze_run("run_br_improve")
+        assert decision["next_payload"] is not None
+
+    def test_reason_mentions_bankruptcy_improvement(self, runs_dir):
+        import services.training_autopilot as autopilot
+
+        _make_run(
+            runs_dir, "run_br_improve",
+            final_epsilon=0.10,
+            eval_rewards=[-5000.0, -5010.0, -4995.0, -5002.0],
+            bankruptcy_rates=[0.60, 0.50, 0.40, 0.30],
+            invalid_action_rate=0.03,
+        )
+
+        decision = autopilot.analyze_run("run_br_improve")
+        assert "bankruptcy" in decision["reason"].lower()
+
+    def test_small_bankruptcy_improvement_below_threshold_still_stops(self, runs_dir):
+        """A 3pp drop (< 5pp threshold) must NOT override the plateau stop."""
+        import services.training_autopilot as autopilot
+
+        # Bankruptcy drops from 33% to 30% — only 3pp
+        _make_run(
+            runs_dir, "run_br_small",
+            final_epsilon=0.10,
+            eval_rewards=[-5000.0, -5010.0, -4995.0, -5002.0],
+            bankruptcy_rates=[0.33, 0.32, 0.31, 0.30],
+            invalid_action_rate=0.03,
+        )
+
+        decision = autopilot.analyze_run("run_br_small")
+        assert decision["action"] == "stop"
+
+    def test_bankruptcy_worsening_does_not_override(self, runs_dir):
+        """Bankruptcy going up must not trigger the improving override."""
+        import services.training_autopilot as autopilot
+
+        _make_run(
+            runs_dir, "run_br_worse",
+            final_epsilon=0.10,
+            eval_rewards=[-5000.0, -5010.0, -4995.0, -5002.0],
+            bankruptcy_rates=[0.30, 0.40, 0.50, 0.60],
+            invalid_action_rate=0.03,
+        )
+
+        decision = autopilot.analyze_run("run_br_worse")
+        assert decision["action"] == "stop"
+
+    def test_metrics_include_bankruptcy_trend_fields(self, runs_dir):
+        """analyze_run must always include bankruptcy trend metrics."""
+        import services.training_autopilot as autopilot
+
+        _make_run(
+            runs_dir, "run_metrics",
+            final_epsilon=0.10,
+            eval_rewards=[-5000.0, -5010.0, -4995.0, -5002.0],
+            bankruptcy_rates=[0.60, 0.50, 0.40, 0.30],
+        )
+
+        decision = autopilot.analyze_run("run_metrics")
+        assert "bankruptcy_rate_first" in decision["metrics"]
+        assert "bankruptcy_rate_last" in decision["metrics"]
+        assert "bankruptcy_improving" in decision["metrics"]
+        assert decision["metrics"]["bankruptcy_improving"] is True

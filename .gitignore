@@ -2,6 +2,20 @@
 *.npy
 .venv/
 
+# Local AI/editor tooling
+.claude/
+.codex/
+.cursor/
+.windsurf/
+.continue/
+.agents/
+.obsidian/
+
+# Generated AI/tool outputs
+graphify-out/
+dropletruns/
+runs/
+
 # Python bytecode
 __pycache__/
 *.pyc

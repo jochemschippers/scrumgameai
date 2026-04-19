@@ -4,8 +4,6 @@ from dataclasses import dataclass
 import random
 from typing import Any
 
-import pandas as pd
-
 from deployment_profiles import choose_profile_action
 from dqn_agent import encode_state
 from scrum_game_env import ScrumGameEnv
@@ -188,6 +186,7 @@ def run_full_auto_match(match_state) -> dict[str, Any]:
 
 def build_standings_dataframe(match_state) -> pd.DataFrame:
     """Create a scoreboard for the current match state."""
+    import pandas as pd
     rows = []
     for seat in match_state["seats"]:
         rows.append(
@@ -212,6 +211,7 @@ def build_standings_dataframe(match_state) -> pd.DataFrame:
 
 def build_match_log_dataframe(match_state) -> pd.DataFrame:
     """Create a long-form turn log for all seats."""
+    import pandas as pd
     rows = []
     for seat in match_state["seats"]:
         rows.extend(seat["steps"])

@@ -154,6 +154,20 @@ def run_job(job_id: int) -> int:
             except Exception as autopilot_error:
                 with stdout_log_path.open("ab") as log_handle:
                     log_handle.write(f"\n[autopilot] Error during autopilot cycle: {autopilot_error}\n".encode())
+        else:
+            # Manual (non-autopilot) training job — auto-queue a robustness evaluation
+            # so the user gets immediate feedback without having to trigger it manually.
+            best_pth = Path(job["run_dir"]) / "checkpoints" / "best_scrum_model.pth"
+            if best_pth.exists():
+                try:
+                    from jobs.queue_manager import enqueue_evaluation_job
+                    enqueue_evaluation_job({
+                        "job_type": "robustness",
+                        "run_dir": str(Path(job["run_dir"]).resolve()),
+                    })
+                except Exception as eval_error:
+                    with stdout_log_path.open("ab") as log_handle:
+                        log_handle.write(f"\n[auto-eval] Could not queue robustness job: {eval_error}\n".encode())
 
     # Hand off immediately to the next queued job once this worker has
     # persisted its terminal state.

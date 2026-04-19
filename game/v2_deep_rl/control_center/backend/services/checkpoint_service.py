@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .app_paths import (
     CURRENT_CHECKPOINT_DIR,
+    DROPLET_RUNS_DIR,
     PLAYABLE_MODEL_V1_DIR,
     REFERENCE_V1_DIR,
     REPO_ROOT,
@@ -59,6 +60,8 @@ def _source_label(source_type: str, source_run: str | None) -> str:
         return "reference v1"
     if source_type == "playable_model_v1":
         return "playableModelV1"
+    if source_type == "droplet_runs":
+        return "droplet runs"
     return source_type
 
 
@@ -92,6 +95,10 @@ def _checkpoint_catalog_paths() -> list[tuple[Path, str, str | None]]:
                 continue
             for checkpoint_path in sorted(checkpoint_dir.glob("*.pth")):
                 catalog.append((checkpoint_path, "run", run_dir.name))
+
+    if DROPLET_RUNS_DIR.exists():
+        for checkpoint_path in sorted(DROPLET_RUNS_DIR.glob("*.pth")):
+            catalog.append((checkpoint_path, "droplet_runs", None))
 
     return catalog
 
