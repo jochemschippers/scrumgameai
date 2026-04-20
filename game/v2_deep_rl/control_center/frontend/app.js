@@ -41,9 +41,15 @@ const state = {
   autopilotStopRequested: false,
   campaigns: [],
   activeCampaignId: null,
+  playDiceBox: null,
+  playDiceBoxReady: false,
+  playDiceBoxInitPromise: null,
   runRating: null,
   messageTimer: null,
 };
+
+const DICE_BOX_MODULE_URL = "https://unpkg.com/@3d-dice/dice-box@1.1.3/dist/dice-box.es.min.js";
+const DICE_BOX_ASSET_PATH = "https://unpkg.com/@3d-dice/dice-box@1.1.3/assets/";
 
 const DEFAULT_GAME_CONFIG = {
   schema_version: "1.0",
@@ -2399,6 +2405,99 @@ function latestPlayTurn() {
   return rows.length ? rows[rows.length - 1] : null;
 }
 
+function showPlayDiceOverlay() {
+  $("playDiceOverlay")?.classList.remove("hidden");
+}
+
+function hidePlayDiceOverlay() {
+  $("playDiceOverlay")?.classList.add("hidden");
+}
+
+function diceNotationFromTurnDice(dice) {
+  const firstScrum = dice?.daily_scrums?.[0];
+  const diceCount = Number(firstScrum?.dice_count || 0);
+  const diceSides = Number(firstScrum?.dice_sides || 0);
+  const scrumCount = Number(dice?.daily_scrums?.length || 0);
+  if (!diceCount || !diceSides || !scrumCount) return "1d6";
+  return `${diceCount * scrumCount}d${diceSides}`;
+}
+
+async function ensurePlayDiceBox() {
+  if (state.playDiceBoxReady && state.playDiceBox) return state.playDiceBox;
+  if (state.playDiceBoxInitPromise) return state.playDiceBoxInitPromise;
+
+  state.playDiceBoxInitPromise = (async () => {
+    const host = $("playDiceBox");
+    if (!host) return null;
+    const module = await import(DICE_BOX_MODULE_URL);
+    const DiceBox = module.default;
+    const box = new DiceBox("#playDiceBox", {
+      assetPath: DICE_BOX_ASSET_PATH,
+      theme: "default",
+      scale: 6,
+      gravity: 1,
+      mass: 1,
+      friction: 0.8,
+      restitution: 0.25,
+    });
+    await box.init();
+    state.playDiceBox = box;
+    state.playDiceBoxReady = true;
+    return box;
+  })().catch((error) => {
+    state.playDiceBoxReady = false;
+    state.playDiceBox = null;
+    state.playDiceBoxInitPromise = null;
+    console.warn("3D dice failed to initialize; using fallback dice.", error);
+    return null;
+  });
+
+  return state.playDiceBoxInitPromise;
+}
+
+function renderFallbackDice(dice) {
+  const host = $("playDiceBox");
+  if (!host) return;
+  const firstScrum = dice?.daily_scrums?.[0];
+  const sides = Number(firstScrum?.dice_sides || 6);
+  const rolls = (dice?.daily_scrums || [])
+    .flatMap((scrum) => scrum.rolls || [])
+    .slice(0, 12);
+  host.innerHTML = `
+    <div class="fallback-dice-stage">
+      ${rolls.map((roll, index) => `
+        <div class="fallback-die" style="animation-delay:${index * 35}ms">
+          ${escapeHtml(String(Math.max(1, Math.min(Number(roll || 1), sides))))}
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+async function rollPlayDice(dice) {
+  showPlayDiceOverlay();
+  const slot = $("playDiceCard")?.querySelector(".dice-animation-slot");
+  slot?.classList.add("is-rolling");
+  const boxHost = $("playDiceBox");
+  if (boxHost) {
+    boxHost.innerHTML = `<div class="fallback-dice-stage"><div class="fallback-die">?</div></div>`;
+  }
+
+  const diceBox = await ensurePlayDiceBox();
+  if (diceBox) {
+    try {
+      await diceBox.roll(diceNotationFromTurnDice(dice));
+      slot?.classList.remove("is-rolling");
+      return;
+    } catch (error) {
+      console.warn("3D dice roll failed; using fallback dice.", error);
+    }
+  }
+
+  renderFallbackDice(dice);
+  window.setTimeout(() => slot?.classList.remove("is-rolling"), 650);
+}
+
 function renderPlayDicePreview(humanSeat, actionId) {
   const host = $("playDiceCard");
   if (!host || !humanSeat) return;
@@ -2430,7 +2529,7 @@ function renderPlayDiceZone() {
   const variance = Number(dice.variance || 0);
   const payout = Number(dice.payout || 0);
   host.innerHTML = `
-    <div class="dice-animation-slot">Dice animation slot</div>
+    <div class="dice-animation-slot">3D dice stage</div>
     <div class="dice-summary">
       <div class="dice-stat"><span>Rolling</span><strong>${escapeHtml(dice.dice_label)}</strong></div>
       <div class="dice-stat"><span>Total / Target</span><strong>${dice.total_rolled} / ${dice.target_total}</strong></div>
@@ -2456,11 +2555,18 @@ function renderPlayDiceZone() {
 function renderPlaySession() {
   const card = $("playSessionCard");
   const humanWrap = $("playHumanActionWrap");
+  const setupForm = $("playSessionForm");
+  const addSeatButton = $("addPlaySeatButton");
+  const actionPanel = document.querySelector(".play-action-panel");
   renderPlayTopbar();
   if (!state.playSession) {
-    card.className = "play-session-summary-card";
-    card.textContent = "Configure seats and start a session.";
-    humanWrap.className = "form-stack hidden";
+    actionPanel?.classList.remove("is-playing");
+    actionPanel?.classList.add("is-setup");
+    setupForm?.classList.remove("hidden");
+    if (addSeatButton) addSeatButton.classList.remove("hidden");
+    card.className = "play-session-summary hidden";
+    card.textContent = "";
+    humanWrap.className = "play-action-wrap hidden";
     renderPlayBoard();
     renderPlayStandings();
     renderPlayTurnLog();
@@ -2468,7 +2574,11 @@ function renderPlaySession() {
     return;
   }
 
-  card.className = "play-session-summary-card";
+  actionPanel?.classList.remove("is-setup");
+  actionPanel?.classList.add("is-playing");
+  setupForm?.classList.add("hidden");
+  if (addSeatButton) addSeatButton.classList.add("hidden");
+  card.className = "play-session-summary play-session-summary-card";
   card.innerHTML = `
     <div class="play-score-meta">
       <span class="tag">${state.playSession.done ? "complete" : "in progress"}</span>
@@ -2483,7 +2593,7 @@ function renderPlaySession() {
   renderPlayTurnLog();
   renderPlayDiceZone();
   if (!humanSeat) {
-    humanWrap.className = "form-stack hidden";
+    humanWrap.className = "play-action-wrap hidden";
     renderPlayActionButtons(null);
     return;
   }
@@ -3199,6 +3309,7 @@ async function advancePlayRound(humanAction = null) {
     showMessage("Start a play session first.", "error");
     return;
   }
+  showPlayDiceOverlay();
   $("playDiceCard")?.querySelector(".dice-animation-slot")?.classList.add("is-rolling");
   const humanSeat = state.playSession.seats?.find((seat) => seat.controller.type === "human" && !seat.done);
   const payload = humanAction === null
@@ -3209,6 +3320,10 @@ async function advancePlayRound(humanAction = null) {
     body: JSON.stringify(payload),
   });
   renderPlaySession();
+  const latestDice = latestPlayTurn()?.dice;
+  if (latestDice) {
+    rollPlayDice(latestDice).catch(() => {});
+  }
 }
 
 async function runDirectEvaluation(event) {
@@ -3555,6 +3670,8 @@ function attachEvents() {
       showMessage(error.message, "error");
     }
   });
+
+  $("closePlayDiceOverlayButton").addEventListener("click", hidePlayDiceOverlay);
 
   $("submitHumanActionButton").addEventListener("click", async () => {
     try {

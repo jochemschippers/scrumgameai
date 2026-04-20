@@ -921,7 +921,7 @@ textarea {
 
 .play-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 25%) minmax(420px, 50%) minmax(240px, 25%);
+  grid-template-columns: 300px minmax(0, 1fr) 350px;
   gap: 10px;
   min-height: 0;
   overflow: hidden;
@@ -933,9 +933,12 @@ textarea {
   min-height: 0;
 }
 
-.play-left,
-.play-right {
+.play-left {
   grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.play-right {
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .play-card,
@@ -954,10 +957,15 @@ textarea {
   padding: 10px;
 }
 
+.play-action-panel.is-playing {
+  gap: 12px;
+}
+
 .play-board-panel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   padding: 10px;
+  position: relative;
 }
 
 .play-card-head {
@@ -1153,18 +1161,26 @@ textarea {
 
 .play-session-setup {
   display: grid;
-  gap: 8px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
+  padding: 6px;
 }
 
 .play-seat-editor {
   display: grid;
-  gap: 8px;
-  max-height: 16vh;
+  align-content: start;
+  gap: 12px;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .play-seat-row {
-  padding: 8px;
+  padding: 12px;
   background: rgba(255, 255, 255, 0.045);
 }
 
@@ -1178,11 +1194,18 @@ textarea {
   border-color: var(--play-border);
   background: #0f171e;
   color: var(--play-text);
+  min-height: 44px;
+  padding: 10px 12px;
 }
 
 .play-session-summary {
   margin-top: 8px;
   min-height: 0;
+}
+
+.play-action-panel.is-playing .play-session-summary {
+  flex: 0 0 auto;
+  margin-top: 0;
 }
 
 .play-session-summary-card {
@@ -1192,8 +1215,21 @@ textarea {
 
 .play-action-wrap {
   display: grid;
-  gap: 8px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 14px;
+  flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
+  padding: 6px;
+}
+
+.play-action-panel.is-setup .play-session-summary,
+.play-action-panel.is-setup .play-action-wrap,
+.play-action-panel.is-playing .play-session-setup,
+.play-session-setup.hidden,
+.play-session-summary.hidden,
+.play-action-wrap.hidden {
+  display: none;
 }
 
 .play-action-select-field {
@@ -1206,17 +1242,18 @@ textarea {
 
 .play-action-grid {
   display: grid;
+  align-content: start;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
+  gap: 10px;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .play-action-button {
-  min-height: 42px;
-  padding: 7px;
+  min-height: 56px;
+  padding: 12px;
   border: 1px solid var(--play-border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: rgba(99, 179, 255, 0.11);
   color: var(--play-text);
   cursor: pointer;
@@ -1237,7 +1274,7 @@ textarea {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 12px;
+  font-size: 14px;
   white-space: nowrap;
 }
 
@@ -1246,20 +1283,60 @@ textarea {
   font-size: 10px;
 }
 
+.play-dice-overlay {
+  position: absolute;
+  inset: 48px 10px 10px;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  border-radius: 12px;
+  background: rgba(4, 8, 12, 0.36);
+  backdrop-filter: blur(5px);
+}
+
+.play-dice-overlay.hidden {
+  display: none;
+}
+
+.play-dice-modal {
+  width: min(680px, 94%);
+  max-height: min(620px, 94%);
+  display: grid;
+  grid-template-rows: auto minmax(220px, 1fr) auto;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(216, 238, 252, 0.24);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(24, 38, 49, 0.78), rgba(9, 15, 21, 0.72));
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.46);
+  backdrop-filter: blur(9px);
+}
+
+.play-dice-box {
+  min-height: 260px;
+  overflow: hidden;
+  border: 1px solid rgba(142, 162, 173, 0.24);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(99, 179, 255, 0.18), transparent 42%),
+    rgba(0, 0, 0, 0.28);
+}
+
 .play-dice-card {
   display: grid;
-  gap: 9px;
+  gap: 10px;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
   color: var(--play-muted);
 }
 
 .dice-animation-slot {
   display: grid;
   place-items: center;
-  min-height: 54px;
+  min-height: 64px;
   border: 1px dashed rgba(245, 184, 73, 0.55);
-  border-radius: 10px;
+  border-radius: 12px;
   background: rgba(245, 184, 73, 0.08);
   color: #ffe2a7;
   font-size: 11px;
@@ -1271,10 +1348,44 @@ textarea {
   animation: diceShake 0.42s linear infinite;
 }
 
+.fallback-dice-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  width: 100%;
+  height: 100%;
+  min-height: 260px;
+  perspective: 900px;
+}
+
+.fallback-die {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(255, 255, 255, 0.68);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f9fbff, #9bb4c8);
+  color: #101820;
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 24px;
+  font-weight: 900;
+  box-shadow: 0 14px 24px rgba(0, 0, 0, 0.36);
+  transform-style: preserve-3d;
+  animation: fallbackDieRoll 0.9s cubic-bezier(.2,.8,.2,1);
+}
+
 @keyframes diceShake {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-2px) rotate(-1deg); }
   75% { transform: translateX(2px) rotate(1deg); }
+}
+
+@keyframes fallbackDieRoll {
+  0% { transform: translate3d(-28px, -18px, 0) rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+  55% { transform: translate3d(12px, 12px, 80px) rotateX(560deg) rotateY(420deg) rotateZ(160deg); }
+  100% { transform: translate3d(0, 0, 0) rotateX(720deg) rotateY(540deg) rotateZ(360deg); }
 }
 
 .dice-summary {

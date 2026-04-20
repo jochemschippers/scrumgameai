@@ -623,6 +623,19 @@
               <span id="playBoardStatus" class="meta-count">No session</span>
             </div>
             <div id="playBoardCard" class="empty-state">Start a shared session to see the board.</div>
+            <div id="playDiceOverlay" class="play-dice-overlay hidden" aria-live="polite">
+              <div class="play-dice-modal">
+                <div class="play-card-head">
+                  <h3>Daily Scrum Roll</h3>
+                  <button id="closePlayDiceOverlayButton" class="button secondary" type="button">Close</button>
+                </div>
+                <div id="playDiceBox" class="play-dice-box"></div>
+                <div id="playDiceCard" class="play-dice-card">
+                  <div class="dice-animation-slot">3D dice loading slot</div>
+                  <p>Submit an action to roll the Daily Scrums.</p>
+                </div>
+              </div>
+            </div>
           </main>
 
           <aside class="play-column play-right">
@@ -647,17 +660,6 @@
                 </label>
                 <div id="playActionButtonGrid" class="play-action-grid"></div>
                 <button id="submitHumanActionButton" class="button primary" type="button">Submit Action</button>
-              </div>
-            </section>
-
-            <section class="play-card play-dice-panel">
-              <div class="play-card-head">
-                <h3>Dice Zone</h3>
-                <span class="meta-count">Daily scrums</span>
-              </div>
-              <div id="playDiceCard" class="play-dice-card">
-                <div class="dice-animation-slot">Dice animation slot</div>
-                <p>Select an action to reveal the daily scrum math.</p>
               </div>
             </section>
           </aside>
