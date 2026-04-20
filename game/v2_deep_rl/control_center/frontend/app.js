@@ -1,7 +1,7 @@
 const state = {
   apiBaseUrl: window.location.protocol.startsWith("http")
     ? window.location.origin
-    : "http://127.0.0.1:8000",
+    : "http://188.166.52.37:8000",
   health: null,
   gameConfigs: [],
   trainingConfigs: [],
@@ -3431,8 +3431,9 @@ function exportComparisonCsv() {
 }
 
 const AUTO_CONNECT_URLS = [
-  "http://127.0.0.1:8000",
+  "http://188.166.52.37:8000",
   "http://188.166.52.37",
+  "http://127.0.0.1:8000",
 ];
 
 function _showConnectedUi() {
