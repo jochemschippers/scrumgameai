@@ -577,6 +577,14 @@ def run_autopilot(run_id: str, dry_run: bool = False, context: dict | None = Non
                 except Exception:
                     pass
         _write_decision_record(run_dir, decision)
+        if not dry_run and decision["action"] in {"stop", "stop_regression"}:
+            try:
+                from services.campaign_service import get_campaign_for_run, on_run_stopped
+
+                if get_campaign_for_run(run_id):
+                    on_run_stopped(run_id, decision.get("metrics", {}))
+            except Exception:
+                pass
         return decision
 
     # Build versioned run name: keep original name + v2, v3, …

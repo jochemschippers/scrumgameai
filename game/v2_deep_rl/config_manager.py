@@ -675,7 +675,7 @@ def map_prototype_to_config(json_data: dict[str, Any]) -> GameConfig:
             "mandatory_loan_amount": int(basic.get("costs", {}).get("mandatoryLoan", basic.get("mandatoryLoan", 50000))),
             "loan_interest": int(basic.get("costs", {}).get("loanInterest", basic.get("loanInterest", 5000))),
             "penalty_negative": int(basic.get("costs", {}).get("penaltyNeg", basic.get("penaltyNeg", 1000))),
-            "penalty_positive": int(basic.get("costs", {}).get("penaltyPos", basic.get("penaltyPos", 5000))),
+            "penalty_positive": int(basic.get("costs", {}).get("penaltyPos", basic.get("penaltyPos", 1000))),
             "daily_scrums_per_sprint": int(
                 basic.get("scrum", {}).get("dailyScrumsPerSprint", basic.get("dailyScrumsPerSprint", 5))
             ),

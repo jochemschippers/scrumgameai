@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from api.routes_autopilot import router as autopilot_router
+from api.routes_campaigns import router as campaigns_router
 from api.routes_checkpoints import router as checkpoints_router
 from api.routes_configs import router as configs_router
 from api.routes_jobs import router as jobs_router
@@ -33,6 +34,7 @@ app.add_middleware(
 init_db()
 
 app.include_router(autopilot_router)
+app.include_router(campaigns_router)
 app.include_router(configs_router)
 app.include_router(runs_router)
 app.include_router(checkpoints_router)

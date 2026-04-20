@@ -6,7 +6,7 @@ from pathlib import Path
 
 import torch
 
-from checkpoint_utils import load_agent_from_checkpoint
+from checkpoint_utils import load_agent_for_inference
 from scrum_game_env import ScrumGameEnv
 from dqn_agent import encode_state
 
@@ -108,7 +108,7 @@ def resolve_checkpoint_path(run_dir):
 
 def load_agent(checkpoint_path):
     """Initialize the environment and load the saved DDQN policy for inference."""
-    agent, env, metadata = load_agent_from_checkpoint(checkpoint_path)
+    agent, env, metadata = load_agent_for_inference(checkpoint_path)
     return agent, metadata["resolved_game_config"]
 
 

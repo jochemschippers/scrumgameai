@@ -1,3 +1,4 @@
+import math
 import random
 
 
@@ -17,7 +18,14 @@ PROFILE_CONFIGS = {
 }
 
 
-def choose_profile_action(agent, state_vector, profile_name):
+def _available_actions(agent, valid_actions=None):
+    if valid_actions is None:
+        return list(range(agent.num_actions))
+    actions = [int(action) for action in valid_actions]
+    return actions or list(range(agent.num_actions))
+
+
+def choose_profile_action(agent, state_vector, profile_name, valid_actions=None):
     """Choose an action according to one of the deployment profiles."""
     profile_key = profile_name.lower()
     if profile_key not in PROFILE_CONFIGS:
@@ -26,8 +34,17 @@ def choose_profile_action(agent, state_vector, profile_name):
     profile = PROFILE_CONFIGS[profile_key]
     epsilon = profile["epsilon"]
     temperature = profile["temperature"]
+    actions = _available_actions(agent, valid_actions)
 
     if random.random() < epsilon:
-        return random.randint(0, agent.num_actions - 1)
+        return random.choice(actions)
 
-    return agent.choose_action_with_temperature(state_vector, temperature=temperature)
+    q_values = agent.predict_q_values(state_vector)
+
+    if temperature <= 0:
+        return max(actions, key=lambda action: q_values[action])
+
+    scaled = [q_values[action] / temperature for action in actions]
+    max_scaled = max(scaled)
+    weights = [math.exp(value - max_scaled) for value in scaled]
+    return random.choices(actions, weights=weights, k=1)[0]

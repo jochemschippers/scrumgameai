@@ -34,7 +34,7 @@ def test_shared_match_supports_one_to_four_seats():
         ]
 
 
-def test_sprint_completion_is_shared_across_seats():
+def test_sprint_completion_is_private_across_seats():
     config = load_game_config()
     match_state = start_shared_match(
         config,
@@ -46,9 +46,26 @@ def test_sprint_completion_is_shared_across_seats():
 
     play_shared_round(match_state, {"human_actions": {"seat_1": 0}})
 
-    assert match_state["board_state"]["product_next_sprints"][0] == 2
-    assert match_state["seats"][1]["state"]["target_next_sprints"][0] == 2
+    assert match_state["seats"][0]["state"]["target_next_sprints"][0] == 2
+    assert match_state["seats"][1]["state"]["target_next_sprints"][0] == 1
     assert first_seat["state"]["current_money"] != match_state["seats"][1]["state"]["current_money"]
+
+
+def test_incident_draws_once_after_all_seats_act():
+    config = load_game_config()
+    match_state = start_shared_match(
+        config,
+        [HumanController(display_name="Player"), RandomController(display_name="AI")],
+        base_seed=42,
+    )
+    for seat in match_state["seats"]:
+        seat["env"]._play_daily_scrums = lambda _features: {"daily_scrums": [], "net_result": 0}
+
+    play_shared_round(match_state, {"human_actions": {"seat_1": 0}})
+
+    assert len(match_state["turn_log"]) == 2
+    assert len(match_state["round_incidents"]) == 1
+    assert match_state["round_incidents"][0]["round"] == 1
 
 
 def test_human_round_waits_for_human_action():
@@ -81,3 +98,22 @@ def test_ai_only_round_advances_and_standings_render():
     assert len(standings(match_state)) == 2
     assert board_payload(match_state)["products"]
     assert not all_shared_seats_done(match_state)
+
+
+def test_shared_match_rotates_first_actor_each_round():
+    config = load_game_config()
+    match_state = start_shared_match(
+        config,
+        [RandomController(display_name="AI 1"), RandomController(display_name="AI 2")],
+        base_seed=42,
+    )
+
+    play_shared_round(match_state, {})
+    play_shared_round(match_state, {})
+
+    assert [row["seat_id"] for row in match_state["turn_log"][:4]] == [
+        "seat_1",
+        "seat_2",
+        "seat_2",
+        "seat_1",
+    ]

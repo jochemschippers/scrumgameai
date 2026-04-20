@@ -1,0 +1,39 @@
+# CRITICAL UPDATES TO RL ENVIRONMENT SPECIFICATION
+
+## 1. UPDATED ACTION SPACE
+The agent only has TWO possible actions at the start of their turn:
+1. `START_SPRINT`: Continue with the next sprint in `current_product`.
+2. `SWITCH_PRODUCT(target_product)`: Switch to Sprint 1 of a different product.
+   - Cost logic update: Normal switching costs apply, EXCEPT if the agent has just completed Sprint 4 of their current product. In that case, the switch is FREE (cost = 0).
+
+(Note: `TAKE_LOAN` is removed from the Action Space. Loans are an automatic environment trigger).
+
+## 2. UPDATED STEP FUNCTION: REWARD & PAYOUT MATH (PHASE 2)
+The math for evaluating the 5 Daily Scrums is strictly defined by the Net Result. 
+Calculate `variance` = `total_rolled` - 60 (where 60 is the target of 12 * 5 days).
+
+### Situation A: Net Zero (variance == 0)
+- The sprint is successful.
+- `step_reward` = `value_rings` * 5000.
+- `balance` += `step_reward`.
+
+### Situation B: Net Negative (variance < 0, e.g., -4)
+- The sprint is successful, but the agent pays a penalty for poor planning.
+- Payout = `value_rings` * 5000.
+- Penalty = abs(variance) * 1000.
+- `step_reward` = Payout - Penalty.
+- `balance` += `step_reward`.
+
+### Situation C: Net Positive (variance > 0, e.g., +2)
+- The sprint FAILS. No ring value is collected.
+- Penalty = variance * 1000.
+- `step_reward` = -Penalty.
+- `balance` += `step_reward`.
+
+## 3. UPDATED STEP FUNCTION: MANDATORY LOAN TRIGGER (ENVIRONMENT REACTION)
+At any point during the step execution (after paying switching costs or sprint penalties), if `balance` drops below 0:
+- The environment automatically triggers a Mandatory Loan.
+- `balance` += 50,000.
+- Set `active_loan` = True.
+- A 5,000 euro interest penalty is deducted automatically at the start of all future turns for this agent.
+- Note: Voluntary loans are strictly prohibited. The agent cannot trigger this manually.

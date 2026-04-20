@@ -91,7 +91,12 @@ class ModelController(Controller):
 
     def choose_action(self, state, env) -> int:
         state_vector = encode_state(state, env)
-        return choose_profile_action(self.agent, state_vector, profile_name=self.profile_name)
+        return choose_profile_action(
+            self.agent,
+            state_vector,
+            profile_name=self.profile_name,
+            valid_actions=valid_actions_for_state(env, state),
+        )
 
 
 def create_match_seat(controller: Controller, game_config, seed: int) -> dict[str, Any]:

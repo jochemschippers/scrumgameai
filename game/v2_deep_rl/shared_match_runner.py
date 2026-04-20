@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import random
 from typing import Any
 
 from match_runner import Controller, valid_actions_for_state
@@ -9,7 +10,6 @@ from scrum_game_env import ScrumGameEnv
 
 def _copy_board_from_env(env: ScrumGameEnv) -> dict[str, Any]:
     return {
-        "product_next_sprints": list(env.product_next_sprints),
         "refinement_feature_deltas": deepcopy(env.refinement_feature_deltas),
         "incident_value_deltas": deepcopy(env.incident_value_deltas),
         "incident_value_overrides": deepcopy(env.incident_value_overrides),
@@ -22,7 +22,6 @@ def _copy_board_from_env(env: ScrumGameEnv) -> dict[str, Any]:
 
 
 def _sync_board_into_env(env: ScrumGameEnv, board_state: dict[str, Any]) -> None:
-    env.product_next_sprints = list(board_state["product_next_sprints"])
     env.refinement_feature_deltas = deepcopy(board_state["refinement_feature_deltas"])
     env.incident_value_deltas = deepcopy(board_state["incident_value_deltas"])
     env.incident_value_overrides = deepcopy(board_state["incident_value_overrides"])
@@ -40,6 +39,62 @@ def _capture_board_after_turn(env: ScrumGameEnv, board_state: dict[str, Any]) ->
     # mutates draw/discard piles.
     updated["incident_deck"] = env.incident_deck or board_state.get("incident_deck")
     return updated
+
+
+def _step_without_incident(env: ScrumGameEnv, action: int):
+    incidents_active = env.incidents_active
+    env.incidents_active = False
+    try:
+        return env.step(action)
+    finally:
+        env.incidents_active = incidents_active
+
+
+def _apply_round_incident(match_state: dict[str, Any]) -> None:
+    """Resolve the single Wait/Incident phase after all seats act."""
+    seats = match_state["seats"]
+    if not seats:
+        return
+
+    env = seats[0]["env"]
+    private_progress = list(env.product_next_sprints)
+    private_current_product = env.current_product
+    _sync_board_into_env(env, match_state["board_state"])
+
+    try:
+        # Incidents mutate the shared board, not one player's private progress.
+        # Treat all configured cells as globally future board cells.
+        env.product_next_sprints = [1] * env.products_count
+        env.current_product = 1
+        if (
+            env.incidents_active
+            and env.incident_deck is not None
+            and random.random() <= env.incident_draw_probability
+        ):
+            incident_card = env.incident_deck.draw()
+            incident_card.apply_effect(env)
+            env.incident_active = 1
+            env.current_incident_id = incident_card.card_id
+            env.current_incident_name = incident_card.name
+            env.current_incident_scope = env._encode_incident_scope(incident_card)
+            match_state["round_incidents"].append(
+                {
+                    "round": match_state["round_number"],
+                    "id": incident_card.card_id,
+                    "name": incident_card.name,
+                    "description": incident_card.description,
+                }
+            )
+        else:
+            env.incident_active = 0
+            env.current_incident_id = 0
+            env.current_incident_name = "None"
+            env.current_incident_scope = 0.0
+        match_state["board_state"] = _capture_board_after_turn(env, match_state["board_state"])
+    finally:
+        env.product_next_sprints = private_progress
+        env.current_product = private_current_product
+        _sync_board_into_env(env, match_state["board_state"])
 
 
 def _create_shared_seat(
@@ -88,10 +143,20 @@ def start_shared_match(game_config, controllers: list[Controller], base_seed: in
         "board_state": board_state,
         "seats": seats,
         "turn_log": [],
+        "round_incidents": [],
     }
 
 
 def _record_shared_step(match_state: dict[str, Any], seat: dict[str, Any], action: int, reward, done, info) -> None:
+    daily_scrums = info.get("daily_scrums", []) or []
+    total_rolled = sum(int(scrum.get("roll_total", 0)) for scrum in daily_scrums)
+    target_total = 0
+    if daily_scrums:
+        target_total = len(daily_scrums) * int(seat["env"].daily_scrum_target)
+    variance = info.get("net_result", 0)
+    planning_penalty = abs(int(variance or 0)) * (
+        seat["env"].penalty_negative if int(variance or 0) <= 0 else seat["env"].penalty_positive
+    )
     row = {
         "round": match_state["round_number"],
         "seat_id": seat["id"],
@@ -107,6 +172,22 @@ def _record_shared_step(match_state: dict[str, Any], seat: dict[str, Any], actio
         "terminal": info.get("terminal_reason", ""),
         "incident": info.get("incident_card_name", "None"),
         "refinement": info.get("refinement_effect", "none"),
+        "dice": {
+            "features_required": info.get("features_required"),
+            "dice_label": (
+                f"{daily_scrums[0].get('dice_count')}x D{daily_scrums[0].get('dice_sides')}"
+                if daily_scrums else "-"
+            ),
+            "daily_scrums": daily_scrums,
+            "total_rolled": total_rolled,
+            "target_total": target_total,
+            "variance": variance,
+            "planning_penalty": planning_penalty,
+            "payout": info.get("payout", 0),
+            "switch_cost_paid": info.get("switch_cost_paid", 0),
+            "continue_cost_paid": info.get("continue_cost_paid", 0),
+            "interest_paid": info.get("interest_paid", 0),
+        },
     }
     seat["steps"].append(row)
     match_state["turn_log"].append(row)
@@ -126,8 +207,16 @@ def _human_actions_by_seat(payload: dict[str, Any] | None) -> dict[str, int]:
     return {}
 
 
+def _seats_in_round_order(match_state: dict[str, Any]) -> list[dict[str, Any]]:
+    seats = match_state["seats"]
+    if not seats:
+        return []
+    offset = (int(match_state["round_number"]) - 1) % len(seats)
+    return seats[offset:] + seats[:offset]
+
+
 def play_shared_round(match_state: dict[str, Any], payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Advance every active seat by one turn in seat order."""
+    """Advance every active seat by one turn, rotating the first actor each round."""
     human_actions = _human_actions_by_seat(payload)
     waiting_humans = [
         seat for seat in match_state["seats"]
@@ -137,7 +226,7 @@ def play_shared_round(match_state: dict[str, Any], payload: dict[str, Any] | Non
     if missing_humans:
         raise ValueError(f"Human action required for {', '.join(missing_humans)}.")
 
-    for seat in match_state["seats"]:
+    for seat in _seats_in_round_order(match_state):
         if seat["done"]:
             continue
 
@@ -151,11 +240,14 @@ def play_shared_round(match_state: dict[str, Any], payload: dict[str, Any] | Non
         else:
             action = controller.choose_action(state, env)
 
-        next_state, reward, done, info = env.step(action)
+        next_state, reward, done, info = _step_without_incident(env, action)
         match_state["board_state"] = _capture_board_after_turn(env, match_state["board_state"])
         _sync_board_into_env(env, match_state["board_state"])
         seat["state"] = next_state
         _record_shared_step(match_state, seat, action, reward, done, info)
+
+    if any(row["round"] == match_state["round_number"] for row in match_state["turn_log"]):
+        _apply_round_incident(match_state)
 
     for seat in match_state["seats"]:
         if not seat["done"]:
@@ -192,9 +284,17 @@ def standings(match_state: dict[str, Any]) -> list[dict[str, Any]]:
 def board_payload(match_state: dict[str, Any]) -> dict[str, Any]:
     env = match_state["seats"][0]["env"] if match_state["seats"] else ScrumGameEnv(game_config=match_state["game_config"])
     _sync_board_into_env(env, match_state["board_state"])
+    seat_positions = {}
+    for seat in match_state["seats"]:
+        state = seat["state"]
+        if seat["done"]:
+            continue
+        product_id = int(state["current_product"])
+        sprint_id = int(state["current_sprint"])
+        seat_positions.setdefault((product_id, sprint_id), []).append(seat["id"])
+
     products = []
     for product_id, product_name in enumerate(env.product_names, start=1):
-        next_sprint = env.product_next_sprints[product_id - 1]
         cells = []
         for sprint_id in range(1, env.sprints_per_product + 1):
             product_index = product_id - 1
@@ -205,13 +305,18 @@ def board_payload(match_state: dict[str, Any]) -> dict[str, Any]:
             sprint_value = override if override is not None else base_value + incident_delta
             refinement_delta = env.refinement_feature_deltas[product_index][sprint_index]
             features_required = max(1, env.board_features[product_index][sprint_index] + refinement_delta)
+            completed_for_all = bool(match_state["seats"]) and all(
+                seat["done"] or int(seat["state"]["target_next_sprints"][product_id - 1]) > sprint_id
+                for seat in match_state["seats"]
+            )
             cells.append(
                 {
                     "sprint": sprint_id,
-                    "completed": sprint_id < next_sprint,
-                    "active": sprint_id == next_sprint and next_sprint <= env.sprints_per_product,
+                    "completed": completed_for_all,
+                    "active": bool(seat_positions.get((product_id, sprint_id))),
+                    "active_seats": seat_positions.get((product_id, sprint_id), []),
                     "base_value": base_value,
-                    "sprint_value": sprint_value,
+                    "sprint_value": max(0, sprint_value),
                     "base_features": env.board_features[product_index][sprint_index],
                     "features_required": features_required,
                     "incident_delta": incident_delta,
@@ -223,8 +328,8 @@ def board_payload(match_state: dict[str, Any]) -> dict[str, Any]:
             {
                 "product_id": product_id,
                 "name": product_name,
-                "next_sprint": next_sprint,
-                "completed": next_sprint > env.sprints_per_product,
+                "next_sprint": None,
+                "completed": False,
                 "cells": cells,
             }
         )
@@ -235,6 +340,7 @@ def board_payload(match_state: dict[str, Any]) -> dict[str, Any]:
             "id": match_state["board_state"].get("current_incident_id", 0),
             "name": match_state["board_state"].get("current_incident_name", "None"),
         },
+        "round_incidents": list(match_state.get("round_incidents", [])),
     }
 
 
