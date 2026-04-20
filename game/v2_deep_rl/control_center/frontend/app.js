@@ -2899,7 +2899,7 @@ async function queueTrainingJob(event) {
   if (mode === "resume" || mode === "fine_tune") {
     payload.resume_from = activeCheckpoint?.path || "";
     payload.resume_mode = mode === "resume" ? "strict" : "fine-tune";
-    payload.resume_episodes_mode = "absolute";
+    payload.resume_episodes_mode = "incremental";
   }
 
   // If Logic Autopilot is enabled, mark this job so autopilot triggers after it completes.
