@@ -2265,6 +2265,27 @@ function renderPlayBoard() {
   `;
 }
 
+function renderPlayTopbar() {
+  const sessionCode = $("playSessionCode");
+  const roundCode = $("playRoundCode");
+  const incidentBanner = $("playIncidentBanner");
+  if (!sessionCode || !roundCode || !incidentBanner) return;
+
+  const session = state.playSession;
+  sessionCode.textContent = session?.id || "No session";
+  roundCode.textContent = session ? String(session.round_number) : "-";
+
+  const incident = session?.board?.incident;
+  if (incident?.active) {
+    incidentBanner.classList.add("is-active");
+    incidentBanner.textContent = `Incident: ${incident.name || "Unknown"}`;
+  } else {
+    incidentBanner.classList.remove("is-active");
+    const latest = session?.round_incidents?.slice(-1)[0];
+    incidentBanner.textContent = latest ? `Last incident: ${latest.name}` : "No active incident";
+  }
+}
+
 function renderPlayStandings() {
   const host = $("playStandingsCard");
   if (!host) return;
@@ -2274,17 +2295,27 @@ function renderPlayStandings() {
     host.textContent = "Standings will appear after a session starts.";
     return;
   }
-  renderTable(
-    "playStandingsCard",
-    [
-      { key: "controller", label: "Seat" },
-      { key: "ending_money", label: "Bank" },
-      { key: "total_reward", label: "Reward" },
-      { key: "turns_played", label: "Turns" },
-      { key: "done", label: "Done" },
-    ],
-    rows
-  );
+  const seatsById = Object.fromEntries((state.playSession?.seats || []).map((seat) => [seat.id, seat]));
+  host.className = "play-standings-list";
+  host.innerHTML = rows.map((row) => {
+    const seat = seatsById[row.seat_id];
+    const product = productNameById(seat?.state?.current_product);
+    const bank = Number(row.ending_money || 0);
+    return `
+      <article class="play-score-card">
+        <div class="play-score-top">
+          <span class="play-score-name">${escapeHtml(row.controller)}</span>
+          <strong class="play-bank ${bank < 0 ? "is-negative" : ""}">${formatCurrency(bank)}</strong>
+        </div>
+        <div class="play-score-meta">
+          <span class="tag">${escapeHtml(row.type)}</span>
+          <span class="tag">${escapeHtml(product)} S${escapeHtml(String(seat?.state?.current_sprint ?? "-"))}</span>
+          <span class="tag ${seat?.state?.loan_active ? "bad" : "good"}">${seat?.state?.loan_active ? "loan" : "cash"}</span>
+          <span class="tag ${row.done ? "bad" : "good"}">${row.done ? "done" : "active"}</span>
+        </div>
+      </article>
+    `;
+  }).join("");
 }
 
 function renderPlayTurnLog() {
@@ -2296,55 +2327,153 @@ function renderPlayTurnLog() {
     host.textContent = "Turns will appear after the first round.";
     return;
   }
-  renderTable(
-    "playTurnLogCard",
-    [
-      { key: "round", label: "Round" },
-      { key: "controller", label: "Seat" },
-      { key: "action", label: "Action" },
-      { key: "outcome", label: "Result" },
-      { key: "reward", label: "Reward" },
-      { key: "bank", label: "Bank" },
-    ],
-    rows.slice(-20).reverse()
-  );
+  host.className = "play-turn-log-list";
+  host.innerHTML = rows.slice(-24).reverse().map((row) => `
+    <article class="play-log-row">
+      <strong>R${escapeHtml(String(row.round))} - ${escapeHtml(row.controller)} - ${escapeHtml(row.action)}</strong>
+      <div class="play-log-meta">
+        <span class="tag ${row.outcome === "Success" ? "good" : row.outcome === "Invalid" ? "bad" : ""}">${escapeHtml(row.outcome)}</span>
+        <span class="tag">bank ${formatCurrency(row.bank)}</span>
+        <span class="tag ${Number(row.reward) >= 0 ? "good" : "bad"}">reward ${formatCurrency(row.reward)}</span>
+      </div>
+      <p>${escapeHtml(row.product || "-")} sprint ${escapeHtml(String(row.sprint ?? "-"))} · ${escapeHtml(row.refinement || "none")}</p>
+    </article>
+  `).join("");
+}
+
+function productNameById(productId) {
+  const product = state.playSession?.board?.products?.find((item) => Number(item.product_id) === Number(productId));
+  return product?.name || `Product ${productId || "-"}`;
+}
+
+function formatCurrency(value) {
+  const amount = Number(value || 0);
+  return `${amount < 0 ? "-" : ""}€${Math.abs(Math.round(amount)).toLocaleString()}`;
+}
+
+function renderPlayActionButtons(humanSeat) {
+  const host = $("playActionButtonGrid");
+  const select = $("playHumanActionSelect");
+  if (!host || !select) return;
+
+  if (!humanSeat) {
+    host.innerHTML = "";
+    return;
+  }
+
+  const validActions = new Map((humanSeat.valid_actions || []).map((action) => [Number(action.action_id), action]));
+  const products = state.playSession?.board?.products || [];
+  const allActions = [
+    { action_id: 0, label: "Continue", hint: "Play current sprint" },
+    ...products.map((product) => ({
+      action_id: Number(product.product_id),
+      label: `Switch to ${product.name}`,
+      hint: `Start S${humanSeat.state?.target_next_sprints?.[Number(product.product_id) - 1] || 1}`,
+    })),
+  ];
+  const selected = Number(select.value || (humanSeat.valid_actions || [])[0]?.action_id || 0);
+
+  host.innerHTML = allActions.map((action) => {
+    const valid = validActions.has(Number(action.action_id));
+    const label = validActions.get(Number(action.action_id))?.label || action.label;
+    return `
+      <button class="play-action-button ${selected === Number(action.action_id) ? "is-selected" : ""}" type="button"
+        data-action-id="${action.action_id}" ${valid ? "" : "disabled"}>
+        <strong>${escapeHtml(label)}</strong>
+        <span>${valid ? escapeHtml(action.hint || "Available") : "Locked"}</span>
+      </button>
+    `;
+  }).join("");
+
+  host.querySelectorAll(".play-action-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      select.value = button.dataset.actionId;
+      renderPlayActionButtons(humanSeat);
+      renderPlayDicePreview(humanSeat, Number(button.dataset.actionId));
+    });
+  });
+}
+
+function latestPlayTurn() {
+  const rows = state.playSession?.turn_log || [];
+  return rows.length ? rows[rows.length - 1] : null;
+}
+
+function renderPlayDicePreview(humanSeat, actionId) {
+  const host = $("playDiceCard");
+  if (!host || !humanSeat) return;
+  const action = (humanSeat.valid_actions || []).find((item) => Number(item.action_id) === Number(actionId));
+  host.innerHTML = `
+    <div class="dice-animation-slot">Dice animation slot</div>
+    <div class="dice-summary">
+      <div class="dice-stat"><span>Queued</span><strong>${escapeHtml(action?.label || "Action")}</strong></div>
+      <div class="dice-stat"><span>Product</span><strong>${escapeHtml(productNameById(actionId || humanSeat.state?.current_product))}</strong></div>
+      <div class="dice-stat"><span>Target</span><strong>60</strong></div>
+    </div>
+    <p>Submit action to roll the five Daily Scrums.</p>
+  `;
+}
+
+function renderPlayDiceZone() {
+  const host = $("playDiceCard");
+  if (!host) return;
+  const row = latestPlayTurn();
+  const dice = row?.dice;
+  if (!dice?.daily_scrums?.length) {
+    host.innerHTML = `
+      <div class="dice-animation-slot">Dice animation slot</div>
+      <p>Select an action to reveal the daily scrum math.</p>
+    `;
+    return;
+  }
+
+  const variance = Number(dice.variance || 0);
+  const payout = Number(dice.payout || 0);
+  host.innerHTML = `
+    <div class="dice-animation-slot">Dice animation slot</div>
+    <div class="dice-summary">
+      <div class="dice-stat"><span>Rolling</span><strong>${escapeHtml(dice.dice_label)}</strong></div>
+      <div class="dice-stat"><span>Total / Target</span><strong>${dice.total_rolled} / ${dice.target_total}</strong></div>
+      <div class="dice-stat"><span>Variance</span><strong class="${variance <= 0 ? "play-number-good" : "play-number-bad"}">${variance}</strong></div>
+    </div>
+    <div class="dice-roll-list">
+      ${dice.daily_scrums.map((scrum) => `
+        <div class="dice-roll-row">
+          <strong>D${escapeHtml(String(scrum.scrum_number))}</strong>
+          <span class="dice-roll-values">[${(scrum.rolls || []).map((roll) => escapeHtml(String(roll))).join(", ")}]</span>
+          <span class="dice-roll-total">${escapeHtml(String(scrum.roll_total))}</span>
+        </div>
+      `).join("")}
+    </div>
+    <div class="dice-summary">
+      <div class="dice-stat"><span>Penalty</span><strong class="play-number-bad">-${formatCurrency(dice.planning_penalty)}</strong></div>
+      <div class="dice-stat"><span>Payout</span><strong class="${payout >= 0 ? "play-number-good" : "play-number-bad"}">${formatCurrency(payout)}</strong></div>
+      <div class="dice-stat"><span>Result</span><strong>${escapeHtml(row.outcome || "-")}</strong></div>
+    </div>
+  `;
 }
 
 function renderPlaySession() {
   const card = $("playSessionCard");
   const humanWrap = $("playHumanActionWrap");
+  renderPlayTopbar();
   if (!state.playSession) {
-    card.className = "empty-state";
-    card.textContent = "Start a session to play or inspect AI seats.";
+    card.className = "play-session-summary-card";
+    card.textContent = "Configure seats and start a session.";
     humanWrap.className = "form-stack hidden";
     renderPlayBoard();
     renderPlayStandings();
     renderPlayTurnLog();
+    renderPlayDiceZone();
     return;
   }
 
-  const seatBlocks = state.playSession.seats.map((seat, index) => `
-    <article class="list-card">
-      <h4>Seat ${index + 1} - ${escapeHtml(seat.controller.display_name)}</h4>
-      <div class="card-meta">
-        <span class="tag">bank ${seat.state.current_money}</span>
-        <span class="tag">product ${seat.state.current_product}</span>
-        <span class="tag">sprint ${seat.state.current_sprint}</span>
-        <span class="tag">reward ${seat.total_reward}</span>
-        <span class="tag">${seat.state.loan_active ? "loan active" : "no loan"}</span>
-        <span class="tag">${seat.done ? "done" : "active"}</span>
-      </div>
-    </article>
-  `).join("");
-
-  card.className = "";
+  card.className = "play-session-summary-card";
   card.innerHTML = `
-    <div class="list-stack">
-      <div class="list-card">
-        <h4>Session ${state.playSession.id}</h4>
-        <p>Round ${state.playSession.round_number} - ${state.playSession.done ? "complete" : "in progress"}</p>
-      </div>
-      ${seatBlocks}
+    <div class="play-score-meta">
+      <span class="tag">${state.playSession.done ? "complete" : "in progress"}</span>
+      <span class="tag">${state.playSession.seats.length} seats</span>
+      <span class="tag">seed ${state.playSession.base_seed}</span>
     </div>
   `;
 
@@ -2352,13 +2481,16 @@ function renderPlaySession() {
   renderPlayBoard();
   renderPlayStandings();
   renderPlayTurnLog();
+  renderPlayDiceZone();
   if (!humanSeat) {
     humanWrap.className = "form-stack hidden";
+    renderPlayActionButtons(null);
     return;
   }
 
-  humanWrap.className = "form-stack";
+  humanWrap.className = "play-action-wrap";
   buildOptions("playHumanActionSelect", humanSeat.valid_actions || [], "action_id", "label", "No actions");
+  renderPlayActionButtons(humanSeat);
 }
 
 function parseSeedList(value) {
@@ -3067,6 +3199,7 @@ async function advancePlayRound(humanAction = null) {
     showMessage("Start a play session first.", "error");
     return;
   }
+  $("playDiceCard")?.querySelector(".dice-animation-slot")?.classList.add("is-rolling");
   const humanSeat = state.playSession.seats?.find((seat) => seat.controller.type === "human" && !seat.done);
   const payload = humanAction === null
     ? {}

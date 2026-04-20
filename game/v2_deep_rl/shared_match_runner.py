@@ -148,6 +148,15 @@ def start_shared_match(game_config, controllers: list[Controller], base_seed: in
 
 
 def _record_shared_step(match_state: dict[str, Any], seat: dict[str, Any], action: int, reward, done, info) -> None:
+    daily_scrums = info.get("daily_scrums", []) or []
+    total_rolled = sum(int(scrum.get("roll_total", 0)) for scrum in daily_scrums)
+    target_total = 0
+    if daily_scrums:
+        target_total = len(daily_scrums) * int(seat["env"].daily_scrum_target)
+    variance = info.get("net_result", 0)
+    planning_penalty = abs(int(variance or 0)) * (
+        seat["env"].penalty_negative if int(variance or 0) <= 0 else seat["env"].penalty_positive
+    )
     row = {
         "round": match_state["round_number"],
         "seat_id": seat["id"],
@@ -163,6 +172,22 @@ def _record_shared_step(match_state: dict[str, Any], seat: dict[str, Any], actio
         "terminal": info.get("terminal_reason", ""),
         "incident": info.get("incident_card_name", "None"),
         "refinement": info.get("refinement_effect", "none"),
+        "dice": {
+            "features_required": info.get("features_required"),
+            "dice_label": (
+                f"{daily_scrums[0].get('dice_count')}x D{daily_scrums[0].get('dice_sides')}"
+                if daily_scrums else "-"
+            ),
+            "daily_scrums": daily_scrums,
+            "total_rolled": total_rolled,
+            "target_total": target_total,
+            "variance": variance,
+            "planning_penalty": planning_penalty,
+            "payout": info.get("payout", 0),
+            "switch_cost_paid": info.get("switch_cost_paid", 0),
+            "continue_cost_paid": info.get("continue_cost_paid", 0),
+            "interest_paid": info.get("interest_paid", 0),
+        },
     }
     seat["steps"].append(row)
     match_state["turn_log"].append(row)
@@ -280,10 +305,14 @@ def board_payload(match_state: dict[str, Any]) -> dict[str, Any]:
             sprint_value = override if override is not None else base_value + incident_delta
             refinement_delta = env.refinement_feature_deltas[product_index][sprint_index]
             features_required = max(1, env.board_features[product_index][sprint_index] + refinement_delta)
+            completed_for_all = bool(match_state["seats"]) and all(
+                seat["done"] or int(seat["state"]["target_next_sprints"][product_id - 1]) > sprint_id
+                for seat in match_state["seats"]
+            )
             cells.append(
                 {
                     "sprint": sprint_id,
-                    "completed": False,
+                    "completed": completed_for_all,
                     "active": bool(seat_positions.get((product_id, sprint_id))),
                     "active_seats": seat_positions.get((product_id, sprint_id), []),
                     "base_value": base_value,

@@ -581,63 +581,86 @@
 
       </section>
 
-      <section id="page-play" class="page">
-        <div class="grid two">
-          <article class="panel">
-            <div class="panel-head">
-              <h3>Start Play Session</h3>
-              <button id="addPlaySeatButton" class="button secondary" type="button">Add Seat</button>
-            </div>
-            <form id="playSessionForm" class="form-stack">
-              <label class="field">
-                <span>Match Seed</span>
-                <input id="playSeedInput" type="number" min="0" value="42" />
-              </label>
-              <div id="playSeatEditor" class="list-stack"></div>
-              <button class="button primary" type="submit">Start Session</button>
-            </form>
-          </article>
-
-          <article class="panel">
-            <div class="panel-head">
-              <h3>Play Session State</h3>
-              <div class="inline-actions">
-                <button id="refreshPlayButton" class="button secondary" type="button">Refresh</button>
-                <button id="advancePlayRoundButton" class="button secondary" type="button">Advance Round</button>
-              </div>
-            </div>
-            <div id="playSessionCard" class="empty-state">
-              Start a session to play or inspect AI seats.
-            </div>
-            <div id="playHumanActionWrap" class="form-stack hidden">
-              <label class="field">
-                <span>Human Action</span>
-                <select id="playHumanActionSelect"></select>
-              </label>
-              <button id="submitHumanActionButton" class="button primary" type="button">Submit Human Action</button>
-            </div>
-          </article>
-        </div>
-        <article class="panel rules-editor-grid">
-          <div class="panel-head">
-            <h3>Shared Board</h3>
-            <span id="playBoardStatus" class="meta-count">No session</span>
+      <section id="page-play" class="page play-dashboard">
+        <header class="play-topbar">
+          <div>
+            <span class="play-kicker">Session</span>
+            <strong id="playSessionCode">No session</strong>
           </div>
-          <div id="playBoardCard" class="empty-state">Start a shared session to see the board.</div>
-        </article>
-        <div class="grid two rules-editor-grid">
-          <article class="panel">
-            <div class="panel-head">
-              <h3>Standings</h3>
+          <div>
+            <span class="play-kicker">Round</span>
+            <strong id="playRoundCode">-</strong>
+          </div>
+          <div id="playIncidentBanner" class="play-incident-banner">No active incident</div>
+          <div class="play-top-actions">
+            <button id="refreshPlayButton" class="button secondary" type="button">Refresh</button>
+            <button id="advancePlayRoundButton" class="button secondary" type="button">Advance AI Round</button>
+          </div>
+        </header>
+
+        <div class="play-grid">
+          <aside class="play-column play-left">
+            <section class="play-card play-standings-panel">
+              <div class="play-card-head">
+                <h3>Standings</h3>
+                <span class="meta-count">Bank score</span>
+              </div>
+              <div id="playStandingsCard" class="empty-state">Standings will appear after a session starts.</div>
+            </section>
+
+            <section class="play-card play-log-panel">
+              <div class="play-card-head">
+                <h3>Turn Log</h3>
+                <span class="meta-count">Latest first</span>
+              </div>
+              <div id="playTurnLogCard" class="empty-state">Turns will appear after the first round.</div>
+            </section>
+          </aside>
+
+          <main class="play-board-panel">
+            <div class="play-card-head">
+              <h3>Scrum Board</h3>
+              <span id="playBoardStatus" class="meta-count">No session</span>
             </div>
-            <div id="playStandingsCard" class="empty-state">Standings will appear after a session starts.</div>
-          </article>
-          <article class="panel">
-            <div class="panel-head">
-              <h3>Turn Log</h3>
-            </div>
-            <div id="playTurnLogCard" class="empty-state">Turns will appear after the first round.</div>
-          </article>
+            <div id="playBoardCard" class="empty-state">Start a shared session to see the board.</div>
+          </main>
+
+          <aside class="play-column play-right">
+            <section class="play-card play-action-panel">
+              <div class="play-card-head">
+                <h3>Action Center</h3>
+                <button id="addPlaySeatButton" class="button secondary" type="button">Add Seat</button>
+              </div>
+              <form id="playSessionForm" class="play-session-setup">
+                <label class="field">
+                  <span>Match Seed</span>
+                  <input id="playSeedInput" type="number" min="0" value="42" />
+                </label>
+                <div id="playSeatEditor" class="play-seat-editor"></div>
+                <button class="button primary" type="submit">Start Session</button>
+              </form>
+              <div id="playSessionCard" class="play-session-summary"></div>
+              <div id="playHumanActionWrap" class="play-action-wrap hidden">
+                <label class="field play-action-select-field">
+                  <span>Human Action</span>
+                  <select id="playHumanActionSelect"></select>
+                </label>
+                <div id="playActionButtonGrid" class="play-action-grid"></div>
+                <button id="submitHumanActionButton" class="button primary" type="button">Submit Action</button>
+              </div>
+            </section>
+
+            <section class="play-card play-dice-panel">
+              <div class="play-card-head">
+                <h3>Dice Zone</h3>
+                <span class="meta-count">Daily scrums</span>
+              </div>
+              <div id="playDiceCard" class="play-dice-card">
+                <div class="dice-animation-slot">Dice animation slot</div>
+                <p>Select an action to reveal the daily scrum math.</p>
+              </div>
+            </section>
+          </aside>
         </div>
       </section>
     </main>
