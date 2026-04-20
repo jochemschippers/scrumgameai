@@ -126,8 +126,16 @@ def _human_actions_by_seat(payload: dict[str, Any] | None) -> dict[str, int]:
     return {}
 
 
+def _seats_in_round_order(match_state: dict[str, Any]) -> list[dict[str, Any]]:
+    seats = match_state["seats"]
+    if not seats:
+        return []
+    offset = (int(match_state["round_number"]) - 1) % len(seats)
+    return seats[offset:] + seats[:offset]
+
+
 def play_shared_round(match_state: dict[str, Any], payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Advance every active seat by one turn in seat order."""
+    """Advance every active seat by one turn, rotating the first actor each round."""
     human_actions = _human_actions_by_seat(payload)
     waiting_humans = [
         seat for seat in match_state["seats"]
@@ -137,7 +145,7 @@ def play_shared_round(match_state: dict[str, Any], payload: dict[str, Any] | Non
     if missing_humans:
         raise ValueError(f"Human action required for {', '.join(missing_humans)}.")
 
-    for seat in match_state["seats"]:
+    for seat in _seats_in_round_order(match_state):
         if seat["done"]:
             continue
 

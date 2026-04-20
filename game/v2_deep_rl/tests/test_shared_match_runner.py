@@ -81,3 +81,22 @@ def test_ai_only_round_advances_and_standings_render():
     assert len(standings(match_state)) == 2
     assert board_payload(match_state)["products"]
     assert not all_shared_seats_done(match_state)
+
+
+def test_shared_match_rotates_first_actor_each_round():
+    config = load_game_config()
+    match_state = start_shared_match(
+        config,
+        [RandomController(display_name="AI 1"), RandomController(display_name="AI 2")],
+        base_seed=42,
+    )
+
+    play_shared_round(match_state, {})
+    play_shared_round(match_state, {})
+
+    assert [row["seat_id"] for row in match_state["turn_log"][:4]] == [
+        "seat_1",
+        "seat_2",
+        "seat_2",
+        "seat_1",
+    ]
