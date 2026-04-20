@@ -39,6 +39,8 @@ const state = {
   autopilotSettings: null,
   autopilotHistory: [],
   autopilotStopRequested: false,
+  campaigns: [],
+  activeCampaignId: null,
   runRating: null,
   messageTimer: null,
 };
@@ -48,7 +50,7 @@ const DEFAULT_GAME_CONFIG = {
   config_name: "Advanced Classical DDQN",
   config_description: "Default advanced single-player Scrum Game rules for the deep-RL branch.",
   players_count: 1,
-  product_names: ["Yellow", "Blue", "Red", "Orange", "Green", "Purple", "Black"],
+  product_names: ["Yellow", "Orange", "Red", "Green", "Blue", "Purple", "Black"],
   max_turns: 6,
   starting_money: 25000,
   ring_value: 5000,
@@ -58,7 +60,7 @@ const DEFAULT_GAME_CONFIG = {
   mandatory_loan_amount: 50000,
   loan_interest: 5000,
   penalty_negative: 1000,
-  penalty_positive: 5000,
+  penalty_positive: 1000,
   daily_scrums_per_sprint: 5,
   daily_scrum_target: 12,
   board_ring_values: [
@@ -90,10 +92,10 @@ const DEFAULT_GAME_CONFIG = {
     die_sides: 20,
     product_rules: [
       { product_key: "yellow", increase_rolls: [1, 2], decrease_rolls: [19, 20] },
-      { product_key: "blue", increase_rolls: [1, 2, 3, 4], decrease_rolls: [19, 20] },
-      { product_key: "red", increase_rolls: [1, 2], decrease_rolls: [19, 20] },
       { product_key: "orange", increase_rolls: [1, 2, 3], decrease_rolls: [19, 20] },
+      { product_key: "red", increase_rolls: [1, 2], decrease_rolls: [19, 20] },
       { product_key: "green", increase_rolls: [1, 2, 3], decrease_rolls: [19, 20] },
+      { product_key: "blue", increase_rolls: [1, 2, 3, 4], decrease_rolls: [19, 20] },
       { product_key: "purple", increase_rolls: [1, 2, 3], decrease_rolls: [19, 20] },
       { product_key: "black", increase_rolls: [1], decrease_rolls: [20] },
     ],
@@ -494,6 +496,7 @@ async function _runPollCycle() {
       renderJobs();
       updateSummaryPills();
     }
+    await refreshCampaigns().catch(() => {});
 
     // Auto-advance to a new running training job when the tracked job is completed.
     // Skip if the user is actively inspecting a specific job. Replacing activeProgressJobId
@@ -1891,6 +1894,74 @@ function renderAutopilotTrainingPanel() {
   }
 }
 
+function renderCampaignPanel() {
+  const card = $("campaignCard");
+  const label = $("campaignStatusLabel");
+  const stopButton = $("stopCampaignButton");
+  const escalateButton = $("escalateCampaignButton");
+  if (!card || !label || !stopButton || !escalateButton) return;
+
+  const active = state.campaigns.find((campaign) => campaign.status === "running");
+  const completed = state.campaigns.find((campaign) => campaign.status === "completed");
+  const display = active || completed || null;
+
+  if (!display) {
+    state.activeCampaignId = null;
+    label.textContent = "-";
+    card.className = "empty-state";
+    card.textContent = "No active campaign.";
+    stopButton.style.display = "none";
+    escalateButton.style.display = "none";
+    return;
+  }
+
+  state.activeCampaignId = display.campaign_id;
+  const done = Number(display.variations_completed || 0);
+  const total = Number(display.max_variations || 0);
+  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  const history = display.variation_history || [];
+
+  label.textContent = display.status;
+  card.className = "list-card";
+  card.innerHTML = `
+    <h4>${escapeHtml(display.campaign_id)}</h4>
+    <div class="card-meta">
+      <span class="tag">${escapeHtml(display.status)}</span>
+      <span class="tag">${done} / ${total} variations</span>
+      <span class="tag">${pct}%</span>
+      ${display.escalate_mode ? `<span class="tag warn">escalated</span>` : ""}
+    </div>
+    <div class="card-meta">
+      <span class="tag">base ${escapeHtml(display.base_run_id || "-")}</span>
+      <span class="tag">current ${escapeHtml(display.current_run_id || "-")}</span>
+    </div>
+    ${history.length
+      ? `<div class="decision-list" style="margin-top:0.5rem;">${history.map((item) => `
+          <div class="decision-row">
+            <div class="decision-row-head">
+              <span class="tag">v${escapeHtml(String(item.index ?? "-"))}</span>
+              ${item.escalate ? `<span class="tag warn">escalate</span>` : ""}
+              <span class="tag">${escapeHtml(item.to_run || "-")}</span>
+            </div>
+            <p class="decision-reason">${escapeHtml(item.reason || "")}</p>
+          </div>
+        `).join("")}</div>`
+      : `<p class="muted">Waiting for the first plateau stop.</p>`
+    }
+  `;
+  stopButton.style.display = display.status === "running" ? "" : "none";
+  escalateButton.style.display = display.status === "completed" ? "" : "none";
+}
+
+async function refreshCampaigns() {
+  try {
+    state.campaigns = await apiRequest("/campaigns");
+  } catch (_error) {
+    state.campaigns = [];
+  }
+  renderCampaignPanel();
+}
+
 async function refreshAutopilotSettings() {
   try {
     const [settings, stopStatus] = await Promise.all([
@@ -2142,11 +2213,11 @@ function renderPlayBoard() {
   const labelWidth = 120;
   const width = labelWidth + cellWidth * Math.max(1, products[0]?.cells?.length || 1) + 24;
   const height = 36 + rowHeight * products.length + 12;
-  const markers = (state.playSession.seats || []).map((seat, index) => ({
-    seat,
-    color: ["#557287", "#4f8d68", "#c58b2f", "#cc5f5f"][index % 4],
-    index,
-  }));
+  const seatColors = ["#557287", "#4f8d68", "#c58b2f", "#cc5f5f"];
+  const seatsById = Object.fromEntries((state.playSession.seats || []).map((seat, index) => [
+    seat.id,
+    { seat, index, color: seatColors[index % seatColors.length] },
+  ]));
   const rows = products.map((product, rowIndex) => {
     const y = 32 + rowIndex * rowHeight;
     const cells = (product.cells || []).map((cell, cellIndex) => {
@@ -2158,25 +2229,27 @@ function renderPlayBoard() {
         cell.incident_delta || cell.incident_override !== null ? "I" : "",
         cell.refinement_delta ? "R" : "",
       ].filter(Boolean);
+      const seatMarkers = (cell.active_seats || [])
+        .map((seatId, markerIndex) => {
+          const meta = seatsById[seatId];
+          if (!meta) return "";
+          const markerX = x + cellWidth - 24 - markerIndex * 18;
+          return `<circle cx="${markerX}" cy="${y + 32}" r="7" fill="${meta.color}"><title>Seat ${meta.index + 1}: ${escapeHtml(meta.seat.controller.display_name)}</title></circle>`;
+        })
+        .join("");
       return `
         <g>
           <rect class="${classes.join(" ")}" x="${x}" y="${y}" width="${cellWidth - 10}" height="44" rx="6"></rect>
           <text class="play-board-sprint" x="${x + 10}" y="${y + 17}">S${cell.sprint}</text>
           <text class="play-board-meta" x="${x + 10}" y="${y + 34}">${formatNumber(cell.sprint_value, 0)} / f${cell.features_required}</text>
           ${badges.map((badge, badgeIndex) => `<text class="play-board-badge" x="${x + cellWidth - 28 - badgeIndex * 16}" y="${y + 17}">${badge}</text>`).join("")}
+          ${seatMarkers}
         </g>
       `;
     }).join("");
-    const productMarkers = markers
-      .filter(({ seat }) => Number(seat.state?.current_product) === Number(product.product_id) && !seat.done)
-      .map(({ color, index }, markerIndex) => {
-        const markerX = labelWidth - 18 - markerIndex * 18;
-        return `<circle cx="${markerX}" cy="${y + 23}" r="7" fill="${color}"><title>Seat ${index + 1}</title></circle>`;
-      }).join("");
     return `
       <g>
         <text class="play-board-product" x="10" y="${y + 25}">${escapeHtml(product.name)}</text>
-        ${productMarkers}
         ${cells}
       </g>
     `;
@@ -2605,6 +2678,7 @@ async function refreshJobs() {
   renderJobs();
   updateSummaryPills();
   renderTrainingSelectionSummary();
+  await refreshCampaigns().catch(() => {});
   if (state.activeJobDetailId) {
     await fetchJobDetail(state.activeJobDetailId, false).catch(() => {});
   }
@@ -2842,11 +2916,13 @@ async function refreshAll() {
   renderPlaySession();
   renderDirectEvaluation();
   renderCheckpointComparison();
+  renderCampaignPanel();
   updateStatusCard();
   updateSummaryPills();
   renderContextCard();
   await refreshTrainingPreflight();
   await refreshAutopilotSettings().catch(() => {});
+  await refreshCampaigns().catch(() => {});
 
   if (!$("gameConfigEditor").value && state.gameConfigs.length) {
     await loadActiveGameConfigIntoEditor();
@@ -2911,6 +2987,17 @@ async function queueTrainingJob(event) {
     method: "POST",
     body: JSON.stringify(payload),
   });
+  if ($("campaignEnabledToggle")?.checked) {
+    const runId = runLabelFromPath(job.run_dir);
+    const maxVariations = Number($("campaignMaxVariationsInput").value) || 5;
+    if (runId && runId !== "-") {
+      await apiRequest("/campaigns", {
+        method: "POST",
+        body: JSON.stringify({ run_id: runId, max_variations: maxVariations }),
+      });
+      await refreshCampaigns();
+    }
+  }
   state.activeProgressJobId = job.id;
   state.trainingProgress = null;
   showMessage(`Queued ${job.job_type} job #${job.id}.`);
@@ -3231,6 +3318,10 @@ function attachEvents() {
     refreshTrainingPreflight().catch(() => {});
   });
 
+  $("campaignEnabledToggle").addEventListener("change", (event) => {
+    $("campaignMaxVarField").style.display = event.target.checked ? "" : "none";
+  });
+
   $("trainJobForm").addEventListener("submit", async (event) => {
     try {
       await queueTrainingJob(event);
@@ -3242,6 +3333,28 @@ function attachEvents() {
   $("robustnessJobForm").addEventListener("submit", async (event) => {
     try {
       await queueRobustnessJob(event);
+    } catch (error) {
+      showMessage(error.message, "error");
+    }
+  });
+
+  $("stopCampaignButton").addEventListener("click", async () => {
+    if (!state.activeCampaignId) return;
+    try {
+      await apiRequest(`/campaigns/${encodeURIComponent(state.activeCampaignId)}/stop`, { method: "POST" });
+      await refreshCampaigns();
+      showMessage("Campaign stopped.");
+    } catch (error) {
+      showMessage(error.message, "error");
+    }
+  });
+
+  $("escalateCampaignButton").addEventListener("click", async () => {
+    if (!state.activeCampaignId) return;
+    try {
+      await apiRequest(`/campaigns/${encodeURIComponent(state.activeCampaignId)}/escalate`, { method: "POST" });
+      await refreshCampaigns();
+      showMessage("Campaign escalation queued.");
     } catch (error) {
       showMessage(error.message, "error");
     }
@@ -3596,6 +3709,7 @@ state.visualGameConfig = clone(DEFAULT_GAME_CONFIG);
 renderVisualEditor();
 renderTrainingSelectionSummary();
 renderTrainingProgress();
+renderCampaignPanel();
 renderPlaySeatEditor();
 startProgressPolling();
 autoConnect();

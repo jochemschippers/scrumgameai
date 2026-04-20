@@ -1,0 +1,43 @@
+# UPDATE TO THE SCRUM GAME RL ENVIRONMENT: PARAMETERIZATION & CONFIGURATION
+
+## 1. ENVIRONMENT CONFIGURATION (env_config)
+Instead of hardcoding the board, the environment must accept an `env_config` dictionary upon initialization. This allows for Domain Randomization and Curriculum Learning.
+
+### Base Configuration Variables:
+- `num_players`: Int (Range: 1-12, Default: 4)
+- `num_products`: Int (Range: 4-12, Default: 7)
+- `sprints_per_product`: Int (Range: 4-12, Default: 4)
+- `game_length_tokens`: Int (Total turns per agent. Range: 4-32, Default: 6)
+
+### Financial Configuration Variables:
+- `starting_money`: Float (Default: 25,000)
+- `value_ring_multiplier`: Float (Default: 5,000)
+- `switch_cost_base`: Float (Default: 5,000. Note: Cost drops to 0 after the last sprint is completed)
+- `loan_amount`: Float (Default: 50,000)
+- `loan_interest_per_turn`: Float (Default: 5,000)
+- `penalty_multiplier_negative`: Float (Default: 1,000 per missing point in daily scrums)
+- `penalty_multiplier_positive`: Float (Default: 1,000 per unit of positive variance — sprint fails, penalty only)
+
+### Scrum Mechanics Variables:
+- `daily_scrums_per_sprint`: Int (Default: 5)
+- `daily_scrum_target`: Int (Default: 12)
+
+## 2. STOCHASTIC TOGGLES (For Curriculum Learning)
+The RL environment must support toggling stochastic elements on/off to allow the agent to learn basic mechanics before introducing chaos.
+- `refinements_active`: Boolean (Default: True)
+- `refinement_logic`: Enum ['STANDARD', 'CHAOS'] (Standard uses 1-2 increase / 19-20 decrease on D20)
+- `incidents_active`: Boolean (Default: True)
+- `incident_frequency`: Float (Default: 1.0 — one card always resolved per round per physical rulebook. Legacy values Low: 0.15, Normal: 0.35, High: 0.60 are available for curriculum learning only)
+- `player_specific_incidents`: Boolean (Default: False. If True, includes targeted attacks/bonuses).
+
+## 3. OPPONENT MODELING (Multi-Agent Setup)
+The environment must support heterogeneous agents based on the 'Player' tab matrix.
+For non-learning opponents, implement heuristic policies:
+- `STRATEGY_SCRUM`: Agent evaluates sprint values vs. features and switches dynamically if ROI drops.
+- `STRATEGY_WATERFALL`: Agent rigidly sticks to a single product column from Sprint 1 to N, ignoring switching mechanics.
+- `STRATEGY_RANDOM`: Agent takes random valid actions.
+- `DIFFICULTY`: Float (0.0 to 1.0). In heuristic policies, this dictates the probability the agent makes the "optimal" mathematical choice versus a suboptimal one.
+
+## 4. DYNAMIC STATE SPACE ADJUSTMENTS
+- The Global Board State is no longer a fixed 7x4 matrix. It initializes as a matrix of shape `[num_products, sprints_per_product]`.
+- Feature and Value initializations should be loaded via a customized layout dictionary (derived from the "Layout" tab) rather than hardcoded.

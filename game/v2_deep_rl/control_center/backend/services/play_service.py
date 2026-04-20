@@ -123,6 +123,7 @@ def _shared_session_payload(session_id: str, match_state: dict) -> dict:
         "seats": [seat_payload(seat) for seat in match_state["seats"]],
         "standings": standings(match_state),
         "turn_log": list(match_state.get("turn_log", [])),
+        "round_incidents": list(match_state.get("round_incidents", [])),
     }
 
 

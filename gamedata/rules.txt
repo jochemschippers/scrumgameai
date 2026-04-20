@@ -1,0 +1,105 @@
+# THE SCRUM GAME - REINFORCEMENT LEARNING ENVIRONMENT SPECIFICATION
+
+## 1. ENVIRONMENT OVERVIEW
+- Type: Multi-agent, discrete time, stochastic environment.
+- Number of Agents (Players): 2 to 8 (Standard: 4).
+- Horizon (Max Timesteps/Sprints): 6 turns per episode.
+- Objective: Maximize total monetary value (euros) by the end of the game.
+
+## 2. STATE SPACE (OBSERVATION)
+The environment state `S` consists of the Global Board State and Player States.
+
+### 2.1 Global Board State
+A matrix tracking the 7 Products (Yellow, Orange, Red, Green, Blue, Purple, Black). 
+Each Product has an array of Sprints (1 through 6). 
+For each Sprint, track two variables:
+- `value_rings`: Integer (Multiplier for sprint payoff. 1 ring = 5,000 euros).
+- `features`: Integer (Determines dice used for Daily Scrums).
+
+Initial Setup (Based on Board Image, mapping Sprints 1-4, extend logic for 5-6):
+- Yellow: S1(v4, f3), S2(v2, f3), S3(v1, f2), S4(v1, f1)
+- Orange: S1(v5, f2), S2(v3, f2), S3(v2, f1), S4(v1, f1)
+- Red:    S1(v6, f1), S2(v4, f1), S3(v3, f1), S4(v2, f1)
+- Green:  S1(v5, f2), S2(v3, f2), S3(v2, f2), S4(v1, f1)
+- Blue:   S1(v4, f3), S2(v3, f2), S3(v2, f2), S4(v1, f1)
+- Purple: S1(v5, f2), S2(v3, f2), S3(v2, f1), S4(v1, f1)
+- Black:  S1(v7, f1), S2(v4, f1), S3(v3, f1), S4(v2, f1)
+
+### 2.2 Player State (Per Agent)
+- `current_product`: Enum/Int (0-6 representing the current product color tracked).
+- `current_sprint_index`: Int (0 to 5, tracking which sprint the player is currently executing).
+- `balance`: Float (Starting balance: 25,000 euros).
+- `active_loan`: Boolean (True if player took a 50,000 euro loan).
+
+## 3. ACTION SPACE
+At the beginning of each turn, the agent must choose an action `A`:
+
+1. `START_SPRINT`: Proceed with the next sprint in `current_product`.
+2. `SWITCH_PRODUCT(target_product)`: Switch to a different product column.
+   - Condition: Must pay `switching_cost`.
+   - `switching_cost` = flat €5,000.
+   - Exception: Switching is FREE (€0) if the agent has just completed the last sprint of their current product.
+3. `TAKE_LOAN`: (Optional side action before START or SWITCH). Adds 50,000 to `balance`. Agent incurs a 5,000 euro interest penalty deducted at the start of every subsequent turn.
+
+## 4. STEP FUNCTION (TURN EXECUTION)
+When an agent takes an action, execute the following 4 phases:
+
+### Phase 1: Action Resolution
+- Apply switching costs if `SWITCH_PRODUCT` was chosen. Update `current_product`.
+- Deduct loan interest if `active_loan` is True (`balance` -= 5000).
+
+### Phase 2: Execute Daily Scrums (Stochastic)
+Agent attempts to clear the `features` for their active Sprint. 
+Roll dice 5 times. The dice depend on the current sprint's `features` count:
+- 1 feature: Roll 1x D20
+- 2 features: Roll 2x D10
+- 3 features: Roll 3x D6
+- 4 features: Roll 3x D6 (Note: Same as 3 features per rules)
+
+Evaluation Math:
+- `daily_target` = 12
+- `total_target` = 60 (12 * 5 days)
+- `total_rolled` = Sum of all 5 daily rolls.
+- `variance` = `total_rolled` - `total_target`
+
+Penalties and Payouts:
+1. Planning Penalty: Agent pays 1,000 euros for EVERY unit of absolute variance.
+   `balance` -= abs(`variance`) * 1000
+2. Sprint Value Payout: 
+   If `variance` <= 0 (Meaning `total_rolled` <= 60, no positive delay counters):
+   `balance` += (`value_rings` * 5000)
+   If `variance` > 0, sprint is delayed, sprint value is NOT collected.
+
+### Phase 3: Refinement / Grooming (Stochastic)
+Agent rolls 1x D20 to alter the Global Board State for their current product.
+- Yellow/Red: 
+   - Roll 1-2: Add 1 feature to all future sprints of this product.
+   - Roll 19-20: Remove 1 feature from the LAST sprint of this product.
+- Orange/Green/Purple:
+   - Roll 1-3: Add 1 feature to all future sprints.
+   - Roll 19-20: Remove 1 feature from the LAST sprint.
+- Blue:
+   - Roll 1-4: Add 1 feature to all future sprints.
+   - Roll 19-20: Remove 1 feature from the LAST sprint.
+- Black:
+   - Roll 1: Add 1 feature to all future sprints.
+   - Roll 20: Remove 1 feature from the LAST sprint.
+
+### Phase 4: Wait / Global Incidents
+After ALL agents complete Phase 1-3 for the current turn, draw 1 Incident card (random uniform distribution) and apply globally:
+- Incident 1: Red product crashes. Set all future Red sprint `value_rings` to 0.
+- Incident 2: Orange and Blue competition. Subtract 1 `value_ring` from all future Orange and Blue sprints.
+- Incident 3: Gov Subsidy. Add 1 `value_ring` to the FIRST sprint of all 7 products.
+- Incident 4: Yellow market boost. Add 1 `value_ring` to ALL Yellow sprints.
+- Incident 5: Black product breakthrough. Set the `value_rings` of the 4th Black sprint to 20 (100,000 euros).
+
+## 5. REWARD FUNCTION formulation for RL
+- Step Reward (Immediate): The net change in `balance` during the current turn (Sprint Payout - Planning Penalty - Switching Costs - Loan Interest).
+- Terminal Reward: Total `balance` at `t=6`.
+- Note: For competitive multi-agent settings, reward can be formulated as +1 for winning (highest balance), -1 for losing.
+
+## 6. EDGE CASES / RULES CLARIFICATIONS FOR CODING
+- Features cannot drop below 0. Implement a `max(0, features)` clamp.
+- Value rings cannot drop below 0. Implement a `max(0, value_rings)` clamp.
+- "Last sprint" refers to Sprint 6 (or the final defined sprint in the array).
+- If an agent switches products, their personal `current_sprint_index` for the new product starts at Sprint 1, regardless of what turn number the game is currently on. (E.g., switching on Turn 3 means playing Sprint 1 of the new product).

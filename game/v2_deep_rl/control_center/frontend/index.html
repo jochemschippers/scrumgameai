@@ -315,6 +315,16 @@
                 <span>Run Notes</span>
                 <textarea id="trainNotesInput" rows="3" placeholder="Optional run notes"></textarea>
               </label>
+              <div class="field-group" style="border-top: 1px solid var(--border); padding-top: 0.75rem; margin-top: 0.25rem;">
+                <label class="field" style="flex-direction: row; align-items: center; gap: 0.5rem;">
+                  <input id="campaignEnabledToggle" type="checkbox" />
+                  <span>Start as Campaign</span>
+                </label>
+                <label class="field" id="campaignMaxVarField" style="display:none;">
+                  <span>Max Variations</span>
+                  <input id="campaignMaxVariationsInput" type="number" min="1" max="20" value="5" />
+                </label>
+              </div>
               <button class="button primary" type="submit">Queue Training Job</button>
             </form>
           </article>
@@ -342,6 +352,18 @@
               <span id="autopilotTrainingStatusLabel" class="meta-count">-</span>
             </div>
             <div id="autopilotTrainingCard" class="empty-state">Connect to the backend to manage autopilot settings.</div>
+          </article>
+
+          <article class="panel" id="campaignPanelWrapper">
+            <div class="panel-head">
+              <h3>Campaign</h3>
+              <span id="campaignStatusLabel" class="meta-count">-</span>
+            </div>
+            <div id="campaignCard" class="empty-state">No active campaign.</div>
+            <div class="inline-actions" style="margin-top: 0.5rem;">
+              <button id="stopCampaignButton" class="button secondary" type="button" style="display:none;">Stop Campaign</button>
+              <button id="escalateCampaignButton" class="button primary" type="button" style="display:none;">Escalate Rules</button>
+            </div>
           </article>
         </div>
       </section>
