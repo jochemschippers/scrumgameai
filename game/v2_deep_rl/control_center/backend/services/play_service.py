@@ -27,9 +27,9 @@ def _resolve_game_config(game_config_id: str):
 
 @lru_cache(maxsize=16)
 def _cached_agent(checkpoint_path: str, game_config_path: str):
-    from checkpoint_utils import load_agent_from_checkpoint  # noqa: E402
+    from checkpoint_utils import load_agent_for_inference  # noqa: E402
     from config_manager import load_game_config  # noqa: E402
-    agent, _, metadata = load_agent_from_checkpoint(
+    agent, _, metadata = load_agent_for_inference(
         checkpoint_path,
         game_config=load_game_config(game_config_path),
         strict_signature=False,

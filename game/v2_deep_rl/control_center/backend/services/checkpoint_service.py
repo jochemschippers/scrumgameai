@@ -78,14 +78,20 @@ def _checkpoint_catalog_paths() -> list[tuple[Path, str, str | None]]:
 
     if CURRENT_CHECKPOINT_DIR.exists():
         for checkpoint_path in sorted(CURRENT_CHECKPOINT_DIR.glob("*.pth")):
+            if checkpoint_path.name.endswith(".policy.pth"):
+                continue
             catalog.append((checkpoint_path, "current_artifacts", "current_artifacts"))
 
     if REFERENCE_V1_DIR.exists():
         for checkpoint_path in sorted(REFERENCE_V1_DIR.glob("*.pth")):
+            if checkpoint_path.name.endswith(".policy.pth"):
+                continue
             catalog.append((checkpoint_path, "reference_v1", None))
 
     if PLAYABLE_MODEL_V1_DIR.exists():
         for checkpoint_path in sorted(PLAYABLE_MODEL_V1_DIR.glob("*.pth")):
+            if checkpoint_path.name.endswith(".policy.pth"):
+                continue
             catalog.append((checkpoint_path, "playable_model_v1", None))
 
     if RUNS_DIR.exists():
@@ -94,10 +100,14 @@ def _checkpoint_catalog_paths() -> list[tuple[Path, str, str | None]]:
             if not checkpoint_dir.exists():
                 continue
             for checkpoint_path in sorted(checkpoint_dir.glob("*.pth")):
+                if checkpoint_path.name.endswith(".policy.pth"):
+                    continue
                 catalog.append((checkpoint_path, "run", run_dir.name))
 
     if DROPLET_RUNS_DIR.exists():
         for checkpoint_path in sorted(DROPLET_RUNS_DIR.glob("*.pth")):
+            if checkpoint_path.name.endswith(".policy.pth"):
+                continue
             catalog.append((checkpoint_path, "droplet_runs", None))
 
     return catalog

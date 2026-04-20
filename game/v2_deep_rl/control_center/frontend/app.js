@@ -2970,7 +2970,7 @@ async function createPlaySession(event) {
       base_seed: Number($("playSeedInput").value),
       seats,
     }),
-  });
+  }, 120000);
   renderPlaySession();
   showMessage("Play session started.");
 }
@@ -3004,7 +3004,7 @@ async function runDirectEvaluation(event) {
       game_config_id: state.activeGameConfigId,
       seeds: parseSeedList($("testingSeedsInput").value),
     }),
-  });
+  }, 120000);
   renderDirectEvaluation();
 }
 
@@ -3023,7 +3023,7 @@ async function runCheckpointComparison(event) {
       game_config_id: state.activeGameConfigId,
       seeds: parseSeedList($("compareSeedsInput").value),
     }),
-  });
+  }, 120000);
   renderCheckpointComparison();
 }
 

@@ -84,6 +84,16 @@ def save_checkpoint(
     with sidecar_path.open("w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2, default=str)
 
+    inference_path = checkpoint_path.with_suffix(".policy.pth")
+    torch.save(
+        {
+            "model_state_dict": agent.policy_network.state_dict(),
+            "target_model_state_dict": agent.target_network.state_dict(),
+            "metadata": metadata,
+        },
+        inference_path,
+    )
+
 
 def backfill_checkpoint_sidecars(runs_dir: Path) -> int:
     """Write missing sidecar .json files for all .pth checkpoints under runs_dir.
@@ -93,6 +103,8 @@ def backfill_checkpoint_sidecars(runs_dir: Path) -> int:
     """
     written = 0
     for pth_path in sorted(runs_dir.rglob("*.pth")):
+        if pth_path.name.endswith(".policy.pth"):
+            continue
         sidecar = pth_path.with_suffix(".json")
         if sidecar.exists():
             continue
@@ -118,7 +130,7 @@ if __name__ == "__main__":
 
 def load_checkpoint_payload(checkpoint_path, map_location=None):
     """Load a checkpoint and normalize legacy raw state-dict files."""
-    payload = torch.load(checkpoint_path, map_location=map_location)
+    payload = torch.load(checkpoint_path, map_location=map_location, weights_only=False)
     if isinstance(payload, dict) and "model_state_dict" in payload:
         return payload
 
@@ -212,4 +224,68 @@ def load_agent_from_checkpoint(
     metadata["resolved_game_config"] = resolved_game_config
     metadata["resolved_training_config"] = training_config
     metadata["checkpoint_path"] = str(checkpoint_path)
+    return agent, env, metadata
+
+
+def load_agent_for_inference(
+    checkpoint_path,
+    game_config: GameConfig | None = None,
+    strict_signature: bool = True,
+):
+    """Load only policy weights for play/evaluation when a compact copy exists."""
+    checkpoint_path = Path(checkpoint_path)
+    inference_path = checkpoint_path.with_suffix(".policy.pth")
+    payload_path = inference_path if inference_path.exists() else checkpoint_path
+    payload = load_checkpoint_payload(payload_path, map_location="cpu")
+    if payload_path == checkpoint_path:
+        try:
+            torch.save(
+                {
+                    "model_state_dict": payload["model_state_dict"],
+                    "target_model_state_dict": payload.get(
+                        "target_model_state_dict",
+                        payload["model_state_dict"],
+                    ),
+                    "metadata": payload.get("metadata", {}),
+                },
+                inference_path,
+            )
+            payload_path = inference_path
+        except Exception:
+            pass
+    resolved_game_config = checkpoint_game_config(payload, fallback_game_config=game_config)
+    compatibility = validate_checkpoint_compatibility(
+        payload,
+        resolved_game_config,
+        strict_signature=strict_signature,
+    )
+
+    training_config_payload = payload.get("metadata", {}).get("training_config")
+    training_config = (
+        TrainingConfig.from_dict(training_config_payload)
+        if training_config_payload is not None
+        else None
+    )
+
+    agent, env = build_agent_for_config(
+        resolved_game_config,
+        learning_rate=(
+            training_config.learning_rate if training_config is not None else 0.0005
+        ),
+        gamma=(training_config.gamma if training_config is not None else 0.85),
+        replay_capacity=1,
+    )
+
+    state_dict = payload["model_state_dict"]
+    agent.policy_network.load_state_dict(state_dict)
+    agent.target_network.load_state_dict(payload.get("target_model_state_dict", state_dict))
+    agent.policy_network.eval()
+    agent.target_network.eval()
+
+    metadata = dict(payload.get("metadata", {}))
+    metadata.update(compatibility)
+    metadata["resolved_game_config"] = resolved_game_config
+    metadata["resolved_training_config"] = training_config
+    metadata["checkpoint_path"] = str(checkpoint_path)
+    metadata["inference_checkpoint_path"] = str(payload_path)
     return agent, env, metadata

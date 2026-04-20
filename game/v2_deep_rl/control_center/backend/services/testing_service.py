@@ -94,12 +94,12 @@ def _summarize_results(rows: list[dict]) -> dict:
 
 
 def evaluate_checkpoint(payload: dict) -> dict:
-    from checkpoint_utils import load_agent_from_checkpoint  # noqa: E402
+    from checkpoint_utils import load_agent_for_inference  # noqa: E402
     checkpoint = _resolve_checkpoint(payload["checkpoint_id"])
     game_config = _resolve_game_config(payload.get("game_config_id") or checkpoint["path"])
     seeds = payload.get("seeds") or [42]
     try:
-        agent, _, _ = load_agent_from_checkpoint(
+        agent, _, _ = load_agent_for_inference(
             checkpoint["path"],
             game_config=game_config,
             strict_signature=False,
