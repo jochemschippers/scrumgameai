@@ -1,0 +1,6 @@
+C:\Users\joche\OneDrive\Documenten\GitClones\scrumgameai\.venv\Lib\site-packages\torch\_subclasses\functional_tensor.py:307: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\pytorch\torch\csrc\utils\tensor_numpy.cpp:84.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+Traceback (most recent call last):
+  File "C:\Users\joche\OneDrive\Documenten\GitClones\scrumgameai\game\v2_deep_rl\train_dqn.py", line 7, in <module>
+    import matplotlib.pyplot as plt
+ModuleNotFoundError: No module named 'matplotlib'
