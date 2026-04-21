@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Class Diagram — ScrumGameAI v2</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #fff; color: #000; padding: 24px; }
+  header { margin-bottom: 14px; }
+  header h1 { font-size: 1.2rem; font-weight: 700; }
+  header p { color: #555; font-size: 0.8rem; margin-top: 3px; }
+  a.back { color: #000; font-size: 0.8rem; text-decoration: none; border-bottom: 1px solid #000; display: inline-block; margin-bottom: 14px; }
+  .export-bar { display: flex; gap: 6px; margin-bottom: 10px; }
+  .btn { padding: 4px 12px; font-size: 0.75rem; border-radius: 3px; cursor: pointer; font-family: inherit; }
+  .btn-png { background: #000; color: #fff; border: 1px solid #000; }
+  .btn-svg { background: #fff; color: #000; border: 1px solid #000; }
+  .diagram-wrap { border: 1px solid #000; padding: 16px; overflow: auto; }
+</style>
+</head>
+<body>
+<a class="back" href="index.html">← index</a>
+<header><h1>Class Diagram</h1><p>Core classes — agents, environment, configs, services</p></header>
+<div class="export-bar">
+  <button class="btn btn-png" onclick="exportPNG('dw','class_diagram')">Export PNG</button>
+  <button class="btn btn-svg" onclick="exportSVG('dw','class_diagram')">Export SVG</button>
+</div>
+<div class="diagram-wrap" id="dw">
+<div class="mermaid">
+%%{init:{'classDiagram':{'rankSpacing':40,'nodeSpacing':20},'theme':'base','themeVariables':{'background':'#fff','mainBkg':'#fff','primaryColor':'#f8f8f8','primaryTextColor':'#000','primaryBorderColor':'#000','lineColor':'#000','classText':'#000'}}}%%
+classDiagram
+    direction LR
+
+    class QNetwork {
+        +int input_dim
+        +int num_actions
+        +forward(state) Tensor
+    }
+    class ReplayBuffer {
+        +deque memory
+        +int capacity
+        +push(s,a,r,s2,done)
+        +sample(batch_size) tuple
+        +state_dict() / load_state_dict()
+    }
+    class DQNAgent {
+        +QNetwork policy_net
+        +QNetwork target_net
+        +ReplayBuffer memory
+        +float gamma, epsilon
+        +select_action(state) int
+        +train_step() float
+        +update_target_network()
+        +save/load_checkpoint(path)
+    }
+    class ScrumGameEnv {
+        +GameConfig game_config
+        +int num_actions
+        +bool switch_is_free
+        +reset() ndarray
+        +step(action) tuple
+        +calculate_reward() float
+    }
+    class GameConfig {
+        +str config_name
+        +list product_names
+        +int max_turns, starting_money
+        +int cost_switch_mid/after
+        +int penalty_negative/positive
+        +DiceRuleConfig dice_rules
+        +RefinementConfig refinement
+        +IncidentConfig incident
+        +to_dict() / rule_payload()
+    }
+    class TrainingConfig {
+        +int episodes, eval_interval
+        +float lr, gamma, epsilon
+        +int batch_size, replay_capacity
+    }
+    class TrainingAutopilot {
+        +analyze_run(run_dir) dict
+        +_call_ai_advisor(data) dict
+        +compute_run_rating(run_dir) int
+    }
+    class CampaignService {
+        +create/get/list_campaigns()
+        +advance_campaign(id) dict
+    }
+    class JobRunner {
+        +run_job(job)
+        +build_train_command(job) list
+    }
+    class QueueManager {
+        +enqueue_train_job(payload) dict
+        +get_job/list_jobs/cancel_job()
+    }
+    class DiceRuleConfig { +int min/max_features, die_sides }
+    class RefinementConfig { +bool active; +dict product_rules }
+    class IncidentConfig { +float draw_probability, severity_multiplier }
+    class DeploymentProfiles { +get_profile(name); +apply_profile(agent, profile) }
+
+    DQNAgent *-- QNetwork
+    DQNAgent *-- ReplayBuffer
+    DQNAgent ..> ScrumGameEnv
+    ScrumGameEnv *-- GameConfig
+    GameConfig *-- DiceRuleConfig
+    GameConfig *-- RefinementConfig
+    GameConfig *-- IncidentConfig
+    TrainingAutopilot ..> JobRunner
+    CampaignService ..> QueueManager
+    JobRunner ..> DQNAgent
+    DeploymentProfiles ..> DQNAgent
+</div>
+</div>
+<script>
+mermaid.initialize({startOnLoad:true,theme:'base',themeVariables:{background:'#fff',mainBkg:'#fff',primaryColor:'#f8f8f8',primaryTextColor:'#000',primaryBorderColor:'#000',lineColor:'#000',classText:'#000',clusterBkg:'#f5f5f5',clusterBorder:'#000',edgeLabelBackground:'#fff'}});
+function getSVG(id){return document.getElementById(id).querySelector('svg');}
+function exportSVG(id,name){const s=getSVG(id);if(!s)return;const c=s.cloneNode(true);c.style.background='white';const b=new Blob([new XMLSerializer().serializeToString(c)],{type:'image/svg+xml'});dl(URL.createObjectURL(b),name+'.svg');}
+function exportPNG(id,name){const s=getSVG(id);if(!s)return;const r=s.getBoundingClientRect(),w=Math.max(r.width,100),h=Math.max(r.height,100);const c=s.cloneNode(true);c.setAttribute('width',w);c.setAttribute('height',h);c.style.background='white';const b=new Blob([new XMLSerializer().serializeToString(c)],{type:'image/svg+xml;charset=utf-8'});const u=URL.createObjectURL(b);const i=new Image();i.onload=()=>{const sc=2,cv=document.createElement('canvas');cv.width=w*sc;cv.height=h*sc;const x=cv.getContext('2d');x.fillStyle='white';x.fillRect(0,0,cv.width,cv.height);x.scale(sc,sc);x.drawImage(i,0,0);dl(cv.toDataURL('image/png'),name+'.png');URL.revokeObjectURL(u);};i.src=u;}
+function dl(url,name){const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);}
+</script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ScrumGameAI v2 — Diagrams</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #fff; color: #000; min-height: 100vh; padding: 40px 20px; }
+  h1 { font-size: 2rem; font-weight: 700; color: #000; margin-bottom: 8px; }
+  p.sub { color: #555; margin-bottom: 40px; font-size: 0.95rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+  .card { background: #fff; border: 1px solid #000; border-radius: 8px; padding: 24px; text-decoration: none; color: inherit; transition: background 0.15s; display: flex; flex-direction: column; gap: 10px; }
+  .card:hover { background: #f5f5f5; }
+  .card .icon { font-size: 2rem; }
+  .card h2 { font-size: 1.05rem; font-weight: 600; color: #000; }
+  .card p { font-size: 0.85rem; color: #444; line-height: 1.5; }
+  .badge { display: inline-block; font-size: 0.7rem; background: #000; color: #fff; padding: 2px 8px; border-radius: 99px; margin-top: 4px; }
+</style>
+</head>
+<body>
+<h1>ScrumGameAI v2 — Architecture Diagrams</h1>
+<p class="sub">All diagrams cover the <code>game/v2_deep_rl</code> module. Open any file in a browser — each page has PNG and SVG export buttons.</p>
+<div class="grid">
+  <a class="card" href="class_diagram.html">
+    <div class="icon">🗂️</div>
+    <h2>Class Diagram</h2>
+    <p>Core classes: DQNAgent, QNetwork, ReplayBuffer, ScrumGameEnv, GameConfig, TrainingAutopilot, CampaignService, and supporting configs.</p>
+    <span class="badge">classDiagram</span>
+  </a>
+  <a class="card" href="usecase_diagram.html">
+    <div class="icon">👤</div>
+    <h2>Use Case Diagram</h2>
+    <p>Actors (User, Autopilot, AI Advisor, Admin) and their interactions with the system: Train, Play, Configure, Monitor, Campaign.</p>
+    <span class="badge">graph LR</span>
+  </a>
+  <a class="card" href="activity_diagram.html">
+    <div class="icon">⚙️</div>
+    <h2>Activity Diagram</h2>
+    <p>Training pipeline flow + single game episode (env.step): configure → train → evaluate → autopilot decision → continue / fine-tune / stop.</p>
+    <span class="badge">flowchart TD</span>
+  </a>
+  <a class="card" href="sequence_diagram.html">
+    <div class="icon">↔️</div>
+    <h2>Sequence Diagram</h2>
+    <p>Play session, training job lifecycle, and campaign execution — Browser → FastAPI → Services → Game Engine.</p>
+    <span class="badge">sequenceDiagram</span>
+  </a>
+  <a class="card" href="relations_diagram.html">
+    <div class="icon">🕸️</div>
+    <h2>Relations Diagram</h2>
+    <p>Module-level dependency graph across all v2 Python files: who imports whom, layered by architectural concern.</p>
+    <span class="badge">graph TB</span>
+  </a>
+  <a class="card" href="state_diagram.html">
+    <div class="icon">🔄</div>
+    <h2>State Diagram</h2>
+    <p>ScrumGameEnv game state machine and Autopilot decision states.</p>
+    <span class="badge">stateDiagram-v2</span>
+  </a>
+  <a class="card" href="component_diagram.html">
+    <div class="icon">🏗️</div>
+    <h2>Component Diagram</h2>
+    <p>System architecture: Frontend SPA ↔ FastAPI Backend (API/Services/Jobs) ↔ Game Engine ↔ Artifacts.</p>
+    <span class="badge">graph TB</span>
+  </a>
+  <a class="card" href="er_diagram.html">
+    <div class="icon">🗄️</div>
+    <h2>ER / Data Model</h2>
+    <p>Data entities: GameConfig, TrainingConfig, Run, Checkpoint, Campaign, Job — and their relationships.</p>
+    <span class="badge">erDiagram</span>
+  </a>
+</div>
+</body>
+</html>

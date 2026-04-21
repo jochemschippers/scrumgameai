@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ER / Data Model — ScrumGameAI v2</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',sans-serif;background:#fff;color:#000;padding:24px;}
+  header{margin-bottom:14px;}header h1{font-size:1.2rem;font-weight:700;}header p{color:#555;font-size:0.8rem;margin-top:3px;}
+  a.back{color:#000;font-size:0.8rem;text-decoration:none;border-bottom:1px solid #000;display:inline-block;margin-bottom:14px;}
+  .export-bar{display:flex;gap:6px;margin-bottom:10px;}
+  .btn{padding:4px 12px;font-size:0.75rem;border-radius:3px;cursor:pointer;font-family:inherit;}
+  .btn-png{background:#000;color:#fff;border:1px solid #000;}.btn-svg{background:#fff;color:#000;border:1px solid #000;}
+  .diagram-wrap{border:1px solid #000;padding:16px;overflow:auto;}
+</style>
+</head>
+<body>
+<a class="back" href="index.html">← index</a>
+<header><h1>ER / Data Model Diagram</h1><p>Data entities and relationships stored on disk</p></header>
+<div class="export-bar">
+  <button class="btn btn-png" onclick="exportPNG('dw','er_diagram')">Export PNG</button>
+  <button class="btn btn-svg" onclick="exportSVG('dw','er_diagram')">Export SVG</button>
+</div>
+<div class="diagram-wrap" id="dw">
+<div class="mermaid">
+%%{init:{'theme':'base','themeVariables':{'background':'#fff','mainBkg':'#fff','primaryColor':'#f8f8f8','primaryTextColor':'#000','primaryBorderColor':'#000','lineColor':'#000','attributeBackgroundColorEven':'#f9f9f9','attributeBackgroundColorOdd':'#fff'}}}%%
+erDiagram
+    GAME_CONFIG {
+        string config_name
+        list   product_names
+        int    max_turns
+        int    starting_money
+        int    cost_switch_mid
+        int    cost_switch_after
+        int    penalty_negative
+        int    penalty_positive
+    }
+    TRAINING_CONFIG {
+        int   episodes
+        float learning_rate
+        float gamma
+        float epsilon_start
+        float epsilon_min
+        int   batch_size
+    }
+    DICE_RULE_CONFIG {
+        int min_features
+        int max_features
+        int die_sides
+    }
+    REFINEMENT_CONFIG {
+        bool   active
+        int    die_sides
+        object product_rules
+    }
+    INCIDENT_CONFIG {
+        float draw_probability
+        float severity_multiplier
+    }
+    RUN {
+        string run_id
+        string mode
+        int    episodes_completed
+        float  best_reward
+        float  rating
+    }
+    CHECKPOINT {
+        string checkpoint_id
+        string type
+        int    episode
+        float  eval_reward
+    }
+    JOB {
+        string job_id
+        string status
+        string mode
+        int    episodes
+        bool   autopilot_after_completion
+    }
+    CAMPAIGN {
+        string campaign_id
+        string name
+        string status
+        int    current_stage_index
+    }
+    CAMPAIGN_STAGE {
+        int    stage_index
+        string status
+        string job_id
+    }
+    AUTOPILOT_DECISION {
+        string action
+        string reason
+        int    intervention_count
+        bool   ai_consulted
+    }
+
+    GAME_CONFIG ||--o{ DICE_RULE_CONFIG : "dice_rules"
+    GAME_CONFIG ||--|| REFINEMENT_CONFIG : "refinement"
+    GAME_CONFIG ||--|| INCIDENT_CONFIG : "incident"
+    RUN }o--|| GAME_CONFIG : "uses"
+    RUN }o--|| TRAINING_CONFIG : "uses"
+    RUN ||--o{ CHECKPOINT : "has"
+    RUN ||--o{ AUTOPILOT_DECISION : "decisions.jsonl"
+    JOB ||--o| RUN : "produces"
+    JOB }o--|| GAME_CONFIG : "references"
+    CAMPAIGN ||--o{ CAMPAIGN_STAGE : "has stages"
+    CAMPAIGN_STAGE ||--o| JOB : "enqueues"
+    CAMPAIGN_STAGE }o--|| GAME_CONFIG : "uses"
+</div>
+</div>
+<script>
+mermaid.initialize({startOnLoad:true,theme:'base',themeVariables:{background:'#fff',mainBkg:'#fff',primaryColor:'#f8f8f8',primaryTextColor:'#000',primaryBorderColor:'#000',lineColor:'#000',attributeBackgroundColorEven:'#f9f9f9',attributeBackgroundColorOdd:'#fff'}});
+function getSVG(id){return document.getElementById(id).querySelector('svg');}
+function exportSVG(id,name){const s=getSVG(id);if(!s)return;const c=s.cloneNode(true);c.style.background='white';const b=new Blob([new XMLSerializer().serializeToString(c)],{type:'image/svg+xml'});dl(URL.createObjectURL(b),name+'.svg');}
+function exportPNG(id,name){const s=getSVG(id);if(!s)return;const r=s.getBoundingClientRect(),w=Math.max(r.width,100),h=Math.max(r.height,100);const c=s.cloneNode(true);c.setAttribute('width',w);c.setAttribute('height',h);c.style.background='white';const b=new Blob([new XMLSerializer().serializeToString(c)],{type:'image/svg+xml;charset=utf-8'});const u=URL.createObjectURL(b);const i=new Image();i.onload=()=>{const sc=2,cv=document.createElement('canvas');cv.width=w*sc;cv.height=h*sc;const x=cv.getContext('2d');x.fillStyle='white';x.fillRect(0,0,cv.width,cv.height);x.scale(sc,sc);x.drawImage(i,0,0);dl(cv.toDataURL('image/png'),name+'.png');URL.revokeObjectURL(u);};i.src=u;}
+function dl(url,name){const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);}
+</script>
+</body>
+</html>

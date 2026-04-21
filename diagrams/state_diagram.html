@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>State Diagram — ScrumGameAI v2</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',sans-serif;background:#fff;color:#000;padding:24px;}
+  header{margin-bottom:14px;}header h1{font-size:1.2rem;font-weight:700;}header p{color:#555;font-size:0.8rem;margin-top:3px;}
+  a.back{color:#000;font-size:0.8rem;text-decoration:none;border-bottom:1px solid #000;display:inline-block;margin-bottom:14px;}
+  .export-bar{display:flex;gap:6px;margin-bottom:10px;}
+  .btn{padding:4px 12px;font-size:0.75rem;border-radius:3px;cursor:pointer;font-family:inherit;}
+  .btn-png{background:#000;color:#fff;border:1px solid #000;}.btn-svg{background:#fff;color:#000;border:1px solid #000;}
+  .section{margin-bottom:24px;}
+  .section h2{font-size:0.9rem;font-weight:600;margin-bottom:8px;}
+  .diagram-wrap{border:1px solid #000;padding:16px;overflow:auto;}
+</style>
+</head>
+<body>
+<a class="back" href="index.html">← index</a>
+<header><h1>State Diagrams</h1><p>Game state machine and autopilot decision states</p></header>
+
+<div class="section">
+  <h2>ScrumGameEnv State Machine</h2>
+  <div class="export-bar">
+    <button class="btn btn-png" onclick="exportPNG('w1','state_game')">Export PNG</button>
+    <button class="btn btn-svg" onclick="exportSVG('w1','state_game')">Export SVG</button>
+  </div>
+  <div class="diagram-wrap" id="w1">
+  <div class="mermaid">
+%%{init:{'theme':'base','themeVariables':{'background':'#fff','mainBkg':'#fff','primaryColor':'#f8f8f8','primaryTextColor':'#000','primaryBorderColor':'#000','lineColor':'#000','fillType0':'#fff','fillType1':'#f5f5f5','fillType2':'#ebebeb','fillType3':'#e0e0e0'}}}%%
+stateDiagram-v2
+    direction LR
+    [*] --> AWAITING_ACTION : reset()
+    AWAITING_ACTION --> SPRINT : START_SPRINT
+    AWAITING_ACTION --> AWAITING_ACTION : SWITCH_n\n(cost applied)
+    SPRINT --> VARIANCE_CHECK : roll dice
+    VARIANCE_CHECK --> PENALTY_NEG : under target
+    VARIANCE_CHECK --> SPRINT_FAIL : over target
+    VARIANCE_CHECK --> INCIDENT_CHECK : on target
+    PENALTY_NEG --> INCIDENT_CHECK
+    SPRINT_FAIL --> INCIDENT_CHECK
+    INCIDENT_CHECK --> REFINEMENT : incident drawn
+    INCIDENT_CHECK --> LOAN_CHECK : no incident
+    REFINEMENT --> LOAN_CHECK
+    LOAN_CHECK --> AWAITING_ACTION : turn+=1\nupdate switch_is_free
+    LOAN_CHECK --> GAME_OVER : turn >= max_turns
+    GAME_OVER --> [*]
+  </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Autopilot Decision States</h2>
+  <div class="export-bar">
+    <button class="btn btn-png" onclick="exportPNG('w2','state_autopilot')">Export PNG</button>
+    <button class="btn btn-svg" onclick="exportSVG('w2','state_autopilot')">Export SVG</button>
+  </div>
+  <div class="diagram-wrap" id="w2">
+  <div class="mermaid">
+%%{init:{'theme':'base','themeVariables':{'background':'#fff','mainBkg':'#fff','primaryColor':'#f8f8f8','primaryTextColor':'#000','primaryBorderColor':'#000','lineColor':'#000','fillType0':'#fff','fillType1':'#f5f5f5','fillType2':'#ebebeb'}}}%%
+stateDiagram-v2
+    direction LR
+    [*] --> MONITORING : job started
+    MONITORING --> EXPLORING : ε > 0.5
+    EXPLORING --> MONITORING : ε ≤ 0.5
+    MONITORING --> CONTINUING : reward delta > 2%
+    MONITORING --> LR_ADJUST : high variance
+    MONITORING --> EPS_EXTEND : high invalid actions
+    MONITORING --> AI_CONSULT : plateau
+    CONTINUING --> MONITORING
+    LR_ADJUST --> MONITORING
+    EPS_EXTEND --> MONITORING
+    AI_CONSULT --> FINE_TUNING : fine_tune (≤3 interventions)
+    AI_CONSULT --> DONE : stop
+    FINE_TUNING --> MONITORING
+    DONE --> [*]
+  </div>
+  </div>
+</div>
+
+<script>
+mermaid.initialize({startOnLoad:true,theme:'base',themeVariables:{background:'#fff',mainBkg:'#fff',primaryColor:'#f8f8f8',primaryTextColor:'#000',primaryBorderColor:'#000',lineColor:'#000',fillType0:'#fff',fillType1:'#f5f5f5',fillType2:'#ebebeb',fillType3:'#e0e0e0',fillType4:'#d6d6d6'}});
+function getSVG(id){return document.getElementById(id).querySelector('svg');}
+function exportSVG(id,name){const s=getSVG(id);if(!s)return;const c=s.cloneNode(true);c.style.background='white';const b=new Blob([new XMLSerializer().serializeToString(c)],{type:'image/svg+xml'});dl(URL.createObjectURL(b),name+'.svg');}
+function exportPNG(id,name){const s=getSVG(id);if(!s)return;const r=s.getBoundingClientRect(),w=Math.max(r.width,100),h=Math.max(r.height,100);const c=s.cloneNode(true);c.setAttribute('width',w);c.setAttribute('height',h);c.style.background='white';const b=new Blob([new XMLSerializer().serializeToString(c)],{type:'image/svg+xml;charset=utf-8'});const u=URL.createObjectURL(b);const i=new Image();i.onload=()=>{const sc=2,cv=document.createElement('canvas');cv.width=w*sc;cv.height=h*sc;const x=cv.getContext('2d');x.fillStyle='white';x.fillRect(0,0,cv.width,cv.height);x.scale(sc,sc);x.drawImage(i,0,0);dl(cv.toDataURL('image/png'),name+'.png');URL.revokeObjectURL(u);};i.src=u;}
+function dl(url,name){const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);}
+</script>
+</body>
+</html>
