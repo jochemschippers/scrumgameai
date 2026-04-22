@@ -231,14 +231,14 @@ def encode_state(state, env):
     for features in state["target_features_required"]:
         vector.append(float(features) / 4.0)
 
-    for sprint_value in state["target_sprint_values"]:
-        vector.append(float(sprint_value) / max(env.max_visible_sprint_value, 1))
+    for tsv in state["target_sprint_values"]:
+        vector.append(float(tsv) / max(env.max_visible_sprint_value, 1))
 
-    for win_probability in state["target_win_probabilities"]:
-        vector.append(float(win_probability))
+    for twp in state["target_win_probabilities"]:
+        vector.append(float(twp))
 
-    for expected_value in state["target_expected_values"]:
-        vector.append(float(expected_value) / max(env.max_visible_sprint_value, 1))
+    for tev in state["target_expected_values"]:
+        vector.append(float(tev) / max(env.max_visible_sprint_value, 1))
 
     for completed_flag in state["target_is_completed"]:
         vector.append(float(completed_flag))

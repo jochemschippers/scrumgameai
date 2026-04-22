@@ -10,6 +10,10 @@ from refinements import ConfiguredRefinementModel
 class ScrumGameEnv:
     """Config-driven Gym-style environment for the deep-RL Scrum Game branch."""
 
+    # Shared across all instances — avoids recomputing expensive convolutions when
+    # rule randomization creates many environments with identical dice/scrum params.
+    _win_prob_cache: dict = {}
+
     def __init__(
         self,
         game_config: GameConfig | None = None,
@@ -650,14 +654,31 @@ class ScrumGameEnv:
 
     def _get_dice_setup(self, features_required):
         """Map feature count to the configured dice regime."""
+        # Below the lowest configured tier — use the easiest (first) rule.
+        if features_required < self.dice_rules[0].min_features:
+            return self.dice_rules[0].dice_count, self.dice_rules[0].dice_sides
         for rule in self.dice_rules:
             if rule.matches(features_required):
                 return rule.dice_count, rule.dice_sides
+        # Above the highest configured tier — use the hardest (last) rule.
         last_rule = self.dice_rules[-1]
         return last_rule.dice_count, last_rule.dice_sides
 
     def _build_win_probability_lookup(self):
         """Precompute exact success probabilities for the configured dice regimes."""
+        cache_key = (
+            tuple(
+                (r.min_features, r.max_features, r.dice_count, r.dice_sides)
+                for r in self.dice_rules
+            ),
+            self.daily_scrums_per_sprint,
+            self.daily_scrum_target,
+            self.max_feature_reference,
+        )
+        cached = ScrumGameEnv._win_prob_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         lookup = {}
         for feature_count in range(1, self.max_feature_reference + 1):
             dice_count, dice_sides = self._get_dice_setup(feature_count)
@@ -677,6 +698,8 @@ class ScrumGameEnv:
                 if total_roll <= success_threshold
             )
             lookup[feature_count] = success_probability
+
+        ScrumGameEnv._win_prob_cache[cache_key] = lookup
         return lookup
 
     def _single_scrum_sum_distribution(self, dice_count, dice_sides):

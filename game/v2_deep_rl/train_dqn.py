@@ -342,54 +342,62 @@ def evaluate_dqn_agent(agent, num_episodes=1000, seed=1042, game_config: GameCon
     Evaluate the DDQN greedily with epsilon fixed at 0.
 
     Evaluation uses a separate environment instance and no optimization steps.
+    Global random state is saved and restored so interleaved training is unaffected.
     """
+    saved_random_state = random.getstate()
+    saved_torch_state = torch.get_rng_state()
+
     random.seed(seed)
     torch.manual_seed(seed)
 
-    env = ScrumGameEnv(game_config=game_config)
-    evaluation_rewards = []
-    ending_monies = []
-    bankruptcy_count = 0
-    loan_durations = []
-    action_counts = [0] * env.num_actions
-    invalid_action_count = 0
+    try:
+        env = ScrumGameEnv(game_config=game_config)
+        evaluation_rewards = []
+        ending_monies = []
+        bankruptcy_count = 0
+        loan_durations = []
+        action_counts = [0] * env.num_actions
+        invalid_action_count = 0
 
-    for episode in range(num_episodes):
-        state = env.reset(seed=seed + episode)
-        state_vector = encode_state(state, env)
-        done = False
-        cumulative_reward = 0
+        for episode in range(num_episodes):
+            state = env.reset(seed=seed + episode)
+            state_vector = encode_state(state, env)
+            done = False
+            cumulative_reward = 0
 
-        while not done:
-            action = agent.choose_action(state_vector, epsilon=0.0)
-            action_counts[action] += 1
-            next_state, reward, done, info = env.step(action)
-            next_state_vector = encode_state(next_state, env)
-            if info.get("invalid_action"):
-                invalid_action_count += 1
+            while not done:
+                action = agent.choose_action(state_vector, epsilon=0.0)
+                action_counts[action] += 1
+                next_state, reward, done, info = env.step(action)
+                next_state_vector = encode_state(next_state, env)
+                if info.get("invalid_action"):
+                    invalid_action_count += 1
 
-            cumulative_reward += reward
-            state_vector = next_state_vector
+                cumulative_reward += reward
+                state_vector = next_state_vector
 
-            if done and info.get("terminal_reason") == "bankruptcy":
-                bankruptcy_count += 1
-                ending_monies.append(next_state["current_money"])
-                loan_durations.append(env.turns_with_loan)
-            elif done:
-                ending_monies.append(next_state["current_money"])
-                loan_durations.append(env.turns_with_loan)
+                if done and info.get("terminal_reason") == "bankruptcy":
+                    bankruptcy_count += 1
+                    ending_monies.append(next_state["current_money"])
+                    loan_durations.append(env.turns_with_loan)
+                elif done:
+                    ending_monies.append(next_state["current_money"])
+                    loan_durations.append(env.turns_with_loan)
 
-        evaluation_rewards.append(cumulative_reward)
+            evaluation_rewards.append(cumulative_reward)
 
-    return {
-        "rewards": evaluation_rewards,
-        "average_reward": sum(evaluation_rewards) / len(evaluation_rewards),
-        "average_ending_money": sum(ending_monies) / len(ending_monies),
-        "bankruptcy_rate": bankruptcy_count / len(evaluation_rewards),
-        "average_loan_duration": sum(loan_durations) / len(loan_durations),
-        "invalid_action_rate": invalid_action_count / max(sum(action_counts), 1),
-        "action_counts": action_counts,
-    }
+        return {
+            "rewards": evaluation_rewards,
+            "average_reward": sum(evaluation_rewards) / len(evaluation_rewards),
+            "average_ending_money": sum(ending_monies) / len(ending_monies),
+            "bankruptcy_rate": bankruptcy_count / len(evaluation_rewards),
+            "average_loan_duration": sum(loan_durations) / len(loan_durations),
+            "invalid_action_rate": invalid_action_count / max(sum(action_counts), 1),
+            "action_counts": action_counts,
+        }
+    finally:
+        random.setstate(saved_random_state)
+        torch.set_rng_state(saved_torch_state)
 
 
 def evaluate_dqn_agent_on_randomized_rules(
@@ -508,7 +516,7 @@ def save_training_plot(training_rewards, output_path):
 def train_dqn_agent(
     num_episodes=500000,
     learning_rate=0.0005,
-    gamma=0.85,
+    gamma=None,
     checkpoint_interval=10000,
     evaluation_interval=10000,
     evaluation_episodes=100,
@@ -849,10 +857,14 @@ def train_dqn_agent(
     plot_path = plot_dir / "dqn_training_curve.png"
     save_training_plot(training_rewards, output_path=plot_path)
 
-    best_agent, _, _ = load_agent_from_checkpoint(
-        best_checkpoint_path,
-        game_config=resolved_game_config,
-    )
+    try:
+        best_agent, _, _ = load_agent_from_checkpoint(
+            best_checkpoint_path,
+            game_config=resolved_game_config,
+        )
+    except Exception as _load_err:
+        print(f"[WARNING] Could not reload best checkpoint for final evaluation ({_load_err}); using final training agent.")
+        best_agent = agent
 
     final_evaluation = evaluate_for_training_config(
         best_agent,

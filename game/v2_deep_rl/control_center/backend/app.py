@@ -8,6 +8,7 @@ from api.routes_autopilot import router as autopilot_router
 from api.routes_campaigns import router as campaigns_router
 from api.routes_checkpoints import router as checkpoints_router
 from api.routes_configs import router as configs_router
+from api.routes_db_admin import router as db_admin_router
 from api.routes_jobs import router as jobs_router
 from api.routes_play import router as play_router
 from api.routes_runs import router as runs_router
@@ -36,6 +37,7 @@ init_db()
 app.include_router(autopilot_router)
 app.include_router(campaigns_router)
 app.include_router(configs_router)
+app.include_router(db_admin_router)
 app.include_router(runs_router)
 app.include_router(checkpoints_router)
 app.include_router(jobs_router)
