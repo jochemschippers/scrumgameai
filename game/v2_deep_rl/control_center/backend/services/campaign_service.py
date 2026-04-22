@@ -129,7 +129,7 @@ def _generate_and_queue_next(campaign: dict, from_run_id: str, metrics: dict, es
             "run_name": new_run_id,
             "game_config_path": str(config_path),
             "resume_from": str(checkpoint_path),
-            "resume_mode": "strict",
+            "resume_mode": "fine-tune",
             "resume_episodes_mode": "incremental",
             "autopilot_after_completion": True,
             "autopilot_context": {},

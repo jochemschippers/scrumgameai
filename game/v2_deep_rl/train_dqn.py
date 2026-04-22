@@ -1,6 +1,7 @@
 import argparse
 import csv
 from datetime import datetime
+import json
 from pathlib import Path
 import random
 
@@ -25,6 +26,7 @@ from config_manager import (
 )
 from dqn_agent import encode_state
 from model_utils import save_metrics_json
+from rule_randomization import sample_game_config
 from scrum_game_env import ScrumGameEnv
 
 
@@ -218,6 +220,12 @@ def resolve_training_config(
     evaluation_episodes=None,
     seed=None,
     epsilon_decay_episodes=None,
+    rule_randomization_enabled=None,
+    rule_randomization_frequency=None,
+    rule_randomization_eval_configs=None,
+    rule_randomization_bounds=None,
+    auto_continue_enabled=None,
+    auto_continue_cycles=None,
     run_notes="",
 ):
     """Load the base training config and apply CLI/function overrides."""
@@ -240,6 +248,18 @@ def resolve_training_config(
         payload["seed"] = int(seed)
     if epsilon_decay_episodes is not None:
         payload["epsilon_decay_episodes"] = int(epsilon_decay_episodes)
+    if rule_randomization_enabled is not None:
+        payload["rule_randomization_enabled"] = bool(rule_randomization_enabled)
+    if rule_randomization_frequency is not None:
+        payload["rule_randomization_frequency"] = int(rule_randomization_frequency)
+    if rule_randomization_eval_configs is not None:
+        payload["rule_randomization_eval_configs"] = int(rule_randomization_eval_configs)
+    if rule_randomization_bounds is not None:
+        payload["rule_randomization_bounds"] = dict(rule_randomization_bounds)
+    if auto_continue_enabled is not None:
+        payload["auto_continue_enabled"] = bool(auto_continue_enabled)
+    if auto_continue_cycles is not None:
+        payload["auto_continue_cycles"] = int(auto_continue_cycles)
     if run_notes:
         payload["run_notes"] = str(run_notes)
 
@@ -372,6 +392,103 @@ def evaluate_dqn_agent(agent, num_episodes=1000, seed=1042, game_config: GameCon
     }
 
 
+def evaluate_dqn_agent_on_randomized_rules(
+    agent,
+    base_game_config: GameConfig,
+    training_config: TrainingConfig,
+    num_episodes=1000,
+    seed=1042,
+):
+    """Evaluate greedily across held-out sampled rule configs."""
+    config_count = max(1, int(training_config.rule_randomization_eval_configs))
+    episodes_per_config = max(1, int(num_episodes) // config_count)
+    rng = random.Random(seed)
+    per_config_metrics = []
+    all_rewards = []
+    all_action_counts = None
+    bankruptcy_total = 0.0
+    ending_money_total = 0.0
+    loan_duration_total = 0.0
+    invalid_action_total = 0.0
+
+    for config_index in range(config_count):
+        sampled_config = sample_game_config(
+            base_game_config,
+            rng,
+            bounds=training_config.rule_randomization_bounds,
+            config_name=f"heldout_eval_{config_index + 1}",
+        )
+        metrics = evaluate_dqn_agent(
+            agent,
+            num_episodes=episodes_per_config,
+            seed=seed + config_index * 10000,
+            game_config=sampled_config,
+        )
+        per_config_metrics.append(
+            {
+                "config_index": config_index + 1,
+                "rule_signature": compute_rule_signature(sampled_config),
+                "average_reward": metrics["average_reward"],
+                "bankruptcy_rate": metrics["bankruptcy_rate"],
+                "average_ending_money": metrics["average_ending_money"],
+                "invalid_action_rate": metrics["invalid_action_rate"],
+            }
+        )
+        all_rewards.extend(metrics["rewards"])
+        if all_action_counts is None:
+            all_action_counts = [0] * len(metrics["action_counts"])
+        for action_id, count in enumerate(metrics["action_counts"]):
+            all_action_counts[action_id] += count
+        bankruptcy_total += metrics["bankruptcy_rate"] * len(metrics["rewards"])
+        ending_money_total += metrics["average_ending_money"] * len(metrics["rewards"])
+        loan_duration_total += metrics["average_loan_duration"] * len(metrics["rewards"])
+        invalid_action_total += metrics["invalid_action_rate"] * max(sum(metrics["action_counts"]), 1)
+
+    total_episodes = max(len(all_rewards), 1)
+    total_actions = max(sum(all_action_counts or [0]), 1)
+    sorted_config_rewards = sorted(item["average_reward"] for item in per_config_metrics)
+    worst_count = max(1, int(len(sorted_config_rewards) * 0.1))
+
+    return {
+        "rewards": all_rewards,
+        "average_reward": sum(all_rewards) / total_episodes,
+        "average_ending_money": ending_money_total / total_episodes,
+        "bankruptcy_rate": bankruptcy_total / total_episodes,
+        "average_loan_duration": loan_duration_total / total_episodes,
+        "invalid_action_rate": invalid_action_total / total_actions,
+        "action_counts": all_action_counts or [],
+        "randomized_rule_evaluation": True,
+        "configs_evaluated": config_count,
+        "episodes_per_config": episodes_per_config,
+        "worst_config_average_reward": sorted_config_rewards[0],
+        "worst_10pct_average_reward": sum(sorted_config_rewards[:worst_count]) / worst_count,
+        "per_config_metrics": per_config_metrics,
+    }
+
+
+def evaluate_for_training_config(
+    agent,
+    game_config: GameConfig,
+    training_config: TrainingConfig,
+    num_episodes=1000,
+    seed=1042,
+):
+    if training_config.rule_randomization_enabled:
+        return evaluate_dqn_agent_on_randomized_rules(
+            agent,
+            game_config,
+            training_config,
+            num_episodes=num_episodes,
+            seed=seed,
+        )
+    return evaluate_dqn_agent(
+        agent,
+        num_episodes=num_episodes,
+        seed=seed,
+        game_config=game_config,
+    )
+
+
 def save_training_plot(training_rewards, output_path):
     """Save the DDQN rolling-average training curve."""
     smoothed_rewards = rolling_average(training_rewards, window_size=500)
@@ -397,6 +514,12 @@ def train_dqn_agent(
     evaluation_episodes=100,
     seed=42,
     epsilon_decay_episodes=None,
+    rule_randomization_enabled=None,
+    rule_randomization_frequency=None,
+    rule_randomization_eval_configs=None,
+    rule_randomization_bounds=None,
+    auto_continue_enabled=None,
+    auto_continue_cycles=None,
     run_dir=None,
     run_notes="",
     game_config: GameConfig | None = None,
@@ -423,6 +546,12 @@ def train_dqn_agent(
         evaluation_episodes=evaluation_episodes,
         seed=seed,
         epsilon_decay_episodes=epsilon_decay_episodes,
+        rule_randomization_enabled=rule_randomization_enabled,
+        rule_randomization_frequency=rule_randomization_frequency,
+        rule_randomization_eval_configs=rule_randomization_eval_configs,
+        rule_randomization_bounds=rule_randomization_bounds,
+        auto_continue_enabled=auto_continue_enabled,
+        auto_continue_cycles=auto_continue_cycles,
         run_notes=run_notes,
     )
 
@@ -435,6 +564,8 @@ def train_dqn_agent(
     initial_state = env.reset(seed=resolved_training_config.seed)
     state_dim = len(encode_state(initial_state, env))
     num_actions = env.num_actions
+    randomization_rng = random.Random(resolved_training_config.seed + 97117)
+    active_training_env = env
 
     log_path = report_dir / "logs.csv"
     evaluation_log_path = report_dir / "evaluation_history.csv"
@@ -465,6 +596,11 @@ def train_dqn_agent(
         "resume_checkpoint_path": str(resume_from) if resume_from else None,
         "resume_mode": resume_mode if resume_from else None,
         "resume_episodes_mode": resume_episodes_mode if resume_from else None,
+        "rule_randomization_enabled": resolved_training_config.rule_randomization_enabled,
+        "rule_randomization_frequency": resolved_training_config.rule_randomization_frequency,
+        "rule_randomization_eval_configs": resolved_training_config.rule_randomization_eval_configs,
+        "auto_continue_enabled": resolved_training_config.auto_continue_enabled,
+        "auto_continue_cycles": resolved_training_config.auto_continue_cycles,
     }
 
     if run_path is not None:
@@ -541,8 +677,20 @@ def train_dqn_agent(
 
     for episode in range(first_episode, final_episode + 1):
         block_episode = episode - resume_start_episode
-        state = env.reset(seed=resolved_training_config.seed + episode)
-        state_vector = encode_state(state, env)
+        if resolved_training_config.rule_randomization_enabled and (
+            block_episode == 1
+            or (block_episode - 1) % resolved_training_config.rule_randomization_frequency == 0
+        ):
+            sampled_game_config = sample_game_config(
+                resolved_game_config,
+                randomization_rng,
+                bounds=resolved_training_config.rule_randomization_bounds,
+                config_name=f"train_episode_{episode}",
+            )
+            active_training_env = ScrumGameEnv(game_config=sampled_game_config)
+
+        state = active_training_env.reset(seed=resolved_training_config.seed + episode)
+        state_vector = encode_state(state, active_training_env)
         done = False
         cumulative_reward = 0
         bankruptcy_this_episode = 0
@@ -560,8 +708,8 @@ def train_dqn_agent(
             action = agent.choose_action(state_vector, epsilon=epsilon)
             episode_action_counts[action] += 1
 
-            next_state, reward, done, info = env.step(action)
-            next_state_vector = encode_state(next_state, env)
+            next_state, reward, done, info = active_training_env.step(action)
+            next_state_vector = encode_state(next_state, active_training_env)
             if info.get("invalid_action"):
                 invalid_actions_this_episode += 1
 
@@ -578,9 +726,9 @@ def train_dqn_agent(
                 bankruptcy_this_episode = 1
 
         training_rewards.append(cumulative_reward)
-        episode_loan_durations.append(env.turns_with_loan)
+        episode_loan_durations.append(active_training_env.turns_with_loan)
         bankruptcy_flags.append(bankruptcy_this_episode)
-        ending_monies.append(env.current_money)
+        ending_monies.append(active_training_env.current_money)
         recent_action_counts.append(episode_action_counts)
         invalid_action_flags.append(invalid_actions_this_episode)
 
@@ -631,11 +779,12 @@ def train_dqn_agent(
                 print(f"[WARNING] Checkpoint save failed at episode {episode} (skipping): {_ckpt_err}")
 
         if block_episode % resolved_training_config.evaluation_interval == 0:
-            evaluation_metrics = evaluate_dqn_agent(
+            evaluation_metrics = evaluate_for_training_config(
                 agent,
+                resolved_game_config,
+                resolved_training_config,
                 num_episodes=resolved_training_config.evaluation_episodes,
                 seed=resolved_training_config.seed + 100000 + episode,
-                game_config=resolved_game_config,
             )
             append_evaluation_log(evaluation_log_path, episode, evaluation_metrics)
             evaluations_completed += 1
@@ -705,11 +854,12 @@ def train_dqn_agent(
         game_config=resolved_game_config,
     )
 
-    final_evaluation = evaluate_dqn_agent(
+    final_evaluation = evaluate_for_training_config(
         best_agent,
+        resolved_game_config,
+        resolved_training_config,
         num_episodes=1000,
         seed=resolved_training_config.seed + 1000,
-        game_config=resolved_game_config,
     )
 
     save_metrics_json(
@@ -726,6 +876,11 @@ def train_dqn_agent(
             "bankruptcy_rate": final_evaluation["bankruptcy_rate"],
             "average_loan_duration": final_evaluation["average_loan_duration"],
             "invalid_action_rate": final_evaluation["invalid_action_rate"],
+            "randomized_rule_evaluation": final_evaluation.get("randomized_rule_evaluation", False),
+            "configs_evaluated": final_evaluation.get("configs_evaluated"),
+            "worst_config_average_reward": final_evaluation.get("worst_config_average_reward"),
+            "worst_10pct_average_reward": final_evaluation.get("worst_10pct_average_reward"),
+            "per_config_metrics": final_evaluation.get("per_config_metrics"),
             "learning_rate": resolved_training_config.learning_rate,
             "gamma": resolved_training_config.gamma,
             "state_dim": state_dim,
@@ -781,6 +936,12 @@ def parse_args():
     parser.add_argument("--learning-rate", type=float, default=None, help="Optimizer learning rate.")
     parser.add_argument("--gamma", type=float, default=None, help="Discount factor.")
     parser.add_argument("--epsilon-decay-episodes", type=int, default=None, help="Episodes over which epsilon decays to minimum.")
+    parser.add_argument("--rule-randomization", action="store_true", help="Train on a sampled compatible rule config instead of one fixed config.")
+    parser.add_argument("--rule-randomization-frequency", type=int, default=None, help="Episodes between sampled rule configs.")
+    parser.add_argument("--rule-randomization-eval-configs", type=int, default=None, help="Held-out sampled configs per evaluation.")
+    parser.add_argument("--rule-randomization-bounds-json", default=None, help="JSON object overriding rule-randomization bounds.")
+    parser.add_argument("--auto-continue", action="store_true", help="Request automatic continuation cycles after this run completes.")
+    parser.add_argument("--auto-continue-cycles", type=int, default=None, help="Maximum automatic continuation cycles; 0 means unlimited when enabled.")
     parser.add_argument("--resume-from", default=None, help="Optional checkpoint path for resume or fine-tune training.")
     parser.add_argument(
         "--resume-mode",
@@ -804,6 +965,7 @@ def parse_args():
 def main():
     """Train the advanced Double DQN agent with the requested production hyperparameters."""
     args = parse_args()
+    rule_randomization_bounds = json.loads(args.rule_randomization_bounds_json) if args.rule_randomization_bounds_json else None
     _, training_rewards, final_evaluation, checkpoint_path, plot_path, log_path, evaluation_log_path = train_dqn_agent(
         num_episodes=args.episodes,
         learning_rate=args.learning_rate,
@@ -813,6 +975,12 @@ def main():
         evaluation_episodes=args.evaluation_episodes,
         seed=args.seed,
         epsilon_decay_episodes=args.epsilon_decay_episodes,
+        rule_randomization_enabled=True if args.rule_randomization else None,
+        rule_randomization_frequency=args.rule_randomization_frequency,
+        rule_randomization_eval_configs=args.rule_randomization_eval_configs,
+        rule_randomization_bounds=rule_randomization_bounds,
+        auto_continue_enabled=True if args.auto_continue else None,
+        auto_continue_cycles=args.auto_continue_cycles,
         run_dir=args.run_dir,
         run_notes=args.notes,
         game_config_path=args.game_config,

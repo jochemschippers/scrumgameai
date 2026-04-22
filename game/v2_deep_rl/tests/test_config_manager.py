@@ -281,6 +281,12 @@ class TestTrainingConfig:
             "epsilon_min": 0.02,
             "epsilon_decay_episodes": 80000,
             "run_notes": "test run",
+            "rule_randomization_enabled": True,
+            "rule_randomization_frequency": 2,
+            "rule_randomization_eval_configs": 6,
+            "rule_randomization_bounds": {"max_turns": [4, 8]},
+            "auto_continue_enabled": True,
+            "auto_continue_cycles": 3,
         }
         tc = cm.TrainingConfig.from_dict(payload)
         rt = tc.to_dict()
@@ -296,6 +302,8 @@ class TestTrainingConfig:
         assert tc.epsilon_min == 0.05
         assert tc.epsilon_decay_episodes == 450000
         assert tc.run_notes == ""
+        assert tc.rule_randomization_enabled is False
+        assert tc.auto_continue_enabled is False
 
     def test_to_dict_serializable_to_json(self):
         tc = cm.TrainingConfig.from_dict({})

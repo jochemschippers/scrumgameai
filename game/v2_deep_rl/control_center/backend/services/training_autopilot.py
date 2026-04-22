@@ -365,6 +365,8 @@ def analyze_run(run_id: str, context: dict | None = None) -> dict:
 
     current_lr = float(training_config.get("learning_rate", 0.0005))
     current_epsilon_decay = int(training_config.get("epsilon_decay_episodes", 450000))
+    auto_continue_enabled = bool(training_config.get("auto_continue_enabled", False))
+    auto_continue_cycles = int(training_config.get("auto_continue_cycles", 0) or 0)
 
     # Read the latest epsilon from the training log.
     log_rows = _read_csv(run_dir / "reports" / "logs.csv")
@@ -473,6 +475,12 @@ def analyze_run(run_id: str, context: dict | None = None) -> dict:
             "resume_from": best_checkpoint_path,
             "resume_mode": resume_mode,
             "resume_episodes_mode": "incremental",
+            "rule_randomization_enabled": bool(training_config.get("rule_randomization_enabled", False)),
+            "rule_randomization_frequency": int(training_config.get("rule_randomization_frequency", 1) or 1),
+            "rule_randomization_eval_configs": int(training_config.get("rule_randomization_eval_configs", 12) or 12),
+            "rule_randomization_bounds": dict(training_config.get("rule_randomization_bounds", {})),
+            "auto_continue_enabled": auto_continue_enabled,
+            "auto_continue_cycles": auto_continue_cycles,
         }
 
     return {
@@ -497,6 +505,12 @@ def analyze_run(run_id: str, context: dict | None = None) -> dict:
         "current_config": {
             "learning_rate": current_lr,
             "epsilon_decay_episodes": current_epsilon_decay,
+            "rule_randomization_enabled": bool(training_config.get("rule_randomization_enabled", False)),
+            "rule_randomization_frequency": int(training_config.get("rule_randomization_frequency", 1) or 1),
+            "rule_randomization_eval_configs": int(training_config.get("rule_randomization_eval_configs", 12) or 12),
+            "rule_randomization_bounds": dict(training_config.get("rule_randomization_bounds", {})),
+            "auto_continue_enabled": auto_continue_enabled,
+            "auto_continue_cycles": auto_continue_cycles,
         },
         "context": {
             "lr_reduction_count": lr_reduction_count,
@@ -530,8 +544,38 @@ def run_autopilot(run_id: str, dry_run: bool = False, context: dict | None = Non
     # continuation_version tracks what vN suffix the *next* run should get (starts at 2).
     base_run_name = context.get("base_run_name") or _derive_base_run_name(run_id)
     continuation_version = int(context.get("continuation_version", 2))
+    auto_continue_cycle_count = int(context.get("auto_continue_cycle_count", 0))
 
     decision = analyze_run(run_id, context=context)
+    current_config = decision.get("current_config", {})
+    auto_continue_enabled = bool(current_config.get("auto_continue_enabled", False))
+    auto_continue_cycles = int(current_config.get("auto_continue_cycles", 0) or 0)
+    auto_continue_remaining = auto_continue_enabled and (
+        auto_continue_cycles == 0 or auto_continue_cycle_count < auto_continue_cycles
+    )
+
+    if decision["action"] in {"stop", "stop_regression"} and auto_continue_remaining:
+        decision["action"] = "continue"
+        decision["reason"] = (
+            f"Auto-continue cycle {auto_continue_cycle_count + 1}"
+            + (f"/{auto_continue_cycles}" if auto_continue_cycles else "")
+            + f" requested by training config. Previous reason: {decision['reason']}"
+        )
+        decision["advisor"] = "auto_continue"
+        decision["next_payload"] = {
+            "episodes": CONTINUE_EPISODES,
+            "learning_rate": current_config.get("learning_rate", 0.0005),
+            "epsilon_decay_episodes": current_config.get("epsilon_decay_episodes", 450000),
+            "resume_from": decision["best_checkpoint_path"],
+            "resume_mode": "strict",
+            "resume_episodes_mode": "incremental",
+            "rule_randomization_enabled": bool(current_config.get("rule_randomization_enabled", False)),
+            "rule_randomization_frequency": int(current_config.get("rule_randomization_frequency", 1) or 1),
+            "rule_randomization_eval_configs": int(current_config.get("rule_randomization_eval_configs", 12) or 12),
+            "rule_randomization_bounds": dict(current_config.get("rule_randomization_bounds", {})),
+            "auto_continue_enabled": auto_continue_enabled,
+            "auto_continue_cycles": auto_continue_cycles,
+        }
 
     # --- AI advisor: only when logic says stop (not regression) and budget remains ---
     settings = get_settings()
@@ -557,6 +601,26 @@ def run_autopilot(run_id: str, dry_run: bool = False, context: dict | None = Non
         decision["reason"] = "Stop requested by user via stop-after-cycle flag. " + decision["reason"]
         decision["next_payload"] = None
         clear_stop_request()
+
+    if decision.get("next_payload"):
+        decision["next_payload"].setdefault(
+            "rule_randomization_enabled",
+            bool(current_config.get("rule_randomization_enabled", False)),
+        )
+        decision["next_payload"].setdefault(
+            "rule_randomization_frequency",
+            int(current_config.get("rule_randomization_frequency", 1) or 1),
+        )
+        decision["next_payload"].setdefault(
+            "rule_randomization_eval_configs",
+            int(current_config.get("rule_randomization_eval_configs", 12) or 12),
+        )
+        decision["next_payload"].setdefault(
+            "rule_randomization_bounds",
+            dict(current_config.get("rule_randomization_bounds", {})),
+        )
+        decision["next_payload"].setdefault("auto_continue_enabled", auto_continue_enabled)
+        decision["next_payload"].setdefault("auto_continue_cycles", auto_continue_cycles)
 
     run_dir = RUNS_DIR / run_id
 
@@ -593,6 +657,9 @@ def run_autopilot(run_id: str, dry_run: bool = False, context: dict | None = Non
     # Build next context counters
     next_ai_count = ai_intervention_count + 1 if decision["advisor"] == "ai" else ai_intervention_count
     next_lr_reduction_count = lr_reduction_count + 1 if decision["action"] == "lower_lr" else lr_reduction_count
+    next_auto_continue_cycle_count = (
+        auto_continue_cycle_count + 1 if auto_continue_enabled else auto_continue_cycle_count
+    )
 
     payload = {
         **decision["next_payload"],
@@ -603,6 +670,7 @@ def run_autopilot(run_id: str, dry_run: bool = False, context: dict | None = Non
             "lr_reduction_count": next_lr_reduction_count,
             "base_run_name": base_run_name,
             "continuation_version": continuation_version + 1,
+            "auto_continue_cycle_count": next_auto_continue_cycle_count,
         },
     }
     job = enqueue_train_job(payload)

@@ -308,6 +308,12 @@ class TrainingConfig:
     epsilon_min: float = 0.05
     epsilon_decay_episodes: int = 450000
     run_notes: str = ""
+    rule_randomization_enabled: bool = False
+    rule_randomization_frequency: int = 1
+    rule_randomization_eval_configs: int = 12
+    rule_randomization_bounds: dict[str, Any] = field(default_factory=dict)
+    auto_continue_enabled: bool = False
+    auto_continue_cycles: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -325,6 +331,12 @@ class TrainingConfig:
             "epsilon_min": self.epsilon_min,
             "epsilon_decay_episodes": self.epsilon_decay_episodes,
             "run_notes": self.run_notes,
+            "rule_randomization_enabled": self.rule_randomization_enabled,
+            "rule_randomization_frequency": self.rule_randomization_frequency,
+            "rule_randomization_eval_configs": self.rule_randomization_eval_configs,
+            "rule_randomization_bounds": self.rule_randomization_bounds,
+            "auto_continue_enabled": self.auto_continue_enabled,
+            "auto_continue_cycles": self.auto_continue_cycles,
         }
 
     def signature_payload(self) -> dict[str, Any]:
@@ -349,6 +361,12 @@ class TrainingConfig:
             epsilon_min=float(payload.get("epsilon_min", 0.05)),
             epsilon_decay_episodes=int(payload.get("epsilon_decay_episodes", 450000)),
             run_notes=str(payload.get("run_notes", "")),
+            rule_randomization_enabled=bool(payload.get("rule_randomization_enabled", False)),
+            rule_randomization_frequency=max(1, int(payload.get("rule_randomization_frequency", 1))),
+            rule_randomization_eval_configs=max(1, int(payload.get("rule_randomization_eval_configs", 12))),
+            rule_randomization_bounds=dict(payload.get("rule_randomization_bounds", {})),
+            auto_continue_enabled=bool(payload.get("auto_continue_enabled", False)),
+            auto_continue_cycles=max(0, int(payload.get("auto_continue_cycles", 0))),
         )
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -78,6 +79,18 @@ def build_command(job: dict) -> list[str]:
             command.extend(["--gamma", str(payload["gamma"])])
         if payload.get("epsilon_decay_episodes") is not None:
             command.extend(["--epsilon-decay-episodes", str(int(payload["epsilon_decay_episodes"]))])
+        if payload.get("rule_randomization_enabled"):
+            command.append("--rule-randomization")
+        if payload.get("rule_randomization_frequency") is not None:
+            command.extend(["--rule-randomization-frequency", str(int(payload["rule_randomization_frequency"]))])
+        if payload.get("rule_randomization_eval_configs") is not None:
+            command.extend(["--rule-randomization-eval-configs", str(int(payload["rule_randomization_eval_configs"]))])
+        if payload.get("rule_randomization_bounds") is not None:
+            command.extend(["--rule-randomization-bounds-json", json.dumps(payload["rule_randomization_bounds"])])
+        if payload.get("auto_continue_enabled"):
+            command.append("--auto-continue")
+        if payload.get("auto_continue_cycles") is not None:
+            command.extend(["--auto-continue-cycles", str(int(payload["auto_continue_cycles"]))])
         if payload.get("seed") is not None:
             command.extend(["--seed", str(int(payload["seed"]))])
         if payload.get("run_notes"):
@@ -144,7 +157,16 @@ def run_job(job_id: int) -> int:
     # Manual jobs without autopilot_after_completion do NOT trigger autopilot.
     if return_code == 0 and job["job_type"] in {"train", "fine_tune"}:
         payload = job.get("payload") or {}
-        if payload.get("autopilot_after_completion"):
+        auto_continue_from_config = False
+        try:
+            training_config_path = Path(job["run_dir"]) / "training_config.json"
+            if training_config_path.exists():
+                training_config = json.loads(training_config_path.read_text(encoding="utf-8"))
+                auto_continue_from_config = bool(training_config.get("auto_continue_enabled", False))
+        except Exception:
+            auto_continue_from_config = False
+
+        if payload.get("autopilot_after_completion") or auto_continue_from_config:
             run_id = Path(job["run_dir"]).name
             context = payload.get("autopilot_context") or {}
             try:

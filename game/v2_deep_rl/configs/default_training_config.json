@@ -12,5 +12,11 @@
   "epsilon_start": 1.0,
   "epsilon_min": 0.05,
   "epsilon_decay_episodes": 450000,
-  "run_notes": ""
+  "run_notes": "",
+  "rule_randomization_enabled": false,
+  "rule_randomization_frequency": 1,
+  "rule_randomization_eval_configs": 12,
+  "rule_randomization_bounds": {},
+  "auto_continue_enabled": false,
+  "auto_continue_cycles": 0
 }

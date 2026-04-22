@@ -252,4 +252,37 @@ def encode_state(state, env):
     for incident_flag in state["target_incident_flags"]:
         vector.append(float(incident_flag))
 
+    vector.extend(_encode_rule_context(env))
+
     return vector
+
+
+def _encode_rule_context(env):
+    """Expose rule/config context so one policy can adapt across randomized rules."""
+    max_money_reference = max(env.mandatory_loan_amount * 2, env.starting_money, 1)
+    max_cost_reference = max(env.mandatory_loan_amount, env.cost_switch_mid, env.cost_switch_after, 1)
+    max_penalty_reference = max(abs(env.penalty_negative), abs(env.penalty_positive), 1)
+
+    features = [
+        float(env.starting_money) / max_money_reference,
+        float(env.max_turns) / 15.0,
+        float(env.cost_continue) / max_cost_reference,
+        float(env.cost_switch_mid) / max_cost_reference,
+        float(env.cost_switch_after) / max_cost_reference,
+        float(env.mandatory_loan_amount) / max_money_reference,
+        float(env.loan_interest) / max(env.mandatory_loan_amount, 1),
+        float(env.penalty_negative) / max_penalty_reference,
+        float(env.penalty_positive) / max_penalty_reference,
+        float(env.daily_scrums_per_sprint) / 10.0,
+        float(env.daily_scrum_target) / 30.0,
+        float(env.incident_draw_probability),
+        float(env.incident_severity_multiplier) / 3.0,
+        float(env.incidents_active),
+        float(env.refinements_active),
+    ]
+
+    for rule in env.dice_rules:
+        features.append(float(rule.dice_count) / 4.0)
+        features.append(float(rule.dice_sides) / 20.0)
+
+    return features
