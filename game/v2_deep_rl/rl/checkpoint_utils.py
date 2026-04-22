@@ -6,15 +6,15 @@ from typing import Any
 
 import torch
 
-from config_manager import (
+from config.config_manager import (
     GameConfig,
     TrainingConfig,
     compute_rule_signature,
     compute_training_signature,
     load_game_config,
 )
-from dqn_agent import DQNAgent, encode_state
-from scrum_game_env import ScrumGameEnv
+from game_runtime.scrum_game_env import ScrumGameEnv
+from rl.dqn_agent import DQNAgent, encode_state
 
 
 def build_agent_for_config(
@@ -122,7 +122,8 @@ def backfill_checkpoint_sidecars(runs_dir: Path) -> int:
 
 if __name__ == "__main__":
     import sys
-    target = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent / "artifacts" / "runs"
+    engine_root = Path(__file__).resolve().parents[1]
+    target = Path(sys.argv[1]) if len(sys.argv) > 1 else engine_root / "artifacts" / "runs"
     print(f"Backfilling checkpoint sidecars under {target} ...")
     n = backfill_checkpoint_sidecars(target)
     print(f"Done — {n} sidecar(s) written.")

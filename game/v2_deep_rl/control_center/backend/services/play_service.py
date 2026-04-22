@@ -18,7 +18,7 @@ PLAY_SESSIONS: dict[str, dict] = {}
 
 
 def _resolve_game_config(game_config_id: str):
-    from config_manager import load_game_config  # noqa: E402
+    from config.config_manager import load_game_config  # noqa: E402
     for item in list_game_configs():
         if item["id"] == game_config_id or item["path"] == game_config_id:
             return load_game_config(item["path"]), item
@@ -27,8 +27,8 @@ def _resolve_game_config(game_config_id: str):
 
 @lru_cache(maxsize=16)
 def _cached_agent(checkpoint_path: str, game_config_path: str):
-    from checkpoint_utils import load_agent_for_inference  # noqa: E402
-    from config_manager import load_game_config  # noqa: E402
+    from rl.checkpoint_utils import load_agent_for_inference  # noqa: E402
+    from config.config_manager import load_game_config  # noqa: E402
     agent, _, metadata = load_agent_for_inference(
         checkpoint_path,
         game_config=load_game_config(game_config_path),
@@ -38,7 +38,7 @@ def _cached_agent(checkpoint_path: str, game_config_path: str):
 
 
 def _controller_from_payload(payload: dict, game_config_path: str):
-    from match_runner import (  # noqa: E402
+    from play.match_runner import (  # noqa: E402
         HeuristicController, HumanController, ModelController, RandomController,
     )
     controller_type = payload.get("type")
@@ -67,7 +67,7 @@ def _controller_from_payload(payload: dict, game_config_path: str):
 
 
 def _valid_actions_for_state(env, state):
-    from match_runner import valid_actions_for_state  # noqa: E402
+    from play.match_runner import valid_actions_for_state  # noqa: E402
     return valid_actions_for_state(env, state)
 
 
@@ -107,7 +107,7 @@ def _seat_payload(seat: dict) -> dict:
 
 
 def _shared_session_payload(session_id: str, match_state: dict) -> dict:
-    from shared_match_runner import (  # noqa: E402
+    from play.shared_match_runner import (  # noqa: E402
         all_shared_seats_done,
         board_payload,
         seat_payload,
@@ -130,7 +130,7 @@ def _shared_session_payload(session_id: str, match_state: dict) -> dict:
 def _session_payload(session_id: str, match_state: dict) -> dict:
     if match_state.get("mode") == "shared":
         return _shared_session_payload(session_id, match_state)
-    from match_runner import all_seats_done  # noqa: E402
+    from play.match_runner import all_seats_done  # noqa: E402
     return {
         "id": session_id,
         "mode": "parallel",
@@ -171,7 +171,7 @@ def create_session(payload: dict) -> dict:
         for controller_payload in controllers_payload
     ]
     if mode == "parallel":
-        from match_runner import start_parallel_match  # noqa: E402
+        from play.match_runner import start_parallel_match  # noqa: E402
         match_state = start_parallel_match(
             game_config=game_config,
             controllers=controllers,
@@ -179,7 +179,7 @@ def create_session(payload: dict) -> dict:
         )
         match_state["mode"] = "parallel"
     elif mode == "shared":
-        from shared_match_runner import start_shared_match  # noqa: E402
+        from play.shared_match_runner import start_shared_match  # noqa: E402
         match_state = start_shared_match(
             game_config=game_config,
             controllers=controllers,
@@ -206,10 +206,10 @@ def advance_session(session_id: str, payload: dict | None = None) -> dict:
         raise ValueError(f"Play session `{session_id}` was not found.")
 
     if match_state.get("mode") == "shared":
-        from shared_match_runner import play_shared_round  # noqa: E402
+        from play.shared_match_runner import play_shared_round  # noqa: E402
         play_shared_round(match_state, payload or {})
     else:
-        from match_runner import play_round  # noqa: E402
+        from play.match_runner import play_round  # noqa: E402
         human_action = None if payload is None else payload.get("human_action")
         play_round(match_state, human_action=human_action)
     return _session_payload(session_id, match_state)

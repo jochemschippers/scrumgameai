@@ -17,9 +17,9 @@ This folder is the clean application shell for the custom web app that will repl
 
 The current RL engine remains in the parent `game/v2_deep_rl/` directory:
 
-- `train_dqn.py`
-- `evaluate_ddqn_robustness.py`
-- `checkpoint_utils.py`
+- `training/train_dqn.py`
+- `evaluation/evaluate_ddqn_robustness.py`
+- `rl/checkpoint_utils.py`
 - `config_manager.py`
 - `match_runner.py`
 - `scrum_game_env.py`

@@ -242,7 +242,7 @@ class TestResolveCheckpointPath:
 class TestSidecarWritten:
     def test_save_checkpoint_writes_sidecar(self, tmp_path, monkeypatch):
         """save_checkpoint must write a .json sidecar alongside the .pth."""
-        import checkpoint_utils
+        import rl.checkpoint_utils as checkpoint_utils
 
         # Mock torch.save so we don't need a real agent
         saved_payloads = {}
@@ -275,7 +275,7 @@ class TestSidecarWritten:
     def test_sidecar_contains_average_reward_for_latest(self, tmp_path, monkeypatch):
         """latest_scrum_model.pth sidecar must include average_reward so the next
         continuation inherits best_average_reward correctly."""
-        import checkpoint_utils
+        import rl.checkpoint_utils as checkpoint_utils
 
         def fake_torch_save(obj, path):
             pass
@@ -342,10 +342,10 @@ class _FakeGameConfig:
 import unittest.mock as _mock
 
 _patch_rule_sig = _mock.patch(
-    "checkpoint_utils.compute_rule_signature", return_value="test_rule_sig"
+    "rl.checkpoint_utils.compute_rule_signature", return_value="test_rule_sig"
 )
 _patch_training_sig = _mock.patch(
-    "checkpoint_utils.compute_training_signature", return_value="test_training_sig"
+    "rl.checkpoint_utils.compute_training_signature", return_value="test_training_sig"
 )
 
 

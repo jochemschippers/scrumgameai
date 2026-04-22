@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 from typing import Any
 
-from config_manager import GameConfig
+from config.config_manager import GameConfig
 
 
 DEFAULT_RULE_RANDOMIZATION_BOUNDS: dict[str, Any] = {
@@ -90,4 +90,3 @@ def sample_game_config(
         rule["dice_count"] = int(rng.randint(int(round(dice_count_low)), int(round(dice_count_high))))
 
     return GameConfig.from_dict(payload)
-

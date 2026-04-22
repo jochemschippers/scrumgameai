@@ -1,12 +1,12 @@
 import argparse
 from pathlib import Path
 
-from checkpoint_utils import load_agent_from_checkpoint
-from config_manager import load_game_config
-from deployment_profiles import choose_profile_action
-from dqn_agent import encode_state
+from config.config_manager import load_game_config
+from play.deployment_profiles import choose_profile_action
+from rl.checkpoint_utils import load_agent_from_checkpoint
+from rl.dqn_agent import encode_state
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parents[1]
 
 
 def load_dqn_checkpoint(
@@ -121,7 +121,7 @@ def play_demo_game(
         turn_number += 1
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Play one demo game with a saved DDQN checkpoint.")
     parser.add_argument("--model-path", default="artifacts/checkpoints/best_scrum_model.pth")
     parser.add_argument("--seed", type=int, default=42)
@@ -135,3 +135,7 @@ if __name__ == "__main__":
         profile_name=args.profile,
         game_config_path=args.game_config,
     )
+
+
+if __name__ == "__main__":
+    main()

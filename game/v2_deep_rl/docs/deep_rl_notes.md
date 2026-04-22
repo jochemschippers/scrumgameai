@@ -76,7 +76,7 @@ What still remains a simplification:
 Run:
 
 ```powershell
-py play_best_dqn_game.py
+py -m play.play_best_dqn_game
 ```
 
 This loads the latest compatible checkpoint and plays one demo game.

@@ -1,3 +1,40 @@
+// ── Auth helpers ─────────────────────────────────────────────────────────────
+const AUTH_TOKEN_KEY = "cc_auth_token";
+
+function getToken() {
+  return localStorage.getItem(AUTH_TOKEN_KEY);
+}
+function setToken(token) {
+  localStorage.setItem(AUTH_TOKEN_KEY, token);
+}
+function clearToken() {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+}
+
+function showLoginScreen() {
+  const overlay = document.getElementById("loginOverlay");
+  const shell = document.getElementById("appShell");
+  if (overlay) overlay.style.display = "flex";
+  if (shell) shell.style.display = "none";
+  setTimeout(() => {
+    const u = document.getElementById("loginUsername");
+    if (u) u.focus();
+  }, 50);
+}
+
+function hideLoginScreen() {
+  const overlay = document.getElementById("loginOverlay");
+  const shell = document.getElementById("appShell");
+  if (overlay) overlay.style.display = "none";
+  if (shell) shell.style.display = "flex";
+}
+
+function logout() {
+  clearToken();
+  showLoginScreen();
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const state = {
   apiBaseUrl: window.location.protocol.startsWith("http")
     ? window.location.origin
@@ -253,14 +290,22 @@ async function apiRequest(path, options = {}, timeoutMs = 20000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    const token = getToken();
     const response = await fetch(`${state.apiBaseUrl}${path}`, {
       signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
+        ...(token ? { "Authorization": `Bearer ${token}` } : {}),
         ...(options.headers || {}),
       },
       ...options,
     });
+
+    if (response.status === 401) {
+      clearToken();
+      showLoginScreen();
+      throw new Error("Session expired. Please log in again.");
+    }
 
     if (!response.ok) {
       const text = await response.text();
@@ -3954,6 +3999,45 @@ function attachEvents() {
   });
 }
 
+// ── Login form handler ───────────────────────────────────────────────────────
+document.getElementById("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const errorEl = document.getElementById("loginError");
+  const submitBtn = document.getElementById("loginSubmitButton");
+  const username = document.getElementById("loginUsername").value.trim();
+  const password = document.getElementById("loginPassword").value;
+
+  errorEl.textContent = "";
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Signing in…";
+
+  try {
+    const resp = await fetch(`${state.apiBaseUrl}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      errorEl.textContent = data.detail || "Login failed. Check your credentials.";
+      return;
+    }
+
+    const data = await resp.json();
+    setToken(data.access_token);
+    hideLoginScreen();
+    startProgressPolling();
+    autoConnect();
+  } catch {
+    errorEl.textContent = "Could not reach the server. Try again.";
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Sign in";
+  }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+
 attachEvents();
 setPage("rules");
 state.visualGameConfig = clone(DEFAULT_GAME_CONFIG);
@@ -3962,5 +4046,12 @@ renderTrainingSelectionSummary();
 renderTrainingProgress();
 renderCampaignPanel();
 renderPlaySeatEditor();
-startProgressPolling();
-autoConnect();
+
+// Show login screen or boot the app depending on whether a token exists
+if (getToken()) {
+  hideLoginScreen();
+  startProgressPolling();
+  autoConnect();
+} else {
+  showLoginScreen();
+}

@@ -4,33 +4,33 @@ This folder contains the advanced deep-RL branch of the Scrum Game project.
 
 It is intentionally separate from `../v1_assignment` so the deep-RL experiments do not pollute the assignment-safe code and artifacts.
 
-## Main Files
+## Source Layout
 
-- `scrum_game_env.py`
-  Advanced environment with explicit product-switch actions, a rule-backed incident/refinement flow, and richer observations.
-- `cards.py`
-  Incident deck definitions and draw/discard mechanics based on the documented physical cards.
-- `refinements.py`
-  Standard refinement model based on the documented D20 rules.
-- `dqn_agent.py`
-  PyTorch Double DQN implementation.
-- `train_dqn.py`
-  Long training run with checkpointing, periodic evaluation, and CSV logging.
-- `dashboard.py`
+The old top-level filenames still exist as thin compatibility wrappers, so existing commands and imports continue to work.
+
+- `config/`
+  Config dataclasses, JSON loading/saving, validation, signatures, and prototype mapping.
+- `game_rules/`
+  Incident cards, refinement rules, and rule-randomization helpers.
+- `game_runtime/`
+  The `ScrumGameEnv` environment and state discretization.
+- `rl/`
+  Double DQN agent, checkpoint utilities, and model metric helpers.
+- `training/`
+  Training loop, logging, evaluation during training, plotting, and CLI parsing.
+- `evaluation/`
+  Multi-seed checkpoint robustness evaluation.
+- `play/`
+  Deployment profiles, parallel/shared match runners, and the saved-model demo CLI.
+- `dashboard_app/`
   Streamlit command center for training curves, action frequencies, switch-target heatmaps, and demo playback.
-- `play_best_dqn_game.py`
-  Demo runner for the saved DQN checkpoint.
-- `deployment_profiles.py`
-  Beginner, Balanced, and Expert inference profiles.
-- `evaluate_ddqn_robustness.py`
-  Multi-seed robustness evaluation for the advanced branch.
 
 ## Run Order
 
 ```powershell
-py train_dqn.py
-py -m streamlit run dashboard.py
-py play_best_dqn_game.py
+py -m training.train_dqn
+py -m streamlit run dashboard_app/dashboard.py
+py -m play.play_best_dqn_game
 ```
 
 After the 8-action refactor, the old binary-action checkpoint is only kept as a frozen benchmark in `artifacts/reference_v1/`. A fresh training run is required before the new demo and dashboard can load a compatible checkpoint.

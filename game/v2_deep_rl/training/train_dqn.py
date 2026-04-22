@@ -8,13 +8,13 @@ import random
 import matplotlib.pyplot as plt
 import torch
 
-from checkpoint_utils import (
+from rl.checkpoint_utils import (
     build_agent_for_config,
     load_agent_from_checkpoint,
     load_checkpoint_payload,
     save_checkpoint,
 )
-from config_manager import (
+from config.config_manager import (
     GameConfig,
     TrainingConfig,
     compute_rule_signature,
@@ -24,13 +24,13 @@ from config_manager import (
     save_game_config,
     save_training_config,
 )
-from dqn_agent import encode_state
-from model_utils import save_metrics_json
-from rule_randomization import sample_game_config
-from scrum_game_env import ScrumGameEnv
+from game_rules.rule_randomization import sample_game_config
+from game_runtime.scrum_game_env import ScrumGameEnv
+from rl.dqn_agent import encode_state
+from rl.model_utils import save_metrics_json
 
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parents[1]
 ARTIFACTS_DIR = BASE_DIR / "artifacts"
 RUNS_DIR = ARTIFACTS_DIR / "runs"
 

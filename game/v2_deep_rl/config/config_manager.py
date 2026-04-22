@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parents[1]
 CONFIG_DIR = BASE_DIR / "configs"
 DEFAULT_GAME_CONFIG_PATH = CONFIG_DIR / "default_game_config.json"
 DEFAULT_TRAINING_CONFIG_PATH = CONFIG_DIR / "default_training_config.json"

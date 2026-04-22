@@ -12,9 +12,19 @@ from .app_paths import (
     RUNS_DIR,
     ensure_engine_import_path,
 )
-from .catalog_service import list_game_configs
 
 ensure_engine_import_path()
+
+from .checkpoints import catalog as checkpoint_catalog
+from .checkpoints.catalog import (
+    _checkpoint_catalog_paths,
+    _checkpoint_id,
+    _checkpoint_type,
+    _engine_imports,
+    _infer_shape_from_state_dict,
+    _resolve_game_config_reference,
+    _source_label,
+)
 
 # Cache for list_checkpoints() — loading .pth files via torch is expensive.
 # Invalidated after 60 seconds or when a new run directory appears.
@@ -30,104 +40,23 @@ def _invalidate_checkpoint_cache() -> None:
     _checkpoint_cache_time = 0.0
 
 
+def _sync_checkpoint_catalog_paths() -> None:
+    checkpoint_catalog.CURRENT_CHECKPOINT_DIR = CURRENT_CHECKPOINT_DIR
+    checkpoint_catalog.DROPLET_RUNS_DIR = DROPLET_RUNS_DIR
+    checkpoint_catalog.PLAYABLE_MODEL_V1_DIR = PLAYABLE_MODEL_V1_DIR
+    checkpoint_catalog.REFERENCE_V1_DIR = REFERENCE_V1_DIR
+    checkpoint_catalog.REPO_ROOT = REPO_ROOT
+    checkpoint_catalog.RUNS_DIR = RUNS_DIR
+
+
 # torch-dependent engine imports are deferred to function call time so the API
 # server starts successfully even when torch is not installed in the web venv.
 # The system Python (used by job_runner subprocesses) has torch available.
-def _engine_imports():
-    from checkpoint_utils import build_agent_for_config, load_checkpoint_payload  # noqa: E402
-    from config_manager import compute_rule_signature, load_game_config  # noqa: E402
-    return build_agent_for_config, load_checkpoint_payload, compute_rule_signature, load_game_config
-
-
-def _checkpoint_id(checkpoint_path: Path) -> str:
-    return checkpoint_path.resolve().relative_to(REPO_ROOT.resolve()).as_posix()
-
-
-def _checkpoint_type(checkpoint_path: Path) -> str:
-    if checkpoint_path.name == "best_scrum_model.pth" or checkpoint_path.name.startswith("best_scrum_model"):
-        return "best"
-    if checkpoint_path.name == "latest_scrum_model.pth" or checkpoint_path.name.startswith("latest_scrum_model"):
-        return "latest"
-    return "intermediate"
-
-
-def _source_label(source_type: str, source_run: str | None) -> str:
-    if source_type == "run":
-        return source_run or "run"
-    if source_type == "current_artifacts":
-        return "current artifacts"
-    if source_type == "reference_v1":
-        return "reference v1"
-    if source_type == "playable_model_v1":
-        return "playableModelV1"
-    if source_type == "droplet_runs":
-        return "droplet runs"
-    return source_type
-
-
-def _infer_shape_from_state_dict(state_dict) -> tuple[int | None, int | None]:
-    first_weight = state_dict.get("network.0.weight")
-    final_weight = state_dict.get("network.6.weight")
-    state_dim = int(first_weight.shape[1]) if first_weight is not None and len(first_weight.shape) == 2 else None
-    num_actions = int(final_weight.shape[0]) if final_weight is not None and len(final_weight.shape) == 2 else None
-    return state_dim, num_actions
-
-
-def _checkpoint_catalog_paths() -> list[tuple[Path, str, str | None]]:
-    catalog = []
-
-    if CURRENT_CHECKPOINT_DIR.exists():
-        for checkpoint_path in sorted(CURRENT_CHECKPOINT_DIR.glob("*.pth")):
-            if checkpoint_path.name.endswith(".policy.pth"):
-                continue
-            catalog.append((checkpoint_path, "current_artifacts", "current_artifacts"))
-
-    if REFERENCE_V1_DIR.exists():
-        for checkpoint_path in sorted(REFERENCE_V1_DIR.glob("*.pth")):
-            if checkpoint_path.name.endswith(".policy.pth"):
-                continue
-            catalog.append((checkpoint_path, "reference_v1", None))
-
-    if PLAYABLE_MODEL_V1_DIR.exists():
-        for checkpoint_path in sorted(PLAYABLE_MODEL_V1_DIR.glob("*.pth")):
-            if checkpoint_path.name.endswith(".policy.pth"):
-                continue
-            catalog.append((checkpoint_path, "playable_model_v1", None))
-
-    if RUNS_DIR.exists():
-        for run_dir in sorted((path for path in RUNS_DIR.iterdir() if path.is_dir()), key=lambda path: path.name, reverse=True):
-            checkpoint_dir = run_dir / "checkpoints"
-            if not checkpoint_dir.exists():
-                continue
-            for checkpoint_path in sorted(checkpoint_dir.glob("*.pth")):
-                if checkpoint_path.name.endswith(".policy.pth"):
-                    continue
-                catalog.append((checkpoint_path, "run", run_dir.name))
-
-    if DROPLET_RUNS_DIR.exists():
-        for checkpoint_path in sorted(DROPLET_RUNS_DIR.glob("*.pth")):
-            if checkpoint_path.name.endswith(".policy.pth"):
-                continue
-            catalog.append((checkpoint_path, "droplet_runs", None))
-
-    return catalog
-
-
-def _resolve_game_config_reference(game_config_id: str):
-    _, _, _, load_game_config = _engine_imports()
-    candidate_path = Path(game_config_id)
-    if candidate_path.exists():
-        return load_game_config(candidate_path)
-
-    for item in list_game_configs():
-        if item["id"] == game_config_id or item["path"] == game_config_id:
-            return load_game_config(item["path"])
-
-    raise ValueError(f"Game config `{game_config_id}` was not found.")
 
 
 def list_checkpoints() -> list[dict]:
     global _checkpoint_cache, _checkpoint_cache_time, _checkpoint_cache_run_count
+    _sync_checkpoint_catalog_paths()
     now = time.monotonic()
     current_run_count = sum(1 for p in RUNS_DIR.iterdir() if p.is_dir()) if RUNS_DIR.exists() else 0
     if (
@@ -306,7 +235,7 @@ def get_checkpoint_compatibility(checkpoint_id: str, game_config_id: str) -> dic
 
     # Read metadata from sidecar JSON only — never torch.load the full .pth here,
     # as that loads the replay buffer (~100k entries) and hangs the server.
-    # Run checkpoint_utils.py on the server to backfill missing sidecars.
+    # Run `python -m rl.checkpoint_utils` on the server to backfill missing sidecars.
     import json as _json
     sidecar_path = Path(checkpoint["path"]).with_suffix(".json")
     metadata: dict = {}

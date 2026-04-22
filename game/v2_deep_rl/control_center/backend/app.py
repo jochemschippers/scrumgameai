@@ -1,9 +1,11 @@
 from __future__ import annotations
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from api.routes_auth import router as auth_router, decode_token
 from api.routes_autopilot import router as autopilot_router
 from api.routes_campaigns import router as campaigns_router
 from api.routes_checkpoints import router as checkpoints_router
@@ -15,6 +17,21 @@ from api.routes_runs import router as runs_router
 from api.routes_testing import router as testing_router
 from services.app_paths import ENGINE_ROOT
 from storage.jobs_db import init_db
+
+# API route prefixes that require a valid JWT token.
+# Static files (/, /styles/, /assets/, etc.) are intentionally excluded
+# so the login page itself can load without a token.
+_PROTECTED_PREFIXES = (
+    "/autopilot",
+    "/campaigns",
+    "/configs",
+    "/checkpoints",
+    "/jobs",
+    "/play",
+    "/runs",
+    "/testing",
+    "/db-admin",
+)
 
 app = FastAPI(
     title="Scrum Game Control Center API",
@@ -32,8 +49,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    """Block access to API routes unless a valid JWT is present."""
+    path = request.url.path
+
+    # Always allow: preflight, auth routes, health check, static files
+    if (
+        request.method == "OPTIONS"
+        or path.startswith("/auth/")
+        or path == "/health"
+        or not path.startswith(_PROTECTED_PREFIXES)
+    ):
+        return await call_next(request)
+
+    # Check Authorization header
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
+
+    token = auth_header[len("Bearer "):]
+    if decode_token(token) is None:
+        return JSONResponse({"detail": "Invalid or expired token"}, status_code=401)
+
+    return await call_next(request)
+
+
 init_db()
 
+app.include_router(auth_router)
 app.include_router(autopilot_router)
 app.include_router(campaigns_router)
 app.include_router(configs_router)
