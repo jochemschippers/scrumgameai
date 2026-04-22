@@ -79,7 +79,6 @@ def init_db() -> None:
 
 
 def hash_password(password: str) -> str:
-    """Hash a password using stdlib PBKDF2 so no extra auth dependency is needed."""
     salt = secrets.token_hex(16)
     digest = hashlib.pbkdf2_hmac(
         "sha256",
@@ -107,34 +106,26 @@ def verify_password(password: str, password_hash: str) -> bool:
     return hmac.compare_digest(actual, expected)
 
 
-def _seed_user(connection: sqlite3.Connection, username: str, password: str, role: str) -> None:
+def _seed_user(connection, username, password, role):
     existing = connection.execute(
-        "SELECT id FROM users WHERE username = ?",
-        (username,),
+        "SELECT id FROM users WHERE username = ?", (username,)
     ).fetchone()
     if existing is not None:
         return
-
     now = utc_now_iso()
     connection.execute(
-        """
-        INSERT INTO users (username, password_hash, role, is_active, created_at, updated_at)
-        VALUES (?, ?, ?, 1, ?, ?)
-        """,
+        "INSERT INTO users (username, password_hash, role, is_active, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)",
         (username, hash_password(password), role, now, now),
     )
 
 
-def get_user_by_username(username: str) -> dict | None:
-    with get_connection() as connection:
-        row = connection.execute(
-            "SELECT * FROM users WHERE username = ?",
-            (username,),
-        ).fetchone()
+def get_user_by_username(username: str):
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
     return dict(row) if row else None
 
 
-def authenticate_user(username: str, password: str) -> dict | None:
+def authenticate_user(username: str, password: str):
     user = get_user_by_username(username)
     if not user or not int(user.get("is_active", 0)):
         return None
@@ -143,19 +134,15 @@ def authenticate_user(username: str, password: str) -> dict | None:
     return user
 
 
-def list_users() -> list[dict]:
-    with get_connection() as connection:
-        rows = connection.execute(
-            """
-            SELECT id, username, role, is_active, created_at, updated_at
-            FROM users
-            ORDER BY id ASC
-            """
+def list_users():
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, username, role, is_active, created_at, updated_at FROM users ORDER BY id ASC"
         ).fetchall()
-    return [dict(row) for row in rows]
+    return [dict(r) for r in rows]
 
 
-def _row_to_job(row: sqlite3.Row | None) -> dict | None:
+def _row_to_job(row):
     if row is None:
         return None
     payload = dict(row)
@@ -163,52 +150,38 @@ def _row_to_job(row: sqlite3.Row | None) -> dict | None:
     return payload
 
 
-def create_job(job_type: str, payload: dict, stdout_log_path: str = "", run_dir: str = "", result_path: str = "") -> dict:
-    with get_connection() as connection:
-        cursor = connection.execute(
-            """
-            INSERT INTO jobs (
-                job_type, status, payload_json, created_at, stdout_log_path, run_dir, result_path, error_message
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                job_type,
-                "queued",
-                json.dumps(payload),
-                utc_now_iso(),
-                stdout_log_path,
-                run_dir,
-                result_path,
-                None,
-            ),
+def create_job(job_type, payload, stdout_log_path="", run_dir="", result_path=""):
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "INSERT INTO jobs (job_type, status, payload_json, created_at, stdout_log_path, run_dir, result_path, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (job_type, "queued", json.dumps(payload), utc_now_iso(), stdout_log_path, run_dir, result_path, None),
         )
-        connection.commit()
+        conn.commit()
         return get_job(cursor.lastrowid)
 
 
-def list_jobs() -> list[dict]:
-    with get_connection() as connection:
-        rows = connection.execute("SELECT * FROM jobs ORDER BY id DESC").fetchall()
-    return [_row_to_job(row) for row in rows]
+def list_jobs():
+    with get_connection() as conn:
+        rows = conn.execute("SELECT * FROM jobs ORDER BY id DESC").fetchall()
+    return [_row_to_job(r) for r in rows]
 
 
-def get_job(job_id: int) -> dict | None:
-    with get_connection() as connection:
-        row = connection.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+def get_job(job_id):
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
     return _row_to_job(row)
 
 
-def delete_job(job_id: int) -> bool:
-    with get_connection() as connection:
-        cursor = connection.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
-        connection.commit()
+def delete_job(job_id):
+    with get_connection() as conn:
+        cursor = conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+        conn.commit()
     return cursor.rowcount > 0
 
 
-def update_job(job_id: int, **fields) -> dict | None:
+def update_job(job_id, **fields):
     if not fields:
         return get_job(job_id)
-
     assignments = []
     values = []
     for key, value in fields.items():
@@ -219,11 +192,10 @@ def update_job(job_id: int, **fields) -> dict | None:
             assignments.append(f"{key} = ?")
             values.append(value)
     values.append(job_id)
-
-    with get_connection() as connection:
-        connection.execute(
+    with get_connection() as conn:
+        conn.execute(
             f"UPDATE jobs SET {', '.join(assignments)} WHERE id = ?",
             tuple(values),
         )
-        connection.commit()
+        conn.commit()
     return get_job(job_id)
