@@ -13,10 +13,9 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from checkpoint_utils import load_agent_from_checkpoint
-from config_manager import compute_rule_signature, load_game_config
-from dqn_agent import encode_state
-from match_runner import (
+from config.config_manager import compute_rule_signature, load_game_config
+from game_runtime.scrum_game_env import ScrumGameEnv
+from play.match_runner import (
     HeuristicController,
     HumanController,
     ModelController,
@@ -29,11 +28,12 @@ from match_runner import (
     start_parallel_match,
     valid_actions_for_state,
 )
-from scrum_game_env import ScrumGameEnv
-from train_dqn import create_timestamped_run_directory
+from rl.checkpoint_utils import load_agent_from_checkpoint
+from rl.dqn_agent import encode_state
+from training.train_dqn import create_timestamped_run_directory
 
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parents[1]
 ARTIFACTS_DIR = BASE_DIR / "artifacts"
 REPORTS_DIR = ARTIFACTS_DIR / "reports"
 CHECKPOINT_DIR = ARTIFACTS_DIR / "checkpoints"
@@ -169,7 +169,8 @@ def launch_training_process(
 
         command = [
             choose_python_command(),
-            str(BASE_DIR / "train_dqn.py"),
+            "-m",
+            "training.train_dqn",
             "--run-dir",
             str(run_dir),
             "--episodes",
@@ -240,7 +241,8 @@ def launch_robustness_process(episode_count=500000):
         process = subprocess.Popen(
             [
                 choose_python_command(),
-                str(BASE_DIR / "evaluate_ddqn_robustness.py"),
+                "-m",
+                "evaluation.evaluate_ddqn_robustness",
                 "--episodes",
                 str(int(episode_count)),
             ],
@@ -257,7 +259,7 @@ def launch_robustness_process(episode_count=500000):
     process_state = {
         "pid": process.pid,
         "started_at_epoch": time.time(),
-        "command": [choose_python_command(), str(BASE_DIR / "evaluate_ddqn_robustness.py")],
+        "command": [choose_python_command(), "-m", "evaluation.evaluate_ddqn_robustness"],
         "stdout_log": str(stdout_path),
         "run_name": stdout_path.stem,
         "job_type": "robustness",
@@ -1226,7 +1228,7 @@ agent, policy_env, checkpoint_metadata, checkpoint_error = load_dqn_policy(
 has_training_log = training_log is not None and not training_log.empty
 if not has_training_log:
     st.warning(
-        "No training log found yet. Launch training from the sidebar or run `py train_dqn.py` "
+        "No training log found yet. Launch training from the sidebar or run `py -m training.train_dqn` "
         "to start logging to `artifacts/reports/logs.csv`."
     )
     training_log = build_empty_training_log(game_config=selected_game_config)

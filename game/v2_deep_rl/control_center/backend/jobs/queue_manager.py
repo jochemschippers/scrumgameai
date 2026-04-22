@@ -1,130 +1,27 @@
 from __future__ import annotations
 
-import csv
-from datetime import datetime
 import json
 import os
 from pathlib import Path
 import signal
 import subprocess
-import sys
 import threading
 import time
 
-from services.app_paths import BACKEND_DIR, ENGINE_ROOT, RUNS_DIR, ensure_engine_import_path
+from services.app_paths import BACKEND_DIR, ensure_engine_import_path
+from services.io_utils import safe_float, safe_int, tail_csv_rows
+from jobs.processes import choose_python_command, is_pid_running
+from jobs.run_paths import create_job_run_dir, default_stdout_log
 from storage.jobs_db import create_job, delete_job, get_job, init_db, list_jobs as list_jobs_db, update_job, utc_now_iso
 
 ensure_engine_import_path()
 
-
-def _slugify_run_name(value: str | None) -> str:
-    text = str(value or "").strip().lower()
-    slug = "".join(character if character.isalnum() else "_" for character in text)
-    slug = "_".join(part for part in slug.split("_") if part)
-    return slug[:48]
-
-
-def _create_timestamped_run_directory(run_name=None):
-    # Inlined from train_dqn to avoid importing torch/matplotlib in the web venv.
-    RUNS_DIR.mkdir(parents=True, exist_ok=True)
-    base_name = datetime.now().strftime("run_%Y-%m-%d_%H%M")
-    run_suffix = _slugify_run_name(run_name)
-    if run_suffix:
-        base_name = f"{base_name}_{run_suffix}"
-    candidate = RUNS_DIR / base_name
-    suffix = 1
-    while candidate.exists():
-        candidate = RUNS_DIR / f"{base_name}_{suffix:02d}"
-        suffix += 1
-    return candidate
-
-
-VALID_JOB_TYPES = {"train", "fine_tune", "evaluate", "robustness"}
-RUNNER_PATH = BACKEND_DIR / "jobs" / "job_runner.py"
-
-_CACHED_PYTHON_COMMAND: str | None = None
 
 # Throttle refresh_job_states() so concurrent requests don't all hammer SQLite
 # with PID checks and writes simultaneously.
 _REFRESH_LOCK = threading.Lock()
 _LAST_REFRESH_TIME: float = 0.0
 _REFRESH_INTERVAL: float = 3.0  # seconds
-
-
-def _choose_python_command() -> str:
-    """Return a Python executable that can import torch.
-
-    The web backend may run from a venv that lacks torch/matplotlib.  Training
-    subprocesses *must* use the system Python (or whichever interpreter has
-    torch installed).  We probe candidates once and cache the result.
-    """
-    global _CACHED_PYTHON_COMMAND
-    if _CACHED_PYTHON_COMMAND is not None:
-        return _CACHED_PYTHON_COMMAND
-
-    # Fast path: current interpreter already has torch.
-    try:
-        import torch  # noqa: F401
-        _CACHED_PYTHON_COMMAND = sys.executable
-        return _CACHED_PYTHON_COMMAND
-    except ImportError:
-        pass
-
-    # Probe common executables for one that has torch installed.
-    import shutil
-    for candidate in ("python", "python3", "py"):
-        exe = shutil.which(candidate)
-        if not exe:
-            continue
-        try:
-            probe = subprocess.run(
-                [exe, "-c", "import torch"],
-                capture_output=True,
-                timeout=15,
-            )
-            if probe.returncode == 0:
-                _CACHED_PYTHON_COMMAND = exe
-                return _CACHED_PYTHON_COMMAND
-        except Exception:
-            continue
-
-    # No torch-capable interpreter found; fall back so jobs fail with a clear error.
-    _CACHED_PYTHON_COMMAND = sys.executable
-    return _CACHED_PYTHON_COMMAND
-
-
-def _is_pid_running(pid: int | None) -> bool:
-    if not pid or pid <= 0:
-        return False
-    try:
-        os.kill(pid, 0)
-        return True
-    except PermissionError:
-        # Process exists but we lack kill permission — treat as alive.
-        return True
-    except OSError as exc:
-        if os.name == "nt":
-            # WinError 87 (ERROR_INVALID_PARAMETER) definitively means the PID does not exist.
-            # WinError 6 (ERROR_INVALID_HANDLE) occurs when os.kill is called from inside a
-            # DETACHED_PROCESS even when the target process is alive — treat as alive.
-            # Any other winerror is ambiguous; assume alive to avoid false "failed" jobs.
-            return getattr(exc, "winerror", None) != 87
-        return False
-
-
-def _create_job_run_dir(job_type: str, run_name: str | None = None) -> Path:
-    if job_type in {"train", "fine_tune"}:
-        return _create_timestamped_run_directory(run_name=run_name)
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    run_dir = RUNS_DIR / f"{job_type}_{timestamp}"
-    run_dir.mkdir(parents=True, exist_ok=True)
-    return run_dir
-
-
-def _default_stdout_log(run_dir: Path, job_type: str) -> Path:
-    report_dir = run_dir / "reports"
-    report_dir.mkdir(parents=True, exist_ok=True)
-    return report_dir / f"{job_type}_stdout.log"
 
 
 def refresh_job_states() -> list[dict]:
@@ -145,7 +42,7 @@ def refresh_job_states() -> list[dict]:
 
     jobs = list_jobs_db()
     for job in jobs:
-        if job["status"] == "running" and not _is_pid_running(job.get("worker_pid")):
+        if job["status"] == "running" and not is_pid_running(job.get("worker_pid")):
             update_job(
                 job["id"],
                 status="failed",
@@ -166,7 +63,7 @@ def dispatch_next_job() -> dict | None:
         return None
 
     stdout_path = queued_job.get("stdout_log_path") or ""
-    stdout_log_path = Path(stdout_path) if stdout_path else _default_stdout_log(Path(queued_job["run_dir"]), queued_job["job_type"])
+    stdout_log_path = Path(stdout_path) if stdout_path else default_stdout_log(Path(queued_job["run_dir"]), queued_job["job_type"])
     stdout_log_path.parent.mkdir(parents=True, exist_ok=True)
 
     with stdout_log_path.open("ab") as stdout_handle:
@@ -186,8 +83,8 @@ def dispatch_next_job() -> dict | None:
 
         process = subprocess.Popen(
             [
-                _choose_python_command(),
-                str(RUNNER_PATH),
+                choose_python_command(),
+                str(BACKEND_DIR / "jobs" / "job_runner.py"),
                 "--job-id",
                 str(queued_job["id"]),
             ],
@@ -214,34 +111,6 @@ def get_job_details(job_id: int) -> dict | None:
     return get_job(job_id)
 
 
-def _safe_float(value: str | None) -> float | None:
-    if value in (None, ""):
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _safe_int(value: str | None) -> int | None:
-    if value in (None, ""):
-        return None
-    try:
-        return int(float(value))
-    except (TypeError, ValueError):
-        return None
-
-
-def _tail_csv_rows(path: Path, limit: int = 200) -> list[dict]:
-    if not path.exists():
-        return []
-    with path.open("r", encoding="utf-8", newline="") as handle:
-        rows = list(csv.DictReader(handle))
-    if limit <= 0:
-        return rows
-    return rows[-limit:]
-
-
 def _read_run_metadata(run_dir: Path | None) -> dict:
     if not run_dir:
         return {}
@@ -266,10 +135,10 @@ def get_job_progress(job_id: int) -> dict | None:
     run_dir = Path(run_dir_raw) if run_dir_raw else None
     payload = job.get("payload", {})
     run_metadata = _read_run_metadata(run_dir)
-    total_episodes = _safe_int(str(run_metadata.get("episodes_this_run", "")))
+    total_episodes = safe_int(str(run_metadata.get("episodes_this_run", "")))
     if total_episodes is None:
-        total_episodes = _safe_int(str(payload.get("episodes", "")))
-    start_episode = _safe_int(str(run_metadata.get("start_episode", ""))) or 1
+        total_episodes = safe_int(str(payload.get("episodes", "")))
+    start_episode = safe_int(str(run_metadata.get("start_episode", ""))) or 1
 
     progress = {
         "job_id": job["id"],
@@ -280,7 +149,7 @@ def get_job_progress(job_id: int) -> dict | None:
         "error_message": job.get("error_message"),
         "total_episodes": total_episodes,
         "start_episode": start_episode,
-        "end_episode": _safe_int(str(run_metadata.get("end_episode", ""))),
+        "end_episode": safe_int(str(run_metadata.get("end_episode", ""))),
         "latest_episode": 0,
         "completed_episodes": 0,
         "progress_ratio": 0.0,
@@ -294,37 +163,37 @@ def get_job_progress(job_id: int) -> dict | None:
         return progress
 
     reports_dir = run_dir / "reports"
-    training_rows = _tail_csv_rows(reports_dir / "logs.csv", limit=240)
-    evaluation_rows = _tail_csv_rows(reports_dir / "evaluation_history.csv", limit=120)
+    training_rows = tail_csv_rows(reports_dir / "logs.csv", limit=240)
+    evaluation_rows = tail_csv_rows(reports_dir / "evaluation_history.csv", limit=120)
 
     training_series = []
     for row in training_rows:
-        episode = _safe_int(row.get("episode"))
+        episode = safe_int(row.get("episode"))
         if episode is None:
             continue
         training_series.append(
             {
                 "episode": episode,
-                "episode_reward": _safe_float(row.get("episode_reward")),
-                "rolling_average_reward": _safe_float(row.get("rolling_average_reward")),
-                "mean_recent_loss": _safe_float(row.get("mean_recent_loss")),
-                "average_ending_money": _safe_float(row.get("average_ending_money")),
-                "epsilon": _safe_float(row.get("epsilon")),
+                "episode_reward": safe_float(row.get("episode_reward")),
+                "rolling_average_reward": safe_float(row.get("rolling_average_reward")),
+                "mean_recent_loss": safe_float(row.get("mean_recent_loss")),
+                "average_ending_money": safe_float(row.get("average_ending_money")),
+                "epsilon": safe_float(row.get("epsilon")),
             }
         )
 
     evaluation_series = []
     for row in evaluation_rows:
-        episode = _safe_int(row.get("episode"))
+        episode = safe_int(row.get("episode"))
         if episode is None:
             continue
         evaluation_series.append(
             {
                 "episode": episode,
-                "average_reward": _safe_float(row.get("average_reward")),
-                "bankruptcy_rate": _safe_float(row.get("bankruptcy_rate")),
-                "average_ending_money": _safe_float(row.get("average_ending_money")),
-                "invalid_action_rate": _safe_float(row.get("invalid_action_rate")),
+                "average_reward": safe_float(row.get("average_reward")),
+                "bankruptcy_rate": safe_float(row.get("bankruptcy_rate")),
+                "average_ending_money": safe_float(row.get("average_ending_money")),
+                "invalid_action_rate": safe_float(row.get("invalid_action_rate")),
             }
         )
 
@@ -381,8 +250,8 @@ def enqueue_train_job(payload: dict) -> dict:
     resume_from = payload.get("resume_from")
     resume_mode = payload.get("resume_mode", "strict")
     job_type = "fine_tune" if resume_from and resume_mode in {"fine_tune", "fine-tune"} else "train"
-    run_dir = _create_job_run_dir(job_type, run_name=payload.get("run_name"))
-    stdout_log_path = _default_stdout_log(run_dir, job_type)
+    run_dir = create_job_run_dir(job_type, run_name=payload.get("run_name"))
+    stdout_log_path = default_stdout_log(run_dir, job_type)
 
     job = create_job(
         job_type=job_type,
@@ -401,7 +270,7 @@ def enqueue_evaluation_job(payload: dict) -> dict:
         raise ValueError("Only evaluate and robustness job types are supported.")
 
     run_dir = Path(payload["run_dir"]).resolve()
-    stdout_log_path = _default_stdout_log(run_dir, job_type)
+    stdout_log_path = default_stdout_log(run_dir, job_type)
     result_path = str(run_dir / "robustness_results.csv")
 
     job = create_job(
@@ -428,7 +297,7 @@ def stop_job(job_id: int) -> dict:
         return job
 
     pid = job.get("worker_pid")
-    if _is_pid_running(pid):
+    if is_pid_running(pid):
         if os.name == "nt":
             subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], check=False, capture_output=True, text=True)
         else:

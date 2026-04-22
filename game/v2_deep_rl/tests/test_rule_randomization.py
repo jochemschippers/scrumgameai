@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import random
 
-from config_manager import load_game_config
-from rule_randomization import sample_game_config
+from config.config_manager import load_game_config
+from game_rules.rule_randomization import sample_game_config
 
 
 def test_sample_game_config_keeps_model_dimensions_stable():

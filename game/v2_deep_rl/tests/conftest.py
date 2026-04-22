@@ -5,7 +5,7 @@ from pathlib import Path
 
 # game/v2_deep_rl/control_center/backend  — for `from services.X import Y`
 BACKEND_DIR = Path(__file__).resolve().parents[1] / "control_center" / "backend"
-# game/v2_deep_rl  — for engine modules (config_manager, dqn_agent, …)
+# game/v2_deep_rl  — for engine packages (config, rl, game_runtime, ...)
 ENGINE_DIR = Path(__file__).resolve().parents[1]
 
 for p in (str(BACKEND_DIR), str(ENGINE_DIR)):
@@ -90,19 +90,19 @@ class _FakeDQNAgent:
 
 def _fake_encode_state(state, env): return []
 
-if "dqn_agent" not in sys.modules:
-    sys.modules["dqn_agent"] = _make_stub("dqn_agent", {
+if "rl.dqn_agent" not in sys.modules:
+    sys.modules["rl.dqn_agent"] = _make_stub("rl.dqn_agent", {
         "DQNAgent": _FakeDQNAgent,
         "encode_state": _fake_encode_state,
     })
 
-if "scrum_game_env" not in sys.modules:
+if "game_runtime.scrum_game_env" not in sys.modules:
     class _FakeEnv:
         num_actions = 8
         turns_with_loan = 0
         def reset(self, seed=None): return {}
         def step(self, action): return {}, 0, True, {}
 
-    sys.modules["scrum_game_env"] = _make_stub("scrum_game_env", {
+    sys.modules["game_runtime.scrum_game_env"] = _make_stub("game_runtime.scrum_game_env", {
         "ScrumGameEnv": _FakeEnv,
     })

@@ -61,7 +61,8 @@ def build_command(job: dict) -> list[str]:
     if job["job_type"] in {"train", "fine_tune"}:
         command = [
             python_command,
-            str(ENGINE_ROOT / "train_dqn.py"),
+            "-m",
+            "training.train_dqn",
             "--run-dir",
             str(job["run_dir"]),
         ]
@@ -105,7 +106,8 @@ def build_command(job: dict) -> list[str]:
     if job["job_type"] in {"evaluate", "robustness"}:
         return [
             python_command,
-            str(ENGINE_ROOT / "evaluate_ddqn_robustness.py"),
+            "-m",
+            "evaluation.evaluate_ddqn_robustness",
             "--run-dir",
             str(payload["run_dir"]),
         ]

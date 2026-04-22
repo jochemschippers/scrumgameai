@@ -4,9 +4,9 @@ from dataclasses import dataclass
 import random
 from typing import Any
 
-from deployment_profiles import choose_profile_action
-from dqn_agent import encode_state
-from scrum_game_env import ScrumGameEnv
+from game_runtime.scrum_game_env import ScrumGameEnv
+from play.deployment_profiles import choose_profile_action
+from rl.dqn_agent import encode_state
 
 
 def valid_actions_for_state(env: ScrumGameEnv, state: dict[str, Any]) -> list[int]:
