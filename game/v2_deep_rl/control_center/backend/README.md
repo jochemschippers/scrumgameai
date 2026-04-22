@@ -76,16 +76,26 @@ The queue model is:
 
 ## Database Admin
 
-The backend includes a read-only SQLite browser at `/admin/db`. It is disabled
-until a password is configured:
+The backend includes a read-only SQLite browser at `/admin/db`. Startup creates
+two users in `storage/control_center.db` if they do not exist:
+
+- `admin` with role `admin`
+- `guest` with role `guest`
+
+Set passwords before first startup:
 
 ```bash
-export CONTROL_CENTER_DB_PASSWORD='choose-a-strong-password'
+export CONTROL_CENTER_ADMIN_PASSWORD='choose-a-strong-admin-password'
+export CONTROL_CENTER_GUEST_PASSWORD='choose-a-strong-guest-password'
 python run_api.py
 ```
 
-The default username is `admin`. Override it with:
+The usernames default to `admin` and `guest`. Override them with:
 
 ```bash
-export CONTROL_CENTER_DB_USER='your-user'
+export CONTROL_CENTER_ADMIN_USER='your-admin-user'
+export CONTROL_CENTER_GUEST_USER='your-guest-user'
 ```
+
+If password variables are not set, development defaults are used (`admin` and
+`guest`). Do not expose those defaults on a public server.

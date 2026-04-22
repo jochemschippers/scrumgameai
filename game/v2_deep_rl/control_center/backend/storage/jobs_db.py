@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
+import hmac
 import json
+import os
+import secrets
 import sqlite3
 
 from services.app_paths import BACKEND_DIR
 
 
 DB_PATH = BACKEND_DIR / "storage" / "control_center.db"
+PASSWORD_HASH_ITERATIONS = 260_000
 
 
 def utc_now_iso() -> str:
@@ -41,7 +46,113 @@ def init_db() -> None:
             )
             """
         )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL CHECK (role IN ('admin', 'guest')),
+                is_active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        _seed_user(
+            connection,
+            username=os.environ.get("CONTROL_CENTER_ADMIN_USER", "admin"),
+            password=(
+                os.environ.get("CONTROL_CENTER_ADMIN_PASSWORD")
+                or os.environ.get("CONTROL_CENTER_DB_PASSWORD")
+                or "admin"
+            ),
+            role="admin",
+        )
+        _seed_user(
+            connection,
+            username=os.environ.get("CONTROL_CENTER_GUEST_USER", "guest"),
+            password=os.environ.get("CONTROL_CENTER_GUEST_PASSWORD") or "guest",
+            role="guest",
+        )
         connection.commit()
+
+
+def hash_password(password: str) -> str:
+    """Hash a password using stdlib PBKDF2 so no extra auth dependency is needed."""
+    salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        str(password).encode("utf-8"),
+        salt.encode("utf-8"),
+        PASSWORD_HASH_ITERATIONS,
+    ).hex()
+    return f"pbkdf2_sha256${PASSWORD_HASH_ITERATIONS}${salt}${digest}"
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    try:
+        algorithm, iterations_raw, salt, expected = str(password_hash).split("$", 3)
+        iterations = int(iterations_raw)
+    except (ValueError, TypeError):
+        return False
+    if algorithm != "pbkdf2_sha256":
+        return False
+    actual = hashlib.pbkdf2_hmac(
+        "sha256",
+        str(password).encode("utf-8"),
+        salt.encode("utf-8"),
+        iterations,
+    ).hex()
+    return hmac.compare_digest(actual, expected)
+
+
+def _seed_user(connection: sqlite3.Connection, username: str, password: str, role: str) -> None:
+    existing = connection.execute(
+        "SELECT id FROM users WHERE username = ?",
+        (username,),
+    ).fetchone()
+    if existing is not None:
+        return
+
+    now = utc_now_iso()
+    connection.execute(
+        """
+        INSERT INTO users (username, password_hash, role, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, 1, ?, ?)
+        """,
+        (username, hash_password(password), role, now, now),
+    )
+
+
+def get_user_by_username(username: str) -> dict | None:
+    with get_connection() as connection:
+        row = connection.execute(
+            "SELECT * FROM users WHERE username = ?",
+            (username,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def authenticate_user(username: str, password: str) -> dict | None:
+    user = get_user_by_username(username)
+    if not user or not int(user.get("is_active", 0)):
+        return None
+    if not verify_password(password, user["password_hash"]):
+        return None
+    return user
+
+
+def list_users() -> list[dict]:
+    with get_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT id, username, role, is_active, created_at, updated_at
+            FROM users
+            ORDER BY id ASC
+            """
+        ).fetchall()
+    return [dict(row) for row in rows]
 
 
 def _row_to_job(row: sqlite3.Row | None) -> dict | None:
