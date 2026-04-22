@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 from services.app_paths import BACKEND_DIR
+from storage.jobs_db import authenticate_user
 
 
 router = APIRouter(prefix="/admin/db", tags=["admin"])
@@ -29,19 +30,15 @@ def _admin_username() -> str:
 
 
 def require_db_admin(credentials: HTTPBasicCredentials = Depends(security)) -> str:
-    password = _admin_password()
-    if not password:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=(
-                "Database admin is installed but disabled. Set CONTROL_CENTER_DB_PASSWORD "
-                "and restart the backend."
-            ),
-        )
+    user = authenticate_user(credentials.username, credentials.password)
+    if user and user.get("role") in {"admin", "guest"}:
+        return str(user["username"])
 
+    password = _admin_password()
+    env_fallback_enabled = bool(password)
     username_ok = secrets.compare_digest(credentials.username, _admin_username())
-    password_ok = secrets.compare_digest(credentials.password, password)
-    if not (username_ok and password_ok):
+    password_ok = secrets.compare_digest(credentials.password, password) if env_fallback_enabled else False
+    if not (env_fallback_enabled and username_ok and password_ok):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid database admin credentials.",
@@ -211,4 +208,3 @@ def db_table(
     </section>
     """
     return _render_page(f"Database Admin: {table}", page_body)
-
