@@ -7,7 +7,26 @@
   <link rel="stylesheet" href="./styles/app.css?v=15" />
 </head>
 <body>
-  <div class="app-shell">
+  <div id="loginOverlay" class="login-overlay">
+    <div class="login-card">
+      <span class="brand-name" style="font-size:18px;">Control Center</span>
+      <p class="login-subtitle">Sign in to continue</p>
+      <form id="loginForm" autocomplete="on">
+        <div class="login-field">
+          <label for="loginUsername">Username</label>
+          <input id="loginUsername" type="text" autocomplete="username" placeholder="username" required />
+        </div>
+        <div class="login-field">
+          <label for="loginPassword">Password</label>
+          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="password" required />
+        </div>
+        <p id="loginError" class="login-error"></p>
+        <button id="loginSubmitButton" type="submit" class="button primary" style="width:100%;margin-top:4px;">Sign in</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="appShell" class="app-shell" style="display:none;">
     <header class="app-header">
       <span class="brand-name">Control Center</span>
       <nav class="nav" aria-label="Primary">
@@ -668,6 +687,6 @@
     </main>
   </div>
 
-  <script src="./app.js?v=15"></script>
+  <script src="./app.js?v=16"></script>
 </body>
 </html>
