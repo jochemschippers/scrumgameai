@@ -2,7 +2,6 @@ const state = {
   apiBaseUrl: window.location.protocol.startsWith("http")
     ? window.location.origin
     : "http://188.166.52.37:8000",
-  apiKey: localStorage.getItem("scrumgame_api_key") || "",
   health: null,
   gameConfigs: [],
   trainingConfigs: [],
@@ -258,7 +257,6 @@ async function apiRequest(path, options = {}, timeoutMs = 20000) {
       signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
-        ...(state.apiKey ? { "X-API-Key": state.apiKey } : {}),
         ...(options.headers || {}),
       },
       ...options,
@@ -3483,11 +3481,6 @@ function attachEvents() {
   $("connectButton").addEventListener("click", async () => {
     const inputUrl = $("apiBaseUrlInput").value.trim().replace(/\/$/, "");
     state.apiBaseUrl = inputUrl;
-    const keyInput = $("apiKeyInput");
-    if (keyInput) {
-      state.apiKey = keyInput.value.trim();
-      localStorage.setItem("scrumgame_api_key", state.apiKey);
-    }
     try {
       await refreshAll();
       _showConnectedUi();
@@ -3970,9 +3963,4 @@ renderTrainingProgress();
 renderCampaignPanel();
 renderPlaySeatEditor();
 startProgressPolling();
-
-// Pre-fill API key input from localStorage so the user doesn't have to re-enter it
-const _keyInput = $("apiKeyInput");
-if (_keyInput && state.apiKey) _keyInput.value = state.apiKey;
-
 autoConnect();

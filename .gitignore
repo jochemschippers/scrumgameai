@@ -2,9 +2,6 @@
 *.npy
 .venv/
 
-# Environment / secrets
-.env
-
 # Local AI/editor tooling
 .claude/
 .codex/
