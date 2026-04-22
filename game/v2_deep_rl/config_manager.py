@@ -422,6 +422,13 @@ def validate_game_config(game_config: GameConfig) -> None:
 
     if not game_config.dice_rules:
         raise ValueError("At least one dice rule is required.")
+    if game_config.mandatory_loan_amount <= 0:
+        raise ValueError("mandatory_loan_amount must be positive to avoid infinite loan loops.")
+    for rule in game_config.dice_rules:
+        if rule.dice_count < 1:
+            raise ValueError(f"dice_count must be at least 1 (got {rule.dice_count}).")
+        if rule.dice_sides < 2:
+            raise ValueError(f"dice_sides must be at least 2 (got {rule.dice_sides}).")
 
     normalized_products = {normalize_product_key(name) for name in game_config.product_names}
     for rule in game_config.refinement.product_rules:

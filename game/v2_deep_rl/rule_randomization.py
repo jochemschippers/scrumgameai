@@ -9,6 +9,7 @@ from config_manager import GameConfig
 DEFAULT_RULE_RANDOMIZATION_BOUNDS: dict[str, Any] = {
     "starting_money": [15000, 45000],
     "max_turns": [4, 10],
+    "cost_continue": [0, 2000],
     "cost_switch_mid": [0, 10000],
     "cost_switch_after": [0, 5000],
     "mandatory_loan_amount": [30000, 80000],
@@ -70,6 +71,7 @@ def sample_game_config(
     payload["config_name"] = config_name or f"{payload.get('config_name', 'Config')} Randomized"
     payload["starting_money"] = _rand_int(rng, resolved_bounds, "starting_money")
     payload["max_turns"] = _rand_int(rng, resolved_bounds, "max_turns")
+    payload["cost_continue"] = _rand_int(rng, resolved_bounds, "cost_continue")
     payload["cost_switch_mid"] = _rand_int(rng, resolved_bounds, "cost_switch_mid")
     payload["cost_switch_after"] = _rand_int(rng, resolved_bounds, "cost_switch_after")
     payload["mandatory_loan_amount"] = _rand_int(rng, resolved_bounds, "mandatory_loan_amount")
