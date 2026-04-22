@@ -59,6 +59,7 @@ First available routes:
 - `POST /jobs/train`
 - `POST /jobs/evaluate`
 - `POST /jobs/{job_id}/stop`
+- `GET /admin/db` password-protected read-only SQLite browser
 
 ## Job storage
 
@@ -72,3 +73,19 @@ The queue model is:
 - new jobs are persisted as `queued`
 - the wrapper worker promotes jobs to `running`, then `completed` or `failed`
 - queued and running jobs can be stopped through the job API
+
+## Database Admin
+
+The backend includes a read-only SQLite browser at `/admin/db`. It is disabled
+until a password is configured:
+
+```bash
+export CONTROL_CENTER_DB_PASSWORD='choose-a-strong-password'
+python run_api.py
+```
+
+The default username is `admin`. Override it with:
+
+```bash
+export CONTROL_CENTER_DB_USER='your-user'
+```
