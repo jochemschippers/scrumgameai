@@ -1,8 +1,14 @@
 from __future__ import annotations
 import os
-from fastapi import FastAPI
+import re
+from dotenv import load_dotenv
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+
+# Load API_KEY (and any other vars) from .env file if present
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 from api.routes_autopilot import router as autopilot_router
 from api.routes_campaigns import router as campaigns_router
@@ -30,6 +36,30 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def verify_api_key(request: Request, call_next):
+    """Block requests that don't carry the correct X-API-Key header.
+
+    The check is skipped when:
+    - No API_KEY env var is set (useful for local dev without a key).
+    - The request is a CORS preflight (OPTIONS).
+    - The path looks like a static asset (has a file extension, e.g. .js/.css/.html).
+    - The path is the root "/" (which serves index.html).
+    """
+    api_key = os.environ.get("API_KEY")
+    if api_key:
+        is_preflight = request.method == "OPTIONS"
+        is_static = request.url.path == "/" or bool(re.search(r"\.[a-zA-Z0-9]+$", request.url.path))
+        if not is_preflight and not is_static:
+            provided = request.headers.get("X-API-Key", "")
+            if provided != api_key:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Invalid or missing API key."},
+                )
+    return await call_next(request)
+
 
 init_db()
 
