@@ -131,7 +131,10 @@ def list_game_configs() -> list[dict]:
 
     if CUSTOM_GAME_CONFIG_DIR.exists():
         for config_path in sorted(CUSTOM_GAME_CONFIG_DIR.glob("*.json")):
-            config = load_game_config(config_path)
+            try:
+                config = load_game_config(config_path)
+            except (KeyError, TypeError, ValueError):
+                continue
             configs.append(
                 {
                     "id": config_path.stem,
