@@ -5,12 +5,12 @@ import sys
 import pytest
 
 
-for module_name in ("shared_match_runner", "match_runner", "scrum_game_env"):
+for module_name in ("play.shared_match_runner", "play.match_runner", "game_runtime.scrum_game_env"):
     sys.modules.pop(module_name, None)
 
-from config_manager import load_game_config  # noqa: E402
-from match_runner import HeuristicController, HumanController, RandomController  # noqa: E402
-from shared_match_runner import (  # noqa: E402
+from config.config_manager import load_game_config  # noqa: E402
+from play.match_runner import HeuristicController, HumanController, RandomController  # noqa: E402
+from play.shared_match_runner import (  # noqa: E402
     all_shared_seats_done,
     board_payload,
     play_shared_round,

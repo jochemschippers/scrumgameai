@@ -4,8 +4,8 @@ from copy import deepcopy
 import random
 from typing import Any
 
-from match_runner import Controller, valid_actions_for_state
-from scrum_game_env import ScrumGameEnv
+from game_runtime.scrum_game_env import ScrumGameEnv
+from play.match_runner import Controller, valid_actions_for_state
 
 
 def _copy_board_from_env(env: ScrumGameEnv) -> dict[str, Any]:

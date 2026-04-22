@@ -13,12 +13,12 @@ ensure_engine_import_path()
 
 
 def _resolve_game_config(game_config_id: str):
-    from config_manager import load_game_config  # noqa: E402
+    from config.config_manager import load_game_config  # noqa: E402
     candidate_path = Path(game_config_id)
     if candidate_path.exists():
         return load_game_config(candidate_path)
 
-    from config_manager import load_game_config  # noqa: E402
+    from config.config_manager import load_game_config  # noqa: E402
     for item in list_game_configs():
         if item["id"] == game_config_id or item["path"] == game_config_id:
             return load_game_config(item["path"])
@@ -35,8 +35,8 @@ def _resolve_checkpoint(checkpoint_id: str) -> dict:
 def _evaluate_one_seed(agent, game_config, seed: int) -> dict:
     import random  # noqa: E402
     import torch  # noqa: E402
-    from dqn_agent import encode_state  # noqa: E402
-    from scrum_game_env import ScrumGameEnv  # noqa: E402
+    from rl.dqn_agent import encode_state  # noqa: E402
+    from game_runtime.scrum_game_env import ScrumGameEnv  # noqa: E402
     random.seed(seed)
     torch.manual_seed(seed)
 
@@ -94,7 +94,7 @@ def _summarize_results(rows: list[dict]) -> dict:
 
 
 def evaluate_checkpoint(payload: dict) -> dict:
-    from checkpoint_utils import load_agent_for_inference  # noqa: E402
+    from rl.checkpoint_utils import load_agent_for_inference  # noqa: E402
     checkpoint = _resolve_checkpoint(payload["checkpoint_id"])
     game_config = _resolve_game_config(payload.get("game_config_id") or checkpoint["path"])
     seeds = payload.get("seeds") or [42]

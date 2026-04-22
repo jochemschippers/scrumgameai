@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 
-from config_manager import RefinementConfig, normalize_product_key
+from config.config_manager import RefinementConfig, normalize_product_key
 
 
 class ConfiguredRefinementModel:

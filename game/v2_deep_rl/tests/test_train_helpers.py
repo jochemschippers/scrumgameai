@@ -1,11 +1,11 @@
 """
-Tests for pure helper functions in train_dqn.py:
+Tests for pure helper functions in training/train_dqn.py:
   - epsilon_by_episode
   - _slugify_run_name
   - resolve_training_config
 
-train_dqn.py imports torch and matplotlib at module level, so we cannot do a
-plain `import train_dqn`. Instead we:
+training.train_dqn imports torch and matplotlib at module level, so we cannot do a
+plain import. Instead we:
   1. Skip gracefully if torch is not installed (pytest.importorskip).
   2. Temporarily restore any stub from sys.modules and replace it with the real
      torch before importing the engine module.
@@ -33,7 +33,7 @@ _torch_stub = sys.modules.get("torch")
 for _mod in list(sys.modules):
     if _mod == "torch" or _mod.startswith("torch."):
         del sys.modules[_mod]
-for _heavy in ("dqn_agent", "scrum_game_env"):
+for _heavy in ("rl.dqn_agent", "game_runtime.scrum_game_env"):
     sys.modules.pop(_heavy, None)
 
 # PyTorch doesn't support Python 3.14+ yet; running on 3.14 causes a hard C abort.
@@ -64,12 +64,12 @@ pytest.importorskip("matplotlib", reason="matplotlib not installed — skipping 
 
 _ENGINE_DIR = Path(__file__).resolve().parents[1]
 
-# We need the engine directory on sys.path so train_dqn's own relative imports work.
+# We need the engine directory on sys.path so package imports work.
 _engine_str = str(_ENGINE_DIR)
 if _engine_str not in sys.path:
     sys.path.insert(0, _engine_str)
 
-_spec = importlib.util.spec_from_file_location("train_dqn", _ENGINE_DIR / "train_dqn.py")
+_spec = importlib.util.spec_from_file_location("training.train_dqn", _ENGINE_DIR / "training" / "train_dqn.py")
 _train_dqn = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_train_dqn)
 
@@ -209,7 +209,7 @@ class TestResolveTrainingConfig:
 
     def _base_tc(self, **kwargs):
         """Return a TrainingConfig with sensible defaults, optionally overridden."""
-        import config_manager as cm
+        import config.config_manager as cm
         defaults = {
             "episodes": 50000,
             "evaluation_episodes": 100,
@@ -307,7 +307,7 @@ class TestResolveTrainingConfig:
         assert result.seed == 7
 
     def test_returns_training_config_instance(self):
-        import config_manager as cm
+        import config.config_manager as cm
         base = self._base_tc()
         result = resolve_training_config(training_config=base)
         assert isinstance(result, cm.TrainingConfig)

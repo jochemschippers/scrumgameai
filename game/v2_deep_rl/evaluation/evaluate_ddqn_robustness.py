@@ -6,12 +6,12 @@ from pathlib import Path
 
 import torch
 
-from checkpoint_utils import load_agent_for_inference
-from scrum_game_env import ScrumGameEnv
-from dqn_agent import encode_state
+from game_runtime.scrum_game_env import ScrumGameEnv
+from rl.checkpoint_utils import load_agent_for_inference
+from rl.dqn_agent import encode_state
 
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parents[1]
 RUNS_DIR = BASE_DIR / "artifacts" / "runs"
 DEFAULT_SEEDS = [42, 123, 999, 2026, 31415]
 

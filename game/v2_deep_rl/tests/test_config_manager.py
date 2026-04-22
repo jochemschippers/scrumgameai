@@ -1,8 +1,8 @@
 """
-Tests for config_manager.py.
+Tests for config/config_manager.py.
 
 config_manager has no torch dependency so it can be imported directly.
-conftest.py adds ENGINE_DIR to sys.path, so `import config_manager` works.
+conftest.py adds ENGINE_DIR to sys.path, so `import config.config_manager` works.
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from copy import deepcopy
 
 import pytest
 
-import config_manager as cm
+import config.config_manager as cm
 
 
 # ---------------------------------------------------------------------------
