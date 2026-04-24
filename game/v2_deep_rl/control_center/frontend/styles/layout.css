@@ -1,0 +1,277 @@
+/* ── App shell ──────────────────────────────────────────────────────────────── */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Top header bar ─────────────────────────────────────────────────────────── */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 16px;
+  background: #f5f6f8;
+  border-bottom: 1px solid var(--border);
+  height: 50px;
+  flex-shrink: 0;
+}
+
+.brand-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+/* ── Tab nav ────────────────────────────────────────────────────────────────── */
+
+.nav {
+  display: flex;
+  height: 100%;
+  flex-shrink: 0;
+}
+
+.nav-button {
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 0 16px;
+  height: 50px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.nav-button:hover {
+  color: var(--text);
+  border-bottom-color: var(--border-strong);
+  background: transparent;
+}
+
+.nav-button.is-active {
+  color: var(--accent-strong);
+  border-bottom-color: var(--accent);
+  background: transparent;
+}
+
+.nav-button.is-active:hover {
+  background: transparent;
+  border-bottom-color: var(--accent-strong);
+}
+
+/* ── Workspace selects ──────────────────────────────────────────────────────── */
+
+.header-workspace {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.ws-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: default;
+}
+
+.ws-label select {
+  width: auto;
+  min-width: 110px;
+  max-width: 170px;
+  padding: 4px 7px;
+  font-size: 12px;
+  height: 30px;
+}
+
+.ws-check {
+  cursor: pointer;
+}
+
+.ws-check input {
+  width: auto;
+}
+
+/* ── Backend status in header ───────────────────────────────────────────────── */
+
+.header-backend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+  flex-shrink: 0;
+}
+
+.app-header .status-card {
+  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.header-connect-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.header-connect-form input {
+  width: 190px;
+  padding: 4px 7px;
+  font-size: 12px;
+  height: 30px;
+}
+
+.header-connect-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.header-connect-actions .button,
+.header-connect-form .button {
+  padding: 4px 10px;
+  height: 30px;
+  font-size: 12px;
+}
+
+/* ── Main content area ──────────────────────────────────────────────────────── */
+
+.main-panel {
+  flex: 1;
+  padding: 16px 18px;
+  min-width: 0;
+  height: calc(100vh - 50px);
+  overflow: hidden;
+}
+
+/* ── Page visibility ────────────────────────────────────────────────────────── */
+
+.hidden,
+.page {
+  display: none;
+}
+
+.page.is-active {
+  display: block;
+  height: 100%;
+  overflow: auto;
+}
+
+.page.is-active.play-dashboard {
+  display: grid;
+  overflow: hidden;
+}
+
+/* ── Grid system ────────────────────────────────────────────────────────────── */
+
+.grid {
+  display: grid;
+  gap: 14px;
+}
+
+.grid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.grid.two-wide {
+  grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.9fr);
+}
+
+.grid.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.grid.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.compact-grid {
+  gap: 10px;
+}
+
+.rules-editor-grid {
+  margin-top: 14px;
+}
+
+.advanced-panel {
+  display: block;
+}
+
+.advanced-panel > summary {
+  display: inline-flex;
+  cursor: pointer;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-alt);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.advanced-panel[open] > summary {
+  margin-bottom: 14px;
+}
+
+.advanced-json-grid {
+  padding: 0;
+}
+
+.visual-editor-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.span-2 {
+  grid-column: span 2;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────────── */
+
+@media (max-width: 1080px) {
+  .app-header {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 8px 16px;
+    gap: 8px;
+  }
+
+  .nav-button {
+    height: 38px;
+    padding: 0 12px;
+  }
+
+  .header-workspace {
+    margin-left: 0;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .header-backend {
+    margin-left: 0;
+    flex-wrap: wrap;
+  }
+
+  .grid.two,
+  .grid.two-wide,
+  .grid.three,
+  .grid.four,
+  .list-row-grid,
+  .summary-grid,
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+}

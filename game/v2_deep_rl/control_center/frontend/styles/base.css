@@ -1,0 +1,46 @@
+/* ── CSS custom properties & reset ─────────────────────────────────────────── */
+
+:root {
+  color-scheme: light;
+  --bg: #eef1f4;
+  --bg-soft: #f7f8fa;
+  --panel: #ffffff;
+  --panel-alt: #f4f5f7;
+  --panel-muted: #fafbfc;
+  --border: #d8dde5;
+  --border-strong: #b8c1cd;
+  --text: #1f2937;
+  --muted: #667085;
+  --accent: #6b8aa3;
+  --accent-strong: #557287;
+  --accent-soft: #e7eef4;
+  --warning: #c58b2f;
+  --danger: #cc5f5f;
+  --success: #4f8d68;
+  --radius: 8px;
+  --shadow: 0 10px 24px rgba(16, 24, 40, 0.06);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  background: linear-gradient(180deg, var(--bg-soft) 0%, var(--bg) 100%);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
