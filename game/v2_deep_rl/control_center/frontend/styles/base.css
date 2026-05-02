@@ -1,0 +1,72 @@
+/* ── CSS custom properties & reset ─────────────────────────────────────────── */
+
+:root {
+  color-scheme: dark;
+
+  /* Backgrounds */
+  --bg:          #090e18;
+  --bg-soft:     #0d1322;
+
+  /* Surfaces
+     Each step is visibly distinct so panels, inputs, and hover
+     states never blend into each other.                          */
+  --panel:       #131d30;   /* card / panel surface               */
+  --panel-alt:   #1e2840;   /* elevated: nav chips, tag bg, etc.  */
+  --panel-muted: #0f1625;   /* recessed: inputs, inset panels     */
+
+  /* Borders — bright enough to define edges without being harsh  */
+  --border:        #374e6e;   /* card outlines, dividers           */
+  --border-strong: #4e6585;   /* focus rings, hover borders        */
+
+  /* Typography
+     --muted targets ≥ 7:1 on --panel so labels/captions are
+     always comfortable to read at small sizes.                   */
+  --text:  #e8edf8;   /* primary text    — ~15 : 1 on --panel     */
+  --muted: #96a6cc;   /* secondary text  — ~7.7: 1 on --panel     */
+
+  /* Accent (blue) */
+  --accent:        #5c8df5;
+  --accent-strong: #4273e8;
+  --accent-soft:   #162040;
+
+  /* Semantic colours */
+  --warning: #d4973a;
+  --danger:  #d95252;
+  --success: #39b572;
+
+  /* Misc */
+  --radius:    8px;
+  --shadow:    0 1px 3px rgba(0,0,0,.55), 0 4px 14px rgba(0,0,0,.4);
+  --shadow-lg: 0 8px 40px rgba(0,0,0,.65);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+  font-family: 'Inter', "Segoe UI", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+/* ── Thin scrollbars ────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar        { width: 5px; height: 5px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--border-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }

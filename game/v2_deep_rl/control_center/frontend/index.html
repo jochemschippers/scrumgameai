@@ -4,7 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Scrum Game Control Center</title>
-  <link rel="stylesheet" href="./styles/app.css?v=15" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles/base.css" />
+  <link rel="stylesheet" href="./styles/layout.css" />
+  <link rel="stylesheet" href="./styles/components.css" />
+  <link rel="stylesheet" href="./styles/pages/login.css" />
+  <link rel="stylesheet" href="./styles/pages/play.css" />
 </head>
 <body>
   <div id="loginOverlay" class="login-overlay">
@@ -334,8 +341,8 @@
                 <span>Run Notes</span>
                 <textarea id="trainNotesInput" rows="3" placeholder="Optional run notes"></textarea>
               </label>
-              <div class="field-group" style="border-top: 1px solid var(--border); padding-top: 0.75rem; margin-top: 0.25rem;">
-                <label class="field" style="flex-direction: row; align-items: center; gap: 0.5rem;">
+              <div class="field-group">
+                <label class="field checkbox-inline">
                   <input id="campaignEnabledToggle" type="checkbox" />
                   <span>Start as Campaign</span>
                 </label>
@@ -354,6 +361,7 @@
               <button id="refreshJobsButton" class="button secondary" type="button">Refresh Jobs</button>
             </div>
             <div id="jobsList" class="list-stack"></div>
+            <div id="jobsPagination" class="jobs-pagination"></div>
           </article>
         </div>
 
@@ -595,6 +603,7 @@
               <span id="runCount" class="meta-count">0</span>
             </div>
             <div id="runsList" class="list-stack"></div>
+            <div id="runsPagination" class="jobs-pagination"></div>
           </article>
         </div>
 
@@ -687,6 +696,17 @@
     </main>
   </div>
 
-  <script src="./app.js?v=16"></script>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./main.js"></script>
 </body>
 </html>

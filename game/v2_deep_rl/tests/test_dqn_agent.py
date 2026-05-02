@@ -49,12 +49,12 @@ except (ImportError, RuntimeError) as _e:
 
 torch = pytest.importorskip("torch", reason="torch not installed — skipping dqn_agent tests")
 
-# Now import the real dqn_agent (it lives one directory above the tests/ folder).
+# Now import the real dqn_agent implementation from the rl package.
 import importlib.util
 from pathlib import Path
 
 _ENGINE_DIR = Path(__file__).resolve().parents[1]
-_SPEC = importlib.util.spec_from_file_location("dqn_agent", _ENGINE_DIR / "dqn_agent.py")
+_SPEC = importlib.util.spec_from_file_location("dqn_agent", _ENGINE_DIR / "rl" / "dqn_agent.py")
 dqn_agent = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(dqn_agent)
 
