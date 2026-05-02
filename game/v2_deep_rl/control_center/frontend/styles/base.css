@@ -1,24 +1,43 @@
 /* ── CSS custom properties & reset ─────────────────────────────────────────── */
 
 :root {
-  color-scheme: light;
-  --bg: #eef1f4;
-  --bg-soft: #f7f8fa;
-  --panel: #ffffff;
-  --panel-alt: #f4f5f7;
-  --panel-muted: #fafbfc;
-  --border: #d8dde5;
-  --border-strong: #b8c1cd;
-  --text: #1f2937;
-  --muted: #667085;
-  --accent: #6b8aa3;
-  --accent-strong: #557287;
-  --accent-soft: #e7eef4;
-  --warning: #c58b2f;
-  --danger: #cc5f5f;
-  --success: #4f8d68;
-  --radius: 8px;
-  --shadow: 0 10px 24px rgba(16, 24, 40, 0.06);
+  color-scheme: dark;
+
+  /* Backgrounds */
+  --bg:          #090e18;
+  --bg-soft:     #0d1322;
+
+  /* Surfaces
+     Each step is visibly distinct so panels, inputs, and hover
+     states never blend into each other.                          */
+  --panel:       #131d30;   /* card / panel surface               */
+  --panel-alt:   #1e2840;   /* elevated: nav chips, tag bg, etc.  */
+  --panel-muted: #0f1625;   /* recessed: inputs, inset panels     */
+
+  /* Borders — bright enough to define edges without being harsh  */
+  --border:        #374e6e;   /* card outlines, dividers           */
+  --border-strong: #4e6585;   /* focus rings, hover borders        */
+
+  /* Typography
+     --muted targets ≥ 7:1 on --panel so labels/captions are
+     always comfortable to read at small sizes.                   */
+  --text:  #e8edf8;   /* primary text    — ~15 : 1 on --panel     */
+  --muted: #96a6cc;   /* secondary text  — ~7.7: 1 on --panel     */
+
+  /* Accent (blue) */
+  --accent:        #5c8df5;
+  --accent-strong: #4273e8;
+  --accent-soft:   #162040;
+
+  /* Semantic colours */
+  --warning: #d4973a;
+  --danger:  #d95252;
+  --success: #39b572;
+
+  /* Misc */
+  --radius:    8px;
+  --shadow:    0 1px 3px rgba(0,0,0,.55), 0 4px 14px rgba(0,0,0,.4);
+  --shadow-lg: 0 8px 40px rgba(0,0,0,.65);
 }
 
 * {
@@ -31,11 +50,11 @@ body {
   height: 100vh;
   min-height: 100vh;
   overflow: hidden;
-  font-family: Inter, "Segoe UI", Arial, sans-serif;
-  background: linear-gradient(180deg, var(--bg-soft) 0%, var(--bg) 100%);
+  font-family: 'Inter', "Segoe UI", Arial, sans-serif;
+  background: var(--bg);
   color: var(--text);
   font-size: 14px;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 button,
@@ -44,3 +63,10 @@ select,
 textarea {
   font: inherit;
 }
+
+/* ── Thin scrollbars ────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar        { width: 5px; height: 5px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--border-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }

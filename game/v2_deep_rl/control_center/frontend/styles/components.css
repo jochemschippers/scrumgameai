@@ -19,32 +19,43 @@
 /* ── Buttons ────────────────────────────────────────────────────────────────── */
 
 .button {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--panel);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--panel-alt);
   color: var(--text);
-  padding: 8px 11px;
+  padding: 7px 12px;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+
+.button:hover {
+  background: var(--border);
+  border-color: var(--border-strong);
 }
 
 .button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: linear-gradient(180deg, #6699f5 0%, var(--accent-strong) 100%);
+  border-color: var(--accent-strong);
   color: #fff;
+  box-shadow: 0 2px 8px rgba(66,115,232,.35);
+}
+
+.button.primary:hover {
+  background: linear-gradient(180deg, #7aaaf7 0%, #5583e8 100%);
+  border-color: #5583e8;
+  box-shadow: 0 4px 14px rgba(66,115,232,.45);
 }
 
 .button.secondary {
   background: var(--panel-alt);
-}
-
-.button:hover {
-  border-color: var(--border-strong);
-}
-
-.button.primary:hover {
-  background: var(--accent-strong);
-  border-color: var(--accent-strong);
 }
 
 .button-row {
@@ -60,7 +71,7 @@
 .progress-stack,
 .chart-stack {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 /* ── Field / inputs ─────────────────────────────────────────────────────────── */
@@ -72,25 +83,48 @@
 
 .field span {
   font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
 input,
 select,
 textarea {
   width: 100%;
-  padding: 8px 10px;
+  padding: 7px 10px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: #fff;
+  border-radius: 6px;
+  background: var(--panel-muted);
   color: var(--text);
+  font-size: 13px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+select {
+  cursor: pointer;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(92,141,245,.15);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  opacity: 0.5;
 }
 
 textarea {
   resize: vertical;
-  min-height: 96px;
+  min-height: 80px;
+  line-height: 1.5;
 }
 
-/* ── Status, message, card borders ─────────────────────────────────────────── */
+/* ── Status & message cards ─────────────────────────────────────────────────── */
 
 .status-card,
 .message,
@@ -106,41 +140,51 @@ textarea {
 .status-card {
   display: grid;
   gap: 2px;
-  padding: 10px 12px;
+  padding: 8px 12px;
   background: var(--panel);
+  font-size: 13px;
+}
+
+.status-muted {
+  border-color: var(--border);
+  background: var(--panel-alt);
+  color: var(--muted);
 }
 
 .status-ok {
-  border-color: #b9d4c0;
-  background: #f7fbf8;
+  border-color: rgba(57,181,114,.4);
+  background: rgba(57,181,114,.08);
+  color: #5dcc8e;
 }
 
 .status-warning {
-  border-color: #ebd4b1;
-  background: #fffaf4;
+  border-color: rgba(212,151,58,.4);
+  background: rgba(212,151,58,.08);
+  color: #e0aa3e;
 }
 
 .status-error {
-  border-color: #e7bbbb;
-  background: #fff7f7;
+  border-color: rgba(217,82,82,.4);
+  background: rgba(217,82,82,.08);
+  color: #e87070;
 }
 
 /* ── Toast message ──────────────────────────────────────────────────────────── */
 
 .message {
   position: fixed;
-  top: 58px;
+  top: 62px;
   right: 16px;
   z-index: 50;
   display: flex;
   align-items: center;
   gap: 10px;
   max-width: min(420px, calc(100vw - 32px));
-  padding: 7px 10px;
-  background: #fff;
-  box-shadow: 0 8px 20px rgba(16, 24, 40, 0.12);
-  font-size: 12px;
-  line-height: 1.35;
+  padding: 9px 12px;
+  background: var(--panel);
+  box-shadow: var(--shadow-lg);
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .message span {
@@ -159,24 +203,24 @@ textarea {
   background: transparent;
   color: inherit;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1;
 }
 
 .message-close:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: rgba(255,255,255,0.08);
 }
 
 .message.success {
-  border-color: #b9d4c0;
-  background: #f8fcf9;
-  color: #2f6b48;
+  border-color: rgba(57,181,114,.4);
+  background: rgba(57,181,114,.12);
+  color: #6fdc9e;
 }
 
 .message.error {
-  border-color: #e7bbbb;
-  background: #fff7f7;
-  color: #9d3737;
+  border-color: rgba(217,82,82,.4);
+  background: rgba(217,82,82,.12);
+  color: #ee8888;
 }
 
 /* ── Panels ─────────────────────────────────────────────────────────────────── */
@@ -184,34 +228,55 @@ textarea {
 .panel {
   padding: 14px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 10px;
   background: var(--panel);
   box-shadow: var(--shadow);
 }
 
 .inset-panel {
-  padding: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
   box-shadow: none;
   background: var(--panel-muted);
+  border-color: var(--border);
 }
 
 .panel-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-head h3 {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.panel-head h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.03em;
 }
 
 .meta-count {
-  font-size: 12px;
+  font-size: 11px;
 }
 
 /* ── List cards ─────────────────────────────────────────────────────────────── */
 
 .list-card {
-  padding: 11px 12px;
-  background: var(--panel-muted);
+  padding: 9px 12px;
+  background: var(--panel-alt);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
 }
 
 .list-card h4,
@@ -220,8 +285,18 @@ textarea {
 }
 
 .list-card h4 {
-  margin-bottom: 4px;
-  font-size: 14px;
+  margin-bottom: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.list-card p {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
 }
 
 .card-meta {
@@ -235,55 +310,58 @@ textarea {
 
 .tag {
   display: inline-flex;
-  padding: 3px 7px;
+  padding: 2px 8px;
   border-radius: 999px;
   background: var(--accent-soft);
-  color: var(--muted);
+  color: var(--accent);
   font-size: 11px;
+  font-weight: 500;
 }
 
 .tag.good {
-  background: #ebf6ef;
-  color: var(--success);
+  background: rgba(57,181,114,.14);
+  color: #5dcc8e;
 }
 
 .tag.warn {
-  background: #fff5e9;
-  color: var(--warning);
+  background: rgba(212,151,58,.14);
+  color: #e0aa3e;
 }
 
 .tag.bad {
-  background: #fff0f0;
-  color: var(--danger);
+  background: rgba(217,82,82,.14);
+  color: #e87070;
 }
 
 .tag.running {
-  background: #fff5e9;
-  color: var(--warning);
+  background: rgba(212,151,58,.14);
+  color: #e0aa3e;
 }
 
 .tag.done {
-  background: #ebf6ef;
-  color: var(--success);
+  background: rgba(57,181,114,.14);
+  color: #5dcc8e;
 }
 
 .tag.ai {
-  background: #f0ecff;
-  color: #6b4fa8;
+  background: rgba(160,130,255,.14);
+  color: #b89ef7;
 }
 
 .tag.info {
-  background: #e8f2ff;
-  color: #3d6fa8;
+  background: rgba(92,141,245,.14);
+  color: var(--accent);
 }
 
 /* ── Empty state ────────────────────────────────────────────────────────────── */
 
 .empty-state {
-  padding: 14px;
-  border: 1px dashed var(--border);
+  padding: 12px 14px;
+  border: 1px dashed var(--border-strong);
   border-radius: var(--radius);
   background: var(--panel-muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 /* ── Toolbar helpers ────────────────────────────────────────────────────────── */
@@ -291,15 +369,15 @@ textarea {
 .inline-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .compact-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px 16px;
-  margin: 2px 0 10px;
+  gap: 6px;
+  margin: 0 0 10px;
 }
 
 .checkbox-inline {
@@ -316,6 +394,7 @@ textarea {
 
 .checkbox-inline input {
   width: auto;
+  accent-color: var(--accent);
 }
 
 /* ── Matrix table ───────────────────────────────────────────────────────────── */
@@ -333,13 +412,19 @@ textarea {
 .matrix-table th,
 .matrix-table td {
   border: 1px solid var(--border);
-  padding: 8px;
+  padding: 8px 10px;
   text-align: left;
   vertical-align: top;
+  font-size: 13px;
 }
 
 .matrix-table th {
-  background: #f3f5f8;
+  background: var(--panel-alt);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .matrix-cell {
@@ -351,11 +436,16 @@ textarea {
 
 .list-row {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 12px;
+  padding: 10px 12px;
   background: var(--panel-muted);
+  transition: border-color 0.15s;
+}
+
+.list-row:hover {
+  border-color: var(--border-strong);
 }
 
 .list-row-head {
@@ -380,35 +470,42 @@ textarea {
 }
 
 .summary-card {
-  padding: 10px;
-  background: var(--panel-muted);
+  padding: 10px 12px;
+  background: var(--panel-alt);
+  border-radius: var(--radius);
 }
 
 .summary-card span,
 .metric-card span {
   display: block;
-  font-size: 11px;
-  margin-bottom: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
 }
 
 .summary-card strong {
-  font-size: 18px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
 }
 
 /* ── Progress bar ───────────────────────────────────────────────────────────── */
 
 .progress-track {
   width: 100%;
-  height: 10px;
-  border: 1px solid var(--border);
+  height: 8px;
+  border: none;
   border-radius: 999px;
-  background: #eef2f5;
+  background: var(--border);
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent) 0%, #97acbc 100%);
+  background: linear-gradient(90deg, var(--accent) 0%, #8fb5fa 100%);
+  border-radius: 999px;
 }
 
 /* ── Metric cards ───────────────────────────────────────────────────────────── */
@@ -420,19 +517,23 @@ textarea {
 }
 
 .metric-card {
-  padding: 10px;
-  background: var(--panel-muted);
+  padding: 12px;
+  background: var(--panel-alt);
+  border-radius: var(--radius);
 }
 
 .metric-card strong {
-  font-size: 16px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
 }
 
 /* ── Chart cards ────────────────────────────────────────────────────────────── */
 
 .chart-card {
-  padding: 12px;
+  padding: 14px;
   background: var(--panel-muted);
+  border-radius: var(--radius);
 }
 
 .evaluation-form-stack {
@@ -455,7 +556,11 @@ textarea {
 }
 
 .chart-card h4 {
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .mini-chart {
@@ -463,7 +568,7 @@ textarea {
   min-height: 160px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--panel);
 }
 
 .bar-chart {
@@ -471,12 +576,12 @@ textarea {
   min-height: 200px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--panel);
 }
 
 .chart-caption {
   margin-top: 6px;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 /* ── Data table ─────────────────────────────────────────────────────────────── */
@@ -485,7 +590,7 @@ textarea {
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--panel);
 }
 
 .data-table {
@@ -503,8 +608,16 @@ textarea {
 }
 
 .data-table th {
-  background: #f3f5f8;
+  background: var(--panel-alt);
   color: var(--muted);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
 }
 
 /* ── Model / checkpoint groups ──────────────────────────────────────────────── */
@@ -523,9 +636,16 @@ textarea {
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-  background: #f3f5f8;
+  padding: 10px 13px;
+  background: var(--panel-alt);
   border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+
+.model-group summary:hover {
+  background: var(--border);
 }
 
 .model-group summary::-webkit-details-marker {
@@ -543,12 +663,18 @@ textarea {
   border-radius: var(--radius);
   background: var(--panel-muted);
   padding: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.checkpoint-card:hover {
+  border-color: var(--border-strong);
 }
 
 .checkpoint-card.is-active {
   border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
-  background: #f5f9fc;
+  box-shadow: 0 0 0 1px var(--accent), inset 0 0 0 1px rgba(92,141,245,.12);
+  background: rgba(92,141,245,.06);
 }
 
 .checkpoint-title-row {
@@ -560,7 +686,7 @@ textarea {
 
 .checkpoint-title-row h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .checkpoint-subtitle {
@@ -573,12 +699,12 @@ textarea {
 .rating-card {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   margin: 8px 0;
-  padding: 10px;
+  padding: 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--panel-alt);
 }
 
 .rating-grade {
@@ -603,11 +729,177 @@ textarea {
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: #fbfcfd;
-  padding: 10px;
-  font-family: Consolas, "Courier New", monospace;
+  background: #060a10;
+  color: #8fa8c8;
+  padding: 12px;
+  font-family: 'Consolas', 'SFMono-Regular', 'Courier New', monospace;
   font-size: 12px;
   white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Autopilot ──────────────────────────────────────────────────────────────── */
+
+.autopilot-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.autopilot-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-muted);
+}
+
+.autopilot-toggle-row span {
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* ── Decision list ──────────────────────────────────────────────────────────── */
+
+.decision-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.decision-row {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-muted);
+  transition: border-color 0.15s;
+}
+
+.decision-row:hover {
+  border-color: var(--border-strong);
+}
+
+.decision-row-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.decision-reason {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* ── Field group (campaign toggle block, etc.) ──────────────────────────────── */
+
+.field-group {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-muted);
+}
+
+.field-group .checkbox-inline {
+  padding-top: 0;
+}
+
+/* ── Compact sizing for toolbar / inline buttons ────────────────────────────── */
+
+.compact-toolbar .button,
+.inline-actions .button {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+/* ── Progress track spacing ─────────────────────────────────────────────────── */
+
+.progress-track {
+  margin: 2px 0;
+}
+
+.checkpoint-card:hover {
+  border-color: var(--border-strong);
+}
+
+.checkpoint-card.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), inset 0 0 0 1px rgba(92,141,245,.12);
+  background: rgba(92,141,245,.06);
+}
+
+.checkpoint-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.checkpoint-title-row h4 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.checkpoint-subtitle {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ── Rating card ────────────────────────────────────────────────────────────── */
+
+.rating-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-alt);
+}
+
+.rating-grade {
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 6px 14px;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ── Log card ───────────────────────────────────────────────────────────────── */
+
+.path-wrap {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  margin-top: 2px;
+}
+
+.log-card {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #060a10;
+  color: #8fa8c8;
+  padding: 12px;
+  font-family: 'Consolas', 'SFMono-Regular', 'Courier New', monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  line-height: 1.6;
 }
 
 pre {
@@ -629,6 +921,10 @@ pre {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-muted);
 }
 
 .autopilot-toggle-row span {
@@ -645,10 +941,15 @@ pre {
 }
 
 .decision-row {
-  padding: 10px 12px;
+  padding: 10px 13px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel-muted);
+  transition: border-color 0.15s;
+}
+
+.decision-row:hover {
+  border-color: var(--border-strong);
 }
 
 .decision-row-head {
@@ -656,11 +957,56 @@ pre {
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 4px;
+  margin-bottom: 5px;
 }
 
 .decision-reason {
   font-size: 12px;
   color: var(--muted);
   margin: 0;
+}
+
+/* ── Field group (campaign toggle block, etc.) ──────────────────────────────── */
+
+.field-group {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-muted);
+}
+
+/* ── Checkbox-inline inside field-group: no extra top padding ───────────────── */
+
+.field-group .checkbox-inline {
+  padding-top: 0;
+}
+
+/* ── Compact button sizing for toolbars ─────────────────────────────────────── */
+
+.compact-toolbar .button,
+.inline-actions .button {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+/* ── Status card text size ──────────────────────────────────────────────────── */
+
+.status-card span {
+  font-size: 12px;
+}
+
+/* ── Smooth hover on list-card and checkpoint-card ──────────────────────────── */
+
+.list-row,
+.checkpoint-card,
+.decision-row {
+  cursor: default;
+}
+
+/* ── Progress track slim ────────────────────────────────────────────────────── */
+
+.progress-track {
+  margin: 2px 0;
 }

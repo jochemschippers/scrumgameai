@@ -9,6 +9,12 @@ export function renderRuns() {
   buildOptions("robustnessRunSelect", state.runs);
   const container = $("runsList");
   container.innerHTML = "";
+
+  if (!state.runs.length) {
+    container.innerHTML = `<div class="empty-state">No runs yet.</div>`;
+    return;
+  }
+
   state.runs.forEach((run) => {
     const card = document.createElement("article");
     card.className = "list-card";
