@@ -4,18 +4,31 @@ import { escapeHtml, formatNumber } from '../../utils/formatting.js';
 import { renderLineChart } from '../../utils/charts.js';
 import { apiRequest } from '../../api/client.js';
 
+const RUNS_PER_PAGE = 5;
+
 export function renderRuns() {
   $("runCount").textContent = `${state.runs.length}`;
   buildOptions("robustnessRunSelect", state.runs);
   const container = $("runsList");
+  const paginationContainer = $("runsPagination");
   container.innerHTML = "";
+  if (paginationContainer) paginationContainer.innerHTML = "";
 
   if (!state.runs.length) {
+    state.runsPage = 0;
     container.innerHTML = `<div class="empty-state">No runs yet.</div>`;
     return;
   }
 
-  state.runs.forEach((run) => {
+  // Clamp page to valid range
+  const totalPages = Math.ceil(state.runs.length / RUNS_PER_PAGE);
+  if (state.runsPage >= totalPages) state.runsPage = totalPages - 1;
+  if (state.runsPage < 0) state.runsPage = 0;
+
+  const pageStart = state.runsPage * RUNS_PER_PAGE;
+  const pageRuns = state.runs.slice(pageStart, pageStart + RUNS_PER_PAGE);
+
+  pageRuns.forEach((run) => {
     const card = document.createElement("article");
     card.className = "list-card";
     card.innerHTML = `
@@ -66,6 +79,29 @@ export function renderRuns() {
       }));
     });
   });
+
+  // Render pagination controls
+  if (paginationContainer && totalPages > 1) {
+    const prevDisabled = state.runsPage === 0 ? "disabled" : "";
+    const nextDisabled = state.runsPage >= totalPages - 1 ? "disabled" : "";
+    paginationContainer.innerHTML = `
+      <button class="button secondary runs-page-prev" type="button" ${prevDisabled}>&#8592; Prev</button>
+      <span class="jobs-page-label">Page ${state.runsPage + 1} of ${totalPages}</span>
+      <button class="button secondary runs-page-next" type="button" ${nextDisabled}>Next &#8594;</button>
+    `;
+    paginationContainer.querySelector(".runs-page-prev")?.addEventListener("click", () => {
+      if (state.runsPage > 0) {
+        state.runsPage -= 1;
+        renderRuns();
+      }
+    });
+    paginationContainer.querySelector(".runs-page-next")?.addEventListener("click", () => {
+      if (state.runsPage < totalPages - 1) {
+        state.runsPage += 1;
+        renderRuns();
+      }
+    });
+  }
 }
 
 export function renderTrainingProgress() {

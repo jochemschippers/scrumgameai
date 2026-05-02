@@ -41,6 +41,8 @@ export const state = {
   autopilotStopRequested: false,
   campaigns: [],
   activeCampaignId: null,
+  jobsPage: 0,
+  runsPage: 0,
   playDiceBox: null,
   playDiceBoxReady: false,
   playDiceBoxInitPromise: null,
