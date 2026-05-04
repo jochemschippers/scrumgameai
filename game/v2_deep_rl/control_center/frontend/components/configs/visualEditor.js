@@ -2,6 +2,7 @@ import { state } from '../../state/store.js';
 import { $, clone, numberValue, normalizeProductKey, parseNumberList, parseJsonEditor } from '../../utils/helpers.js';
 import { formatJson, escapeHtml } from '../../utils/formatting.js';
 import { DEFAULT_GAME_CONFIG } from '../../constants/defaults.js';
+import { isGuest } from '../../api/client.js';
 
 export function ensureVisualGameConfig() {
   if (!state.visualGameConfig) {
@@ -224,7 +225,7 @@ export function renderVisualDiceRules() {
     row.innerHTML = `
       <div class="list-row-head">
         <strong>Rule ${index + 1}</strong>
-        <button class="button secondary" type="button" data-remove-dice="${index}">Remove</button>
+        <button class="button secondary guest-hide" type="button" data-remove-dice="${index}" style="${isGuest() ? "display:none" : ""}">Remove</button>
       </div>
       <div class="list-row-grid">
         <label class="field"><span>Min Features</span><input id="diceMin_${index}" type="number" min="1" value="${rule.min_features}" /></label>
@@ -275,7 +276,7 @@ export function renderVisualIncidentCards() {
     row.innerHTML = `
       <div class="list-row-head">
         <strong>Incident Card ${index + 1}</strong>
-        <button class="button secondary" type="button" data-remove-incident="${index}">Remove</button>
+        <button class="button secondary guest-hide" type="button" data-remove-incident="${index}" style="${isGuest() ? "display:none" : ""}">Remove</button>
       </div>
       <div class="grid three">
         <label class="field hidden"><span>Card ID</span><input id="incidentId_${index}" type="number" value="${card.card_id}" /></label>
@@ -325,4 +326,18 @@ export function renderVisualEditor() {
   renderVisualRefinementRules();
   renderVisualIncidentCards();
   syncGameJsonEditorFromVisual();
+
+  // After every render pass, lock all inputs in the Design page for guests.
+  // The CSS body.guest-mode rule blocks mouse interaction; this covers keyboard.
+  if (isGuest()) {
+    const page = document.getElementById("page-rules");
+    if (page) {
+      page.querySelectorAll("input:not([type='checkbox']):not([type='file']), textarea").forEach((el) => {
+        el.readOnly = true;
+      });
+      page.querySelectorAll("select").forEach((el) => {
+        el.disabled = true;
+      });
+    }
+  }
 }

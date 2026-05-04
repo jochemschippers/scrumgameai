@@ -1,7 +1,7 @@
 import { state } from '../../state/store.js';
 import { $, showMessage, selectedGameConfig, selectedTrainingConfig, selectedCheckpoint, currentTrainingMode, runLabelFromPath, buildOptions } from '../../utils/helpers.js';
 import { escapeHtml, checkpointUiLabel, checkpointCompatibilityTone as compatTone } from '../../utils/formatting.js';
-import { apiRequest } from '../../api/client.js';
+import { apiRequest, isGuest } from '../../api/client.js';
 import { renderTrainingProgress, fetchTrainingProgress } from './progress.js';
 import { refreshCampaigns } from './campaigns.js';
 import { updateSummaryPills, setPage } from '../navigation.js';
@@ -68,11 +68,12 @@ export function renderJobs() {
         : job.status === "running"
           ? "warn"
           : "";
+    const guestAttr = isGuest() ? 'disabled title="Guests cannot perform this action"' : "";
     const stopButton = ["queued", "running"].includes(job.status)
-      ? `<button class="button secondary stop-job-button" data-job-id="${job.id}" type="button">Stop</button>`
+      ? `<button class="button secondary stop-job-button" data-job-id="${job.id}" type="button" ${guestAttr}>Stop</button>`
       : "";
     const dismissButton = ["completed", "failed", "stopped"].includes(job.status)
-      ? `<button class="button secondary dismiss-job-button" data-job-id="${job.id}" type="button">Dismiss</button>`
+      ? `<button class="button secondary dismiss-job-button" data-job-id="${job.id}" type="button" ${guestAttr}>Dismiss</button>`
       : "";
     const inspectButton = `<button class="button secondary open-inspect-job-button" data-job-id="${job.id}" type="button">Open Inspect</button>`;
     card.innerHTML = `

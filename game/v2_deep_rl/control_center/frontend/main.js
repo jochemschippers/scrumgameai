@@ -1,6 +1,6 @@
 // ── Entry point — imports all modules and wires events ────────────────────────
-import { getToken, setToken, apiRequest } from './api/client.js';
-import { showLoginScreen, hideLoginScreen } from './components/auth.js';
+import { getToken, setToken, getRole, setRole, isGuest, apiRequest } from './api/client.js';
+import { showLoginScreen, hideLoginScreen, logout } from './components/auth.js';
 import { state } from './state/store.js';
 import { DEFAULT_GAME_CONFIG } from './constants/defaults.js';
 import { $, clone, showMessage, clearMessage, buildOptions, runLabelFromPath, downloadJsonFile, jobForRunId } from './utils/helpers.js';
@@ -110,6 +110,10 @@ async function _refreshAll() {
   if (!$("trainingConfigEditor").value && state.trainingConfigs.length) {
     await loadActiveTrainingConfigIntoEditor();
   }
+
+  // Re-apply guest restrictions after every render cycle so dynamically
+  // re-rendered panels don't accidentally re-enable write controls.
+  applyGuestRestrictions();
 }
 
 // renderRunDetail lives here because it calls openInspectForRun (circular if in progress.js)
@@ -163,9 +167,9 @@ function renderRunDetail() {
     ${ratingHtml}
     ${metadata.run_notes ? `<p>${metadata.run_notes}</p>` : ""}
     <div class="inline-actions">
-      ${bestCheckpoint ? `<button class="button secondary use-run-detail-best-button" type="button">Use Best Brain</button>` : ""}
+      ${bestCheckpoint ? `<button class="button secondary use-run-detail-best-button" type="button" ${isGuest() ? 'disabled title="Guests cannot perform this action"' : ""}>Use Best Brain</button>` : ""}
       <button class="button secondary open-run-inspect-button" type="button">Open Inspect</button>
-      <button class="button secondary queue-run-robustness-button" type="button">Queue Robustness</button>
+      <button class="button secondary queue-run-robustness-button" type="button" ${isGuest() ? 'disabled title="Guests cannot perform this action"' : ""}>Queue Robustness</button>
     </div>
   `;
 
@@ -190,6 +194,7 @@ function renderRunDetail() {
   });
 
   container.querySelector(".queue-run-robustness-button")?.addEventListener("click", async () => {
+    if (isGuest()) return;
     try {
       const job = await apiRequest("/jobs/evaluate", {
         method: "POST",
@@ -211,6 +216,171 @@ function _clearEvaluationResults() {
   state.comparisonEvaluation = null;
   renderDirectEvaluation();
   renderCheckpointComparison();
+}
+
+// ── Guest mode — hide or disable write actions for read-only users ───────────
+
+// Buttons that should be HIDDEN entirely for guests
+// (destructive or additive-only — no read context).
+const _GUEST_HIDE_IDS = [
+  "addDiceRuleButton",
+  "addIncidentCardButton",
+  "resetRefinementRulesButton",
+  "deleteGameConfigButton",
+  "deleteTrainingConfigButton",
+  "cloneGameConfigButton",
+  "cloneTrainingConfigButton",
+  "importGameConfigButton",
+  "importTrainingConfigButton",
+  "visualEditorResetButton",
+];
+
+// Buttons / forms that should remain VISIBLE but clearly disabled
+// (guests can see there is an action here, just not allowed to use it).
+const _GUEST_DISABLE_IDS = [
+  // Design tab — config saves
+  "saveGameConfigButton",
+  "overwriteGameConfigButton",
+  "saveTrainingConfigButton",
+  "overwriteTrainingConfigButton",
+  // Train tab — job queue & campaign controls
+  "trainJobForm",
+  "robustnessJobForm",
+  "stopCampaignButton",
+  "escalateCampaignButton",
+  // Evaluate tab — run jobs
+  "directEvaluationForm",
+  "checkpointCompareForm",
+];
+
+function applyGuestRestrictions() {
+  if (!isGuest()) return;
+
+  // Drive all CSS-based restrictions through a single body class.
+  document.body.classList.add("guest-mode");
+
+  // Show a "Guest View" badge in the header so it's clear to users that they're in a restricted mode
+  if (!document.getElementById("guestModeBadge")) {
+    const badge = document.createElement("span");
+    badge.id = "guestModeBadge";
+    badge.textContent = "Guest View";
+    badge.style.cssText = [
+      "display:inline-flex",
+      "align-items:center",
+      "padding:4px 10px",
+      "border-radius:999px",
+      "background:#f59e0b",
+      "color:#fff",
+      "margin-left:0.5rem",
+      "font-size:0.75rem",
+      "font-weight:600",
+      "letter-spacing:0.03em",
+      "pointer-events:none",
+      "white-space:nowrap",
+      "flex-shrink:0",
+    ].join(";");
+    const header = document.querySelector("header") || document.body;
+    header.appendChild(badge);
+  }
+
+  // Hide add/delete/destructive buttons completely.
+  _GUEST_HIDE_IDS.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
+
+  // Disable (but keep visible) save/action buttons.
+  // CSS (body.guest-mode .button:disabled) provides the visual treatment.
+  _GUEST_DISABLE_IDS.forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.tagName === "FORM") {
+      el.querySelectorAll('button[type="submit"], input[type="submit"]').forEach((btn) => {
+        btn.disabled = true;
+        btn.title = "Guests cannot perform this action";
+      });
+    } else {
+      el.disabled = true;
+      el.title = "Guests cannot perform this action";
+    }
+  });
+
+  // Make all static Design-tab inputs explicitly readonly so keyboard users
+  // can't edit them either. CSS pointer-events:none covers mouse interaction;
+  // readonly / disabled covers keyboard access.
+  const designPage = document.getElementById("page-rules");
+  if (designPage) {
+    designPage.querySelectorAll("input:not([type='checkbox']):not([type='file']), textarea").forEach((el) => {
+      el.readOnly = true;
+    });
+    // selects can't be made readonly — disabled is the only option
+    designPage.querySelectorAll("select").forEach((el) => {
+      el.disabled = true;
+    });
+  }
+
+  // Train tab — lock the job-parameter inputs (episodes, run name, notes).
+  // The mode select is intentionally left alone so guests can preview options.
+  ["trainEpisodesInput", "trainEvalEpisodesInput", "trainRunNameInput", "trainNotesInput"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.readOnly = true;
+      el.style.pointerEvents = "none";
+      el.style.cursor = "not-allowed";
+      el.style.opacity = "0.6";
+      el.style.background = "var(--panel-alt)";
+    }
+  });
+
+  // NOTE: dynamically-rendered panels (autopilot toggles, job stop/dismiss,
+  // run "Use Best Brain", etc.) are handled at render time inside their own
+  // components — see autopilot.js, jobs.js, progress.js, and renderRunDetail.
+}
+
+// Undo all guest restrictions so a fresh login as admin gets a clean slate.
+// Called at the top of the login handler and on logout.
+function resetGuestRestrictions() {
+  document.body.classList.remove("guest-mode");
+  document.getElementById("guestModeBadge")?.remove();
+
+  // Restore hidden buttons
+  _GUEST_HIDE_IDS.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "";
+  });
+
+  // Re-enable disabled buttons / form submits
+  _GUEST_DISABLE_IDS.forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.tagName === "FORM") {
+      el.querySelectorAll('button[type="submit"], input[type="submit"]').forEach((btn) => {
+        btn.disabled = false;
+        btn.title = "";
+      });
+    } else {
+      el.disabled = false;
+      el.title = "";
+    }
+  });
+
+  // Restore Design-tab inputs
+  const designPage = document.getElementById("page-rules");
+  if (designPage) {
+    designPage.querySelectorAll("input, textarea").forEach((el) => { el.readOnly = false; });
+    designPage.querySelectorAll("select").forEach((el) => { el.disabled = false; });
+  }
+
+  // Restore Train-tab job inputs
+  ["trainEpisodesInput", "trainEvalEpisodesInput", "trainRunNameInput", "trainNotesInput"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.readOnly = false;
+    el.style.pointerEvents = "";
+    el.style.cursor = "";
+    el.style.opacity = "";
+    el.style.background = "";
+  });
 }
 
 async function openInspectForRun(runId, announce = true) {
@@ -373,6 +543,11 @@ function attachEvents() {
     const input = $("apiBaseUrlInput");
     if (input) input.value = state.apiBaseUrl;
     _showManualConnectUi();
+  });
+
+  $("logoutButton").addEventListener("click", () => {
+    resetGuestRestrictions();
+    logout();
   });
 
   $("refreshJobsButton").addEventListener("click", async () => {
@@ -737,6 +912,7 @@ function attachEvents() {
   });
 
   document.addEventListener("input", (event) => {
+    if (isGuest()) return; // guests cannot modify the config
     if (
       event.target.matches(
         "#configNameInput, #schemaVersionInput, #configDescriptionInput, #playersCountInput, #productsCountInput, #sprintsPerProductInput, #maxTurnsInput, #startingMoneyInput, #ringValueInput, #costContinueInput, #costSwitchMidInput, #costSwitchAfterInput, #mandatoryLoanInput, #loanInterestInput, #penaltyNegativeInput, #penaltyPositiveInput, #dailyScrumsInput, #dailyScrumTargetInput, #productNamesGrid input, #boardMatrixContainer input, #diceRulesList input, #refinementRulesList input, #incidentCardsList input, #incidentCardsList textarea, #refinementModelInput, #refinementDieSidesInput, #incidentDrawProbabilityInput, #incidentSeverityMultiplierInput"
@@ -752,6 +928,7 @@ function attachEvents() {
   });
 
   document.addEventListener("change", (event) => {
+    if (isGuest()) return; // guests cannot modify the config
     if (
       event.target.matches(
         "#refinementActiveInput, #incidentActiveInput, #playerSpecificIncidentsInput, #incidentFutureOnly_0, #incidentCardsList input[type='checkbox']"
@@ -762,6 +939,8 @@ function attachEvents() {
   });
 
   document.addEventListener("click", (event) => {
+    if (isGuest()) return; // guests cannot modify configs
+
     const removeDiceIndex = event.target.getAttribute("data-remove-dice");
     if (removeDiceIndex !== null) {
       state.visualGameConfig.dice_rules.splice(Number(removeDiceIndex), 1);
@@ -839,6 +1018,9 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
   submitBtn.disabled = true;
   submitBtn.textContent = "Signing in…";
 
+  // Wipe any previous session's guest restrictions before applying the new role.
+  resetGuestRestrictions();
+
   try {
     const resp = await fetch(`${state.apiBaseUrl}/auth/login`, {
       method: "POST",
@@ -854,6 +1036,8 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
 
     const data = await resp.json();
     setToken(data.access_token);
+    setRole(data.role);
+    state.userRole = data.role;
     hideLoginScreen();
     startProgressPolling();
     autoConnect().then(_refreshAll).catch(() => {});
@@ -877,6 +1061,8 @@ renderCampaignPanel();
 renderPlaySeatEditor();
 
 if (getToken()) {
+  // Restore the role that was saved when the user last logged in.
+  state.userRole = getRole();
   hideLoginScreen();
   startProgressPolling();
   autoConnect().then(_refreshAll).catch(() => {});

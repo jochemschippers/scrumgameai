@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+
+from api.dependencies import require_admin
 
 from services.campaign_service import (
     create_campaign,
@@ -20,7 +22,7 @@ class CreateCampaignRequest(BaseModel):
     max_variations: int = Field(default=5, ge=1, le=20)
 
 
-@router.post("")
+@router.post("", dependencies=[Depends(require_admin)])
 def post_create_campaign(body: CreateCampaignRequest) -> dict:
     campaign_id = create_campaign(body.run_id, max_variations=body.max_variations)
     return get_campaign(campaign_id)
@@ -39,7 +41,7 @@ def get_one_campaign(campaign_id: str) -> dict:
         raise HTTPException(status_code=404, detail=f"Campaign {campaign_id!r} not found") from exc
 
 
-@router.post("/{campaign_id}/stop")
+@router.post("/{campaign_id}/stop", dependencies=[Depends(require_admin)])
 def post_stop_campaign(campaign_id: str) -> dict:
     try:
         stop_campaign(campaign_id)
@@ -48,7 +50,7 @@ def post_stop_campaign(campaign_id: str) -> dict:
         raise HTTPException(status_code=404, detail=f"Campaign {campaign_id!r} not found") from exc
 
 
-@router.post("/{campaign_id}/escalate")
+@router.post("/{campaign_id}/escalate", dependencies=[Depends(require_admin)])
 def post_escalate_campaign(campaign_id: str) -> dict:
     try:
         escalate_campaign(campaign_id)

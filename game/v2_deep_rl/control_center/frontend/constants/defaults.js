@@ -1,4 +1,5 @@
 export const AUTH_TOKEN_KEY = "cc_auth_token";
+export const AUTH_ROLE_KEY = "cc_auth_role";
 
 export const DICE_BOX_MODULE_URL = "https://unpkg.com/@3d-dice/dice-box@1.1.3/dist/dice-box.es.min.js";
 export const DICE_BOX_ASSET_PATH = "https://unpkg.com/@3d-dice/dice-box@1.1.3/assets/";
