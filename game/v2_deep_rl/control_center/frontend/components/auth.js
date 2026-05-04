@@ -1,4 +1,5 @@
-import { clearToken as clearStorageToken } from '../api/client.js';
+import { clearToken as clearStorageToken, clearRole } from '../api/client.js';
+import { state } from '../state/store.js';
 
 function $(id) {
   return document.getElementById(id);
@@ -24,5 +25,7 @@ export function hideLoginScreen() {
 
 export function logout() {
   clearStorageToken();
+  clearRole();
+  state.userRole = null;
   showLoginScreen();
 }

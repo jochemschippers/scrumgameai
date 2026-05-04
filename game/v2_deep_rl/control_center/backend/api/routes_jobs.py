@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from api.dependencies import require_admin
 from jobs.queue_manager import (
     dismiss_job,
     enqueue_evaluation_job,
@@ -50,27 +51,27 @@ def get_job(job_id: int):
     return job
 
 
-@router.post("/train")
+@router.post("/train", dependencies=[Depends(require_admin)])
 def create_training_job(payload: dict):
-    """Queue a training, resume, or fine-tune job."""
+    """Queue a training, resume, or fine-tune job. Requires admin role."""
     try:
         return enqueue_train_job(payload)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
-@router.post("/evaluate")
+@router.post("/evaluate", dependencies=[Depends(require_admin)])
 def create_evaluation_job(payload: dict):
-    """Queue an evaluation or robustness job against an existing run directory."""
+    """Queue an evaluation or robustness job against an existing run directory. Requires admin role."""
     try:
         return enqueue_evaluation_job(payload)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
-@router.post("/{job_id}/stop")
+@router.post("/{job_id}/stop", dependencies=[Depends(require_admin)])
 def stop_job_route(job_id: int):
-    """Stop a queued or running job."""
+    """Stop a queued or running job. Requires admin role."""
     try:
         return stop_job(job_id)
     except ValueError as error:
@@ -79,9 +80,9 @@ def stop_job_route(job_id: int):
         raise HTTPException(status_code=status_code, detail=detail) from error
 
 
-@router.delete("/{job_id}")
+@router.delete("/{job_id}", dependencies=[Depends(require_admin)])
 def dismiss_job_route(job_id: int):
-    """Dismiss one terminal job from the queue list."""
+    """Dismiss one terminal job from the queue list. Requires admin role."""
     try:
         return dismiss_job(job_id)
     except ValueError as error:

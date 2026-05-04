@@ -1031,3 +1031,47 @@ pre {
   opacity: 0.7;
   white-space: nowrap;
 }
+
+/* ── Disabled buttons (global fix — .button sets cursor:pointer which
+      overrides the browser default for [disabled]) ───────────────────────── */
+
+.button:disabled,
+.button[disabled] {
+  opacity: 0.38;
+  cursor: not-allowed !important;
+  pointer-events: auto; /* keep pointer-events so cursor:not-allowed shows */
+}
+
+/* Neutralise hover effects so disabled buttons don't brighten on hover */
+.button:disabled:hover,
+.button[disabled]:hover {
+  background: var(--panel-alt) !important;
+  border-color: var(--border-strong) !important;
+  box-shadow: none !important;
+}
+
+.button.primary:disabled,
+.button.primary[disabled] {
+  /* Keep the blue tint so the user can tell it is a "primary" action
+     that is currently off-limits, just faded */
+  background: linear-gradient(180deg, #6699f5 0%, var(--accent-strong) 100%) !important;
+  border-color: var(--accent-strong) !important;
+  box-shadow: none !important;
+}
+
+/* ── Guest mode ─────────────────────────────────────────────────────────────── */
+
+/* Elements hidden entirely for guests (Add / Delete / Remove / Clone …) */
+body.guest-mode .guest-hide {
+  display: none !important;
+}
+
+/* Design tab inputs: block mouse interaction, signal read-only state */
+body.guest-mode #page-rules input:not([type="checkbox"]):not([type="file"]),
+body.guest-mode #page-rules textarea,
+body.guest-mode #page-rules select {
+  pointer-events: none;
+  cursor: not-allowed;
+  opacity: 0.6;
+  background: var(--panel-alt);
+}

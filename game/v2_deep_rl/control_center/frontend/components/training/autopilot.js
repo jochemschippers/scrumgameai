@@ -1,7 +1,9 @@
 import { state } from '../../state/store.js';
 import { $, showMessage, runLabelFromPath } from '../../utils/helpers.js';
 import { escapeHtml, formatNumber } from '../../utils/formatting.js';
-import { apiRequest } from '../../api/client.js';
+import { apiRequest, isGuest } from '../../api/client.js';
+
+const _GUEST_ATTR = 'disabled title="Guests cannot perform this action"';
 
 export function actionTag(action) {
   const tones = {
@@ -54,17 +56,18 @@ export function renderAutopilotPanel() {
     statusLabel.textContent = logicOn ? (aiOn ? "logic + AI" : "logic only") : "disabled";
 
     controlCard.className = "list-card";
+    const guestAttr = isGuest() ? _GUEST_ATTR : "";
     controlCard.innerHTML = `
       <div class="autopilot-toggles">
         <div class="autopilot-toggle-row">
           <span>Logic Autopilot</span>
-          <button class="button ${logicOn ? "primary" : "secondary"} autopilot-toggle-btn" data-key="logic_enabled" data-value="${!logicOn}" type="button">
+          <button class="button ${logicOn ? "primary" : "secondary"} autopilot-toggle-btn" data-key="logic_enabled" data-value="${!logicOn}" type="button" ${guestAttr}>
             ${logicOn ? "Enabled" : "Disabled"}
           </button>
         </div>
         <div class="autopilot-toggle-row">
           <span>AI Advisor <em style="font-size:11px;color:var(--muted)">(on plateau)</em></span>
-          <button class="button ${aiOn ? "primary" : "secondary"} autopilot-toggle-btn" data-key="ai_enabled" data-value="${!aiOn}" type="button">
+          <button class="button ${aiOn ? "primary" : "secondary"} autopilot-toggle-btn" data-key="ai_enabled" data-value="${!aiOn}" type="button" ${guestAttr}>
             ${aiOn ? "Enabled" : "Disabled"}
           </button>
         </div>
@@ -75,16 +78,16 @@ export function renderAutopilotPanel() {
         ${lastDecision ? `<span class="tag">Last: ${actionTag(lastDecision.action)} by ${escapeHtml(lastDecision.advisor)}</span>` : ""}
       </div>
       <div class="inline-actions">
-        <button class="button primary" id="startAutopilotLoopButton" type="button">Start Autopilot Loop</button>
+        <button class="button primary" id="startAutopilotLoopButton" type="button" ${guestAttr}>Start Autopilot Loop</button>
         ${stopPending
-          ? `<button class="button secondary" id="clearStopButton" type="button">Resume Auto-Chain</button>`
-          : `<button class="button secondary" id="requestStopButton" type="button">Stop After Cycle</button>`
+          ? `<button class="button secondary" id="clearStopButton" type="button" ${guestAttr}>Resume Auto-Chain</button>`
+          : `<button class="button secondary" id="requestStopButton" type="button" ${guestAttr}>Stop After Cycle</button>`
         }
       </div>
     `;
 
     const startLoopBtn = controlCard.querySelector("#startAutopilotLoopButton");
-    if (startLoopBtn) {
+    if (startLoopBtn && !isGuest()) {
       startLoopBtn.addEventListener("click", async () => {
         const runId = state.activeRunId;
         if (!runId) { showMessage("No run selected.", "error"); return; }
@@ -103,7 +106,7 @@ export function renderAutopilotPanel() {
     }
 
     const stopBtn = controlCard.querySelector("#requestStopButton");
-    if (stopBtn) {
+    if (stopBtn && !isGuest()) {
       stopBtn.addEventListener("click", async () => {
         try {
           await apiRequest("/autopilot/stop-after-cycle", { method: "POST" });
@@ -118,7 +121,7 @@ export function renderAutopilotPanel() {
     }
 
     const resumeBtn = controlCard.querySelector("#clearStopButton");
-    if (resumeBtn) {
+    if (resumeBtn && !isGuest()) {
       resumeBtn.addEventListener("click", async () => {
         try {
           await apiRequest("/autopilot/stop-after-cycle", { method: "DELETE" });
@@ -133,6 +136,7 @@ export function renderAutopilotPanel() {
     }
 
     controlCard.querySelectorAll(".autopilot-toggle-btn").forEach((btn) => {
+      if (isGuest()) return;
       btn.addEventListener("click", async () => {
         try {
           state.autopilotSettings = await apiRequest("/autopilot/settings", {
@@ -227,17 +231,18 @@ export function renderAutopilotTrainingPanel() {
   label.textContent = logicOn ? (aiOn ? "logic + AI" : "logic only") : "disabled";
 
   card.className = "list-card";
+  const guestAttr = isGuest() ? _GUEST_ATTR : "";
   card.innerHTML = `
     <div class="autopilot-toggles">
       <div class="autopilot-toggle-row">
         <span>Logic Autopilot</span>
-        <button class="button ${logicOn ? "primary" : "secondary"} ap-toggle-btn" data-key="logic_enabled" data-value="${!logicOn}" type="button">
+        <button class="button ${logicOn ? "primary" : "secondary"} ap-toggle-btn" data-key="logic_enabled" data-value="${!logicOn}" type="button" ${guestAttr}>
           ${logicOn ? "Enabled" : "Disabled"}
         </button>
       </div>
       <div class="autopilot-toggle-row">
         <span>AI Advisor <em style="font-size:11px;color:var(--muted)">(on plateau)</em></span>
-        <button class="button ${aiOn ? "primary" : "secondary"} ap-toggle-btn" data-key="ai_enabled" data-value="${!aiOn}" type="button">
+        <button class="button ${aiOn ? "primary" : "secondary"} ap-toggle-btn" data-key="ai_enabled" data-value="${!aiOn}" type="button" ${guestAttr}>
           ${aiOn ? "Enabled" : "Disabled"}
         </button>
       </div>
@@ -247,17 +252,18 @@ export function renderAutopilotTrainingPanel() {
     </div>
     <div class="inline-actions">
       <button class="button primary" id="startAutopilotTrainingBtn" type="button"
-        ${state.trainingProgress?.status === "completed" ? "" : "disabled"}>
+        ${isGuest() ? _GUEST_ATTR : (state.trainingProgress?.status === "completed" ? "" : "disabled")}>
         Start Autopilot Loop
       </button>
       ${stopPending
-        ? `<button class="button secondary" id="clearStopTrainingBtn" type="button">Resume Auto-Chain</button>`
-        : `<button class="button secondary" id="requestStopTrainingBtn" type="button">Stop After Cycle</button>`
+        ? `<button class="button secondary" id="clearStopTrainingBtn" type="button" ${guestAttr}>Resume Auto-Chain</button>`
+        : `<button class="button secondary" id="requestStopTrainingBtn" type="button" ${guestAttr}>Stop After Cycle</button>`
       }
     </div>
   `;
 
   card.querySelectorAll(".ap-toggle-btn").forEach((btn) => {
+    if (isGuest()) return;
     btn.addEventListener("click", async () => {
       try {
         state.autopilotSettings = await apiRequest("/autopilot/settings", {
@@ -273,7 +279,7 @@ export function renderAutopilotTrainingPanel() {
   });
 
   const startLoopTrainingBtn = card.querySelector("#startAutopilotTrainingBtn");
-  if (startLoopTrainingBtn) {
+  if (startLoopTrainingBtn && !isGuest()) {
     startLoopTrainingBtn.addEventListener("click", async () => {
       const progress = state.trainingProgress;
       const runId = progress?.run_dir ? runLabelFromPath(progress.run_dir) : state.activeProgressRunId;
@@ -292,7 +298,7 @@ export function renderAutopilotTrainingPanel() {
   }
 
   const stopBtn = card.querySelector("#requestStopTrainingBtn");
-  if (stopBtn) {
+  if (stopBtn && !isGuest()) {
     stopBtn.addEventListener("click", async () => {
       try {
         await apiRequest("/autopilot/stop-after-cycle", { method: "POST" });
@@ -304,7 +310,7 @@ export function renderAutopilotTrainingPanel() {
   }
 
   const resumeBtn = card.querySelector("#clearStopTrainingBtn");
-  if (resumeBtn) {
+  if (resumeBtn && !isGuest()) {
     resumeBtn.addEventListener("click", async () => {
       try {
         await apiRequest("/autopilot/stop-after-cycle", { method: "DELETE" });

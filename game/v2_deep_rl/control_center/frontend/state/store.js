@@ -2,6 +2,7 @@ export const state = {
   apiBaseUrl: window.location.protocol.startsWith("http")
     ? window.location.origin
     : "http://188.166.52.37:8000",
+  userRole: null,   // "admin" | "guest" — populated after login
   health: null,
   gameConfigs: [],
   trainingConfigs: [],

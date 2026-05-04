@@ -2,7 +2,7 @@ import { state } from '../../state/store.js';
 import { $, showMessage, selectedProgressJob, selectedProgressRun, runLabelFromPath, checkpointByPath, buildOptions } from '../../utils/helpers.js';
 import { escapeHtml, formatNumber } from '../../utils/formatting.js';
 import { renderLineChart } from '../../utils/charts.js';
-import { apiRequest } from '../../api/client.js';
+import { apiRequest, isGuest } from '../../api/client.js';
 
 const RUNS_PER_PAGE = 5;
 
@@ -42,7 +42,7 @@ export function renderRuns() {
       <div class="inline-actions">
         <button class="button secondary view-run-button" data-run-id="${run.id}" type="button">View Run</button>
         <button class="button secondary open-inspect-run-button" data-run-id="${run.id}" type="button">Open Inspect</button>
-        ${run.best_checkpoint_path ? `<button class="button secondary use-run-best-button" data-run-id="${run.id}" type="button">Use Best Brain</button>` : ""}
+        ${run.best_checkpoint_path ? `<button class="button secondary use-run-best-button" data-run-id="${run.id}" type="button" ${isGuest() ? 'disabled title="Guests cannot perform this action"' : ""}>Use Best Brain</button>` : ""}
       </div>
     `;
     container.appendChild(card);
