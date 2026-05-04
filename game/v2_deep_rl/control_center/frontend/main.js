@@ -5,7 +5,7 @@ import { state } from './state/store.js';
 import { DEFAULT_GAME_CONFIG } from './constants/defaults.js';
 import { $, clone, showMessage, clearMessage, buildOptions, runLabelFromPath, downloadJsonFile, jobForRunId } from './utils/helpers.js';
 import { formatJson, sidebarCheckpointOptions as getSidebarCheckpointOptions } from './utils/formatting.js';
-import { setPage, updateStatusCard, updateSummaryPills, renderContextCard } from './components/navigation.js';
+import { setPage, getSavedPage, updateStatusCard, updateSummaryPills, renderContextCard } from './components/navigation.js';
 import { autoConnect, _showConnectedUi, _showManualConnectUi, startProgressPolling } from './components/connection.js';
 import { renderVisualEditor, ensureVisualGameConfig, syncVisualShapeFromInputs, syncGameJsonEditorFromVisual, rebuildVisualRefinementRules, readVisualEditorIntoState } from './components/configs/visualEditor.js';
 import { renderGameConfigs, renderGameConfigValidation, loadActiveGameConfigIntoEditor, validateGameConfigDraft, saveGameConfig } from './components/configs/gameConfig.js';
@@ -20,6 +20,25 @@ import { renderCheckpointComparison, runCheckpointComparison, exportComparisonJs
 import { renderPlaySession, renderPlayBoard, renderPlaySeatEditor } from './components/play/board.js';
 import { createPlaySession, advancePlayRound, refreshPlaySession, latestPlayTurn } from './components/play/session.js';
 import { hidePlayDiceOverlay, rollPlayDice } from './components/play/dice.js';
+
+// ── Theme switcher ────────────────────────────────────────────────────────────
+
+const _THEME_KEY = "cc_theme";
+const _THEMES = ["dark", "light"];
+
+function setTheme(name) {
+  if (!_THEMES.includes(name)) name = "dark";
+  document.body.dataset.theme = name;
+  localStorage.setItem(_THEME_KEY, name);
+  document.querySelectorAll("[data-theme-btn]").forEach(btn => {
+    btn.classList.toggle("is-active", btn.dataset.themeBtn === name);
+  });
+}
+
+function initTheme() {
+  const saved = localStorage.getItem(_THEME_KEY) || "dark";
+  setTheme(saved);
+}
 
 // ── Orchestration helpers (live here to avoid circular deps) ─────────────────
 
@@ -550,6 +569,10 @@ function attachEvents() {
     logout();
   });
 
+  document.querySelectorAll("[data-theme-btn]").forEach(btn => {
+    btn.addEventListener("click", () => setTheme(btn.dataset.themeBtn));
+  });
+
   $("refreshJobsButton").addEventListener("click", async () => {
     try {
       await refreshJobs();
@@ -1051,8 +1074,9 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
+initTheme();
 attachEvents();
-setPage("rules");
+setPage(getSavedPage());
 state.visualGameConfig = clone(DEFAULT_GAME_CONFIG);
 renderVisualEditor();
 renderTrainingSelectionSummary();
