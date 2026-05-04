@@ -21,6 +21,25 @@ import { renderPlaySession, renderPlayBoard, renderPlaySeatEditor } from './comp
 import { createPlaySession, advancePlayRound, refreshPlaySession, latestPlayTurn } from './components/play/session.js';
 import { hidePlayDiceOverlay, rollPlayDice } from './components/play/dice.js';
 
+// ── Theme switcher ────────────────────────────────────────────────────────────
+
+const _THEME_KEY = "cc_theme";
+const _THEMES = ["dark", "light"];
+
+function setTheme(name) {
+  if (!_THEMES.includes(name)) name = "dark";
+  document.body.dataset.theme = name;
+  localStorage.setItem(_THEME_KEY, name);
+  document.querySelectorAll("[data-theme-btn]").forEach(btn => {
+    btn.classList.toggle("is-active", btn.dataset.themeBtn === name);
+  });
+}
+
+function initTheme() {
+  const saved = localStorage.getItem(_THEME_KEY) || "dark";
+  setTheme(saved);
+}
+
 // ── Orchestration helpers (live here to avoid circular deps) ─────────────────
 
 function syncSelectors() {
@@ -550,6 +569,10 @@ function attachEvents() {
     logout();
   });
 
+  document.querySelectorAll("[data-theme-btn]").forEach(btn => {
+    btn.addEventListener("click", () => setTheme(btn.dataset.themeBtn));
+  });
+
   $("refreshJobsButton").addEventListener("click", async () => {
     try {
       await refreshJobs();
@@ -1051,6 +1074,7 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
+initTheme();
 attachEvents();
 setPage("rules");
 state.visualGameConfig = clone(DEFAULT_GAME_CONFIG);

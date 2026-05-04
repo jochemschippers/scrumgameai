@@ -647,3 +647,133 @@
 .play-number-good {
   color: var(--play-green);
 }
+
+/* ── Light theme overrides ───────────────────────────────────────────────────── */
+
+body[data-theme="light"] .play-dashboard {
+  --play-bg:      #f0f4ff;
+  --play-panel:   #ffffff;
+  --play-panel-2: #f5f7ff;
+  --play-border:  #c6d0e8;
+  --play-text:    #192038;
+  --play-muted:   #566080;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(59,109,224,.07), transparent 40%),
+    linear-gradient(135deg, #eef2fd 0%, #f5f7ff 60%, #edfaf3 100%);
+}
+
+body[data-theme="light"] .play-topbar {
+  background: linear-gradient(180deg, #ffffff 0%, #f5f7ff 100%);
+  box-shadow: 0 2px 10px rgba(0,0,0,.06);
+}
+
+body[data-theme="light"] .play-card,
+body[data-theme="light"] .play-board-panel {
+  background: #ffffff;
+  box-shadow: 0 2px 12px rgba(0,0,0,.06);
+}
+
+body[data-theme="light"] .play-score-card,
+body[data-theme="light"] .play-log-row,
+body[data-theme="light"] .play-session-summary-card,
+body[data-theme="light"] .play-seat-row {
+  background: #f5f7ff;
+  border-color: var(--play-border);
+}
+
+body[data-theme="light"] .play-dashboard input,
+body[data-theme="light"] .play-dashboard select {
+  background: #f5f7ff;
+  border-color: var(--play-border);
+  color: var(--play-text);
+}
+
+body[data-theme="light"] .play-dashboard .button {
+  background: #f0f4ff;
+  border-color: var(--play-border);
+  color: var(--play-text);
+}
+
+body[data-theme="light"] .play-board-wrap {
+  background:
+    linear-gradient(90deg, rgba(0,0,0,.04) 1px, transparent 1px),
+    linear-gradient(rgba(0,0,0,.04) 1px, transparent 1px),
+    #fafbff;
+  border-color: var(--play-border);
+  background-size: 28px 28px;
+}
+
+body[data-theme="light"] .play-board-cell {
+  fill: rgba(0,0,0,.025);
+  stroke: rgba(50,80,150,.18);
+}
+
+body[data-theme="light"] .play-board-header,
+body[data-theme="light"] .play-board-product,
+body[data-theme="light"] .play-board-sprint {
+  fill: var(--play-text);
+}
+
+body[data-theme="light"] .play-board-meta {
+  fill: var(--play-muted);
+}
+
+body[data-theme="light"] .play-dice-modal {
+  background: linear-gradient(180deg, #ffffff 0%, #f5f7ff 100%);
+  border-color: var(--play-border);
+  box-shadow: 0 20px 60px rgba(0,0,0,.12);
+}
+
+body[data-theme="light"] .play-dice-overlay {
+  background: rgba(240,244,255,.5);
+}
+
+body[data-theme="light"] .play-dice-box {
+  background:
+    radial-gradient(circle at 50% 35%, rgba(59,109,224,.1), transparent 42%),
+    #f5f7ff;
+  border-color: var(--play-border);
+}
+
+body[data-theme="light"] .play-action-button {
+  background: rgba(59,109,224,.07);
+  border-color: var(--play-border);
+  color: var(--play-text);
+}
+
+body[data-theme="light"] .play-action-button.is-selected {
+  background: rgba(26,138,70,.12);
+  border-color: var(--play-green);
+}
+
+body[data-theme="light"] .play-dashboard .tag {
+  background: rgba(59,109,224,.1);
+  color: #3b6de0;
+}
+
+body[data-theme="light"] .play-incident-banner {
+  background: rgba(59,109,224,.08);
+  border-color: rgba(59,109,224,.35);
+  color: #3b6de0;
+}
+
+body[data-theme="light"] .play-incident-banner.is-active {
+  background: linear-gradient(90deg, rgba(185,40,40,.12), rgba(180,120,10,.08));
+  border-color: rgba(185,40,40,.5);
+  color: #8b1a1a;
+}
+
+body[data-theme="light"] .dice-roll-row {
+  background: rgba(0,0,0,.04);
+}
+
+body[data-theme="light"] .dice-stat {
+  background: #f0f4ff;
+  border-color: var(--play-border);
+}
+
+body[data-theme="light"] .dice-animation-slot {
+  background: rgba(180,130,10,.07);
+  border-color: rgba(180,130,10,.4);
+  color: #8b5e00;
+}

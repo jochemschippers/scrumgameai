@@ -32,13 +32,15 @@
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
-  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.12s;
   white-space: nowrap;
 }
 
 .button:hover {
   background: var(--border);
   border-color: var(--border-strong);
+  box-shadow: 0 3px 10px rgba(0,0,0,.2);
+  transform: translateY(-1px);
 }
 
 .button.primary {
@@ -1042,12 +1044,13 @@ pre {
   pointer-events: auto; /* keep pointer-events so cursor:not-allowed shows */
 }
 
-/* Neutralise hover effects so disabled buttons don't brighten on hover */
+/* Neutralise hover effects so disabled buttons don't brighten or lift on hover */
 .button:disabled:hover,
 .button[disabled]:hover {
   background: var(--panel-alt) !important;
   border-color: var(--border-strong) !important;
   box-shadow: none !important;
+  transform: none !important;
 }
 
 .button.primary:disabled,
@@ -1074,4 +1077,40 @@ body.guest-mode #page-rules select {
   cursor: not-allowed;
   opacity: 0.6;
   background: var(--panel-alt);
+}
+
+/* ── Theme switcher ──────────────────────────────────────────────────────────── */
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--panel-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.theme-btn {
+  border: none;
+  background: transparent;
+  border-radius: 5px;
+  padding: 4px 7px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  transition: background 0.15s, color 0.15s;
+}
+
+.theme-btn:hover {
+  background: var(--panel-alt);
+  color: var(--text);
+}
+
+.theme-btn.is-active {
+  background: var(--panel-alt);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
 }
