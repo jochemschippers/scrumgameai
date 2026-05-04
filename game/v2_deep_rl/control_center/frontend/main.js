@@ -5,7 +5,7 @@ import { state } from './state/store.js';
 import { DEFAULT_GAME_CONFIG } from './constants/defaults.js';
 import { $, clone, showMessage, clearMessage, buildOptions, runLabelFromPath, downloadJsonFile, jobForRunId } from './utils/helpers.js';
 import { formatJson, sidebarCheckpointOptions as getSidebarCheckpointOptions } from './utils/formatting.js';
-import { setPage, updateStatusCard, updateSummaryPills, renderContextCard } from './components/navigation.js';
+import { setPage, getSavedPage, updateStatusCard, updateSummaryPills, renderContextCard } from './components/navigation.js';
 import { autoConnect, _showConnectedUi, _showManualConnectUi, startProgressPolling } from './components/connection.js';
 import { renderVisualEditor, ensureVisualGameConfig, syncVisualShapeFromInputs, syncGameJsonEditorFromVisual, rebuildVisualRefinementRules, readVisualEditorIntoState } from './components/configs/visualEditor.js';
 import { renderGameConfigs, renderGameConfigValidation, loadActiveGameConfigIntoEditor, validateGameConfigDraft, saveGameConfig } from './components/configs/gameConfig.js';
@@ -1076,7 +1076,7 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
 
 initTheme();
 attachEvents();
-setPage("rules");
+setPage(getSavedPage());
 state.visualGameConfig = clone(DEFAULT_GAME_CONFIG);
 renderVisualEditor();
 renderTrainingSelectionSummary();

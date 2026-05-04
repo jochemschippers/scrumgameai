@@ -5,8 +5,13 @@ import { PAGES } from '../constants/defaults.js';
 
 export const pages = PAGES;
 
+const _PAGE_KEY = "cc_page";
+
 export function setPage(pageId) {
+  // Fall back to "rules" if pageId is unknown (e.g. stale localStorage value)
+  if (!pages[pageId]) pageId = "rules";
   state.activePage = pageId;
+  localStorage.setItem(_PAGE_KEY, pageId);
   document.querySelectorAll(".nav-button").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.page === pageId);
   });
@@ -17,6 +22,10 @@ export function setPage(pageId) {
   $("pageSubtitle").textContent = pages[pageId].subtitle;
   $("contextPageUsage").textContent = pages[pageId].usage;
   renderContextCard();
+}
+
+export function getSavedPage() {
+  return localStorage.getItem(_PAGE_KEY) || "rules";
 }
 
 export function updateStatusCard() {
