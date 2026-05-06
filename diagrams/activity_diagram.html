@@ -2,101 +2,98 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Activity Diagram — ScrumGameAI v2</title>
+<title>Activity Diagram — ScrumGameAI</title>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
   body{font-family:'Segoe UI',sans-serif;background:#fff;color:#000;padding:24px;}
-  header{margin-bottom:14px;}header h1{font-size:1.2rem;font-weight:700;}header p{color:#555;font-size:0.8rem;margin-top:3px;}
+  header{margin-bottom:14px;}
+  header h1{font-size:1.2rem;font-weight:700;}
+  header p{color:#555;font-size:0.8rem;margin-top:3px;}
   a.back{color:#000;font-size:0.8rem;text-decoration:none;border-bottom:1px solid #000;display:inline-block;margin-bottom:14px;}
   .export-bar{display:flex;gap:6px;margin-bottom:10px;}
   .btn{padding:4px 12px;font-size:0.75rem;border-radius:3px;cursor:pointer;font-family:inherit;}
-  .btn-png{background:#000;color:#fff;border:1px solid #000;}.btn-svg{background:#fff;color:#000;border:1px solid #000;}
-  .section{margin-bottom:24px;}
-  .section h2{font-size:0.9rem;font-weight:600;margin-bottom:8px;}
+  .btn-png{background:#000;color:#fff;border:1px solid #000;}
+  .btn-svg{background:#fff;color:#000;border:1px solid #000;}
   .diagram-wrap{border:1px solid #000;padding:16px;overflow:auto;}
+  .lane-key{display:flex;gap:18px;margin-bottom:8px;font-size:0.75rem;}
+  .lane-dot{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:4px;vertical-align:middle;}
 </style>
 </head>
 <body>
 <a class="back" href="index.html">← index</a>
-<header><h1>Activity Diagrams</h1><p>Training pipeline and game episode flow</p></header>
+<header>
+  <h1>Activity Diagram</h1>
+  <p>Complete workflow: configuration → training → evaluation → play</p>
+</header>
 
-<div class="section">
-  <h2>Training Pipeline</h2>
-  <div class="export-bar">
-    <button class="btn btn-png" onclick="exportPNG('w1','activity_training')">Export PNG</button>
-    <button class="btn btn-svg" onclick="exportSVG('w1','activity_training')">Export SVG</button>
-  </div>
-  <div class="diagram-wrap" id="w1">
-  <div class="mermaid">
-%%{init:{'flowchart':{'rankSpacing':28,'nodeSpacing':14,'padding':8},'theme':'base','themeVariables':{'background':'#fff','mainBkg':'#fff','primaryColor':'#f8f8f8','primaryTextColor':'#000','primaryBorderColor':'#000','lineColor':'#000','edgeLabelBackground':'#fff'}}}%%
-flowchart LR
-    S([Start]) --> INIT[Load configs\nInit env + agent]
-    INIT --> LOOP{episodes\nleft?}
-    LOOP -->|yes| ACT[Select action\nε-greedy]
-    ACT --> STEP[env.step → obs\nreward, done]
-    STEP --> BUF[Push to\nReplayBuffer]
-    BUF --> DONE{done?}
-    DONE -->|no| ACT
-    DONE -->|yes| TRAIN[train_step\nupdate Q-net]
-    TRAIN --> EVAL{eval\ninterval?}
-    EVAL -->|no| LOOP
-    EVAL -->|yes| ANALYZE[analyze_run\nautopilot check]
-    ANALYZE --> DEC{decision}
-    DEC -->|continue| LOOP
-    DEC -->|lower_lr| LR[Reduce lr] --> LOOP
-    DEC -->|extend ε| EPS[Extend ε decay] --> LOOP
-    DEC -->|plateau| AICHECK{AI\ninterventions\n< 3?}
-    AICHECK -->|yes| ADVICE[Call NVIDIA LLM]
-    ADVICE --> RESP{response}
-    RESP -->|fine_tune| FT[Apply hyperparams] --> LOOP
-    RESP -->|stop| SAVE
-    AICHECK -->|no| SAVE
-    LOOP -->|no| SAVE[Save checkpoint]
-    SAVE --> E([Done])
-  </div>
-  </div>
+<div class="lane-key">
+  <span><span class="lane-dot" style="background:#dce8f5;border:1px solid #6a9ec8;"></span>User</span>
+  <span><span class="lane-dot" style="background:#e8f0e8;border:1px solid #5a8a5a;"></span>Control Center Backend</span>
+  <span><span class="lane-dot" style="background:#f5eedd;border:1px solid #c8a040;"></span>Training Process (train_dqn.py)</span>
 </div>
 
-<div class="section">
-  <h2>Single Game Episode</h2>
-  <div class="export-bar">
-    <button class="btn btn-png" onclick="exportPNG('w2','activity_episode')">Export PNG</button>
-    <button class="btn btn-svg" onclick="exportSVG('w2','activity_episode')">Export SVG</button>
-  </div>
-  <div class="diagram-wrap" id="w2">
-  <div class="mermaid">
-%%{init:{'flowchart':{'rankSpacing':28,'nodeSpacing':14,'padding':8},'theme':'base','themeVariables':{'background':'#fff','mainBkg':'#fff','primaryColor':'#f8f8f8','primaryTextColor':'#000','primaryBorderColor':'#000','lineColor':'#000','edgeLabelBackground':'#fff'}}}%%
-flowchart LR
-    RS([reset]) --> TURN{turn <\nmax_turns?}
-    TURN -->|yes| ACT2{action}
-    ACT2 -->|START| SPRINT[Roll dice\ndaily scrums]
-    ACT2 -->|SWITCH_n| COST[Apply switch cost] --> SPRINT
-    SPRINT --> VAR{variance?}
-    VAR -->|under| PNEG[penalty_negative]
-    VAR -->|over| PFAIL[Sprint FAIL\npenalty_positive]
-    VAR -->|ok| WIN
-    PNEG & PFAIL --> WIN{win ring?}
-    WIN -->|yes| RING[+ring_value\nadvance board]
-    WIN -->|no| INC
-    RING --> INC{incident\ndrawn?}
-    INC -->|yes| IPEN[Apply severity penalty]
-    INC -->|no| REF
-    IPEN --> REF{refinement\nactive?}
-    REF -->|yes| RROLL[Roll refinement die]
-    REF -->|no| LOAN
-    RROLL --> LOAN{money < 0?}
-    LOAN -->|yes| MLOAN[Mandatory loan]
-    LOAN -->|no| RWD
-    MLOAN --> RWD[calculate_reward\nturn += 1]
-    RWD --> TURN
-    TURN -->|no| FIN([done=True])
-  </div>
-  </div>
+<div class="export-bar">
+  <button class="btn btn-png" onclick="exportPNG('dw','activity_diagram')">Export PNG</button>
+  <button class="btn btn-svg" onclick="exportSVG('dw','activity_diagram')">Export SVG</button>
+</div>
+<div class="diagram-wrap" id="dw">
+<div class="mermaid">
+%%{init:{'flowchart':{'rankSpacing':44,'nodeSpacing':18,'padding':12,'curve':'linear'},'theme':'base','themeVariables':{'background':'#fff','mainBkg':'#fff','primaryColor':'#f0f4f8','primaryTextColor':'#000','primaryBorderColor':'#000','lineColor':'#000','edgeLabelBackground':'#fff','clusterBkg':'#f9f9f9','clusterBorder':'#aaa'}}}%%
+flowchart TD
+
+    S(["&#11044; Start"])
+
+    subgraph USR["User"]
+      A1["Open Control Center\nSelect Game Config + Training Config\n(Design page)"]
+      A2["Submit new training job\n(Train page)"]
+      A9["View live reward chart\n(polls every few seconds)"]
+      A10["Navigate to Inspect\nReview run metrics and training curves"]
+      A11["Navigate to Evaluate\nRun robustness evaluation"]
+      A12["Navigate to Play\nStart interactive play session"]
+    end
+
+    subgraph BE["Control Center Backend"]
+      A3["Validate payload\nCreate Job record — status: queued"]
+      A4["JobRunner detects queued job\nUpdate status: running\nSpawn train_dqn.py subprocess"]
+      A8["Serve GET /api/jobs/{id}/progress\n(returns live metrics JSON)"]
+      A13["Detect subprocess exit\nUpdate job status: completed"]
+    end
+
+    subgraph TP["Training Process — train_dqn.py"]
+      A5["Initialise ScrumGameEnv + DQNAgent\n(load GameConfig + TrainingConfig)"]
+      LOOP{"Episodes\nremaining?"}
+      A6["Select action ε-greedy\nenv.step(action) → reward, next_state\nReplayBuffer.push(transition)\nDQNAgent.train_step() — update Q-network"]
+      CHK{"Checkpoint\ninterval?"}
+      A7["Save periodic checkpoint\n(.pth) to artifacts/checkpoints/"]
+      AFIN["Save final checkpoint\nWrite run metrics to run_dir\nSubprocess exits"]
+    end
+
+    S --> A1
+    A1 --> A2
+    A2 -->|"POST /api/jobs/train"| A3
+    A3 --> A4
+    A4 -->|"spawn subprocess"| A5
+    A5 --> LOOP
+    LOOP -->|yes| A6
+    A6 --> CHK
+    CHK -->|yes| A7
+    A7 --> LOOP
+    CHK -->|no| LOOP
+    LOOP -->|no| AFIN
+    AFIN --> A13
+    A4 -.->|"background polling"| A8
+    A8 -.-> A9
+    A9 -.->|"every few seconds"| A8
+    A13 --> A10
+    A10 --> A11
+    A11 --> A12
+    A12 --> E(["&#11044; End"])
+</div>
 </div>
 
 <script>
-mermaid.initialize({startOnLoad:true,theme:'base',themeVariables:{background:'#fff',mainBkg:'#fff',primaryColor:'#f8f8f8',primaryTextColor:'#000',primaryBorderColor:'#000',lineColor:'#000',edgeLabelBackground:'#fff'}});
+mermaid.initialize({startOnLoad:true,theme:'base',themeVariables:{background:'#fff',mainBkg:'#fff',primaryColor:'#f0f4f8',primaryTextColor:'#000',primaryBorderColor:'#000',lineColor:'#000',edgeLabelBackground:'#fff',clusterBkg:'#f9f9f9',clusterBorder:'#aaa'}});
 function getSVG(id){return document.getElementById(id).querySelector('svg');}
 function exportSVG(id,name){const s=getSVG(id);if(!s)return;const c=s.cloneNode(true);c.style.background='white';const b=new Blob([new XMLSerializer().serializeToString(c)],{type:'image/svg+xml'});dl(URL.createObjectURL(b),name+'.svg');}
 function exportPNG(id,name){const s=getSVG(id);if(!s)return;const r=s.getBoundingClientRect(),w=Math.max(r.width,100),h=Math.max(r.height,100);const c=s.cloneNode(true);c.setAttribute('width',w);c.setAttribute('height',h);c.style.background='white';const b=new Blob([new XMLSerializer().serializeToString(c)],{type:'image/svg+xml;charset=utf-8'});const u=URL.createObjectURL(b);const i=new Image();i.onload=()=>{const sc=2,cv=document.createElement('canvas');cv.width=w*sc;cv.height=h*sc;const x=cv.getContext('2d');x.fillStyle='white';x.fillRect(0,0,cv.width,cv.height);x.scale(sc,sc);x.drawImage(i,0,0);dl(cv.toDataURL('image/png'),name+'.png');URL.revokeObjectURL(u);};i.src=u;}

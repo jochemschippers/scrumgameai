@@ -2,74 +2,144 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Use Case Diagram — ScrumGameAI v2</title>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<title>Use Case Diagram — ScrumGameAI</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
   body{font-family:'Segoe UI',sans-serif;background:#fff;color:#000;padding:24px;}
-  header{margin-bottom:14px;}header h1{font-size:1.2rem;font-weight:700;}header p{color:#555;font-size:0.8rem;margin-top:3px;}
+  header{margin-bottom:14px;}
+  header h1{font-size:1.2rem;font-weight:700;}
+  header p{color:#555;font-size:0.8rem;margin-top:3px;}
   a.back{color:#000;font-size:0.8rem;text-decoration:none;border-bottom:1px solid #000;display:inline-block;margin-bottom:14px;}
   .export-bar{display:flex;gap:6px;margin-bottom:10px;}
   .btn{padding:4px 12px;font-size:0.75rem;border-radius:3px;cursor:pointer;font-family:inherit;}
-  .btn-png{background:#000;color:#fff;border:1px solid #000;}.btn-svg{background:#fff;color:#000;border:1px solid #000;}
+  .btn-png{background:#000;color:#fff;border:1px solid #000;}
+  .btn-svg{background:#fff;color:#000;border:1px solid #000;}
   .diagram-wrap{border:1px solid #000;padding:16px;overflow:auto;}
 </style>
 </head>
 <body>
 <a class="back" href="index.html">← index</a>
-<header><h1>Use Case Diagram</h1><p>Actors and interactions with the system</p></header>
+<header>
+  <h1>Use Case Diagram</h1>
+  <p>Actors and their interactions with the ScrumGameAI Control Center</p>
+</header>
 <div class="export-bar">
-  <button class="btn btn-png" onclick="exportPNG('dw','usecase_diagram')">Export PNG</button>
-  <button class="btn btn-svg" onclick="exportSVG('dw','usecase_diagram')">Export SVG</button>
+  <button class="btn btn-png" onclick="exportPNG()">Export PNG</button>
+  <button class="btn btn-svg" onclick="exportSVG()">Export SVG</button>
 </div>
 <div class="diagram-wrap" id="dw">
-<div class="mermaid">
-%%{init:{'flowchart':{'rankSpacing':30,'nodeSpacing':12,'padding':8},'theme':'base','themeVariables':{'background':'#fff','mainBkg':'#fff','primaryColor':'#f8f8f8','primaryTextColor':'#000','primaryBorderColor':'#000','lineColor':'#000','clusterBkg':'#f5f5f5','clusterBorder':'#000','edgeLabelBackground':'#fff'}}}%%
-graph LR
-    USER(("User"))
-    AUTO(("Autopilot"))
-    AI(("AI Advisor"))
-    ADMIN(("Admin"))
+<svg id="diagram-svg" viewBox="0 0 1000 500" xmlns="http://www.w3.org/2000/svg" font-family="Arial, sans-serif" style="display:block;max-width:100%;height:auto;">
 
-    subgraph SYS ["ScrumGameAI v2"]
-      subgraph T ["Training"]
-        t1["Queue Job"] --- t2["Monitor Progress"]
-        t3["Configure Rules"] --- t4["Configure Params"]
-      end
-      subgraph P ["Play"]
-        p1["Play vs AI"] --- p2["Run Evaluation"]
-        p3["Compare Runs"] --- p4["View Dashboard"]
-      end
-      subgraph C ["Campaign"]
-        c1["Create Campaign"] --> c2["Generate Variations"]
-        c1 --> c3["Launch & Monitor"]
-      end
-      subgraph A ["Autopilot"]
-        a1["Detect Plateau"] --> a2["Adjust Hyperparams"]
-        a2 --> a3["Request AI Advice"]
-        a3 --> a4["Continue/Fine-tune/Stop"]
-      end
-      subgraph M ["Management"]
-        m1["Checkpoints"] --- m2["Edit Config"]
-        m2 --- m3["Deployment Profiles"]
-      end
-    end
+  <rect width="1000" height="500" fill="white"/>
 
-    USER --> t1 & t3 & t4
-    USER --> p1 & p2 & p3
-    USER --> c1 & c3
-    USER --> m1 & m2
-    AUTO --> a1 & a2 & a4
-    AI --> a3
-    ADMIN --> m3 & m2
-    t1 -.->|triggers| a1
+  <defs>
+    <marker id="open-arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <polyline points="0,0 9,4 0,8" fill="none" stroke="#000" stroke-width="1.2"/>
+    </marker>
+  </defs>
+
+  <!-- System boundary box -->
+  <rect x="128" y="22" width="752" height="458" fill="none" stroke="#000" stroke-width="1.5"/>
+  <line x1="128" y1="52" x2="880" y2="52" stroke="#000" stroke-width="1"/>
+  <text x="504" y="42" text-anchor="middle" font-size="13" font-weight="bold">ScrumGameAI Control Center</text>
+
+  <!-- Actor: Admin (left) -->
+  <circle cx="60" cy="124" r="12" fill="white" stroke="#000" stroke-width="1.5"/>
+  <line x1="60" y1="136" x2="60" y2="162" stroke="#000" stroke-width="1.5"/>
+  <line x1="44" y1="148" x2="76" y2="148" stroke="#000" stroke-width="1.5"/>
+  <line x1="60" y1="162" x2="48" y2="180" stroke="#000" stroke-width="1.5"/>
+  <line x1="60" y1="162" x2="72" y2="180" stroke="#000" stroke-width="1.5"/>
+  <text x="60" y="196" text-anchor="middle" font-size="12" font-weight="bold">Admin</text>
+
+  <!-- Actor: Guest (right) -->
+  <circle cx="942" cy="354" r="12" fill="white" stroke="#000" stroke-width="1.5"/>
+  <line x1="942" y1="366" x2="942" y2="392" stroke="#000" stroke-width="1.5"/>
+  <line x1="926" y1="378" x2="958" y2="378" stroke="#000" stroke-width="1.5"/>
+  <line x1="942" y1="392" x2="930" y2="410" stroke="#000" stroke-width="1.5"/>
+  <line x1="942" y1="392" x2="954" y2="410" stroke="#000" stroke-width="1.5"/>
+  <text x="942" y="426" text-anchor="middle" font-size="12" font-weight="bold">Guest</text>
+
+  <!-- Admin → left-column UCs (admin-only) -->
+  <!-- Admin connection point: (94, 152); left col left edge: cx=282, rx=84 → 198 -->
+  <line x1="94" y1="152" x2="198" y2="110" stroke="#000" stroke-width="1"/>
+  <line x1="94" y1="152" x2="198" y2="218" stroke="#000" stroke-width="1"/>
+  <line x1="94" y1="152" x2="198" y2="340" stroke="#000" stroke-width="1"/>
+  <!-- Admin → right-column UCs (shared) -->
+  <!-- right col left edge: cx=562, rx=84 → 478 -->
+  <line x1="94" y1="152" x2="478" y2="110" stroke="#000" stroke-width="1"/>
+  <line x1="94" y1="152" x2="478" y2="248" stroke="#000" stroke-width="1"/>
+  <line x1="94" y1="152" x2="478" y2="385" stroke="#000" stroke-width="1"/>
+
+  <!-- Guest → right-column UCs (shared) -->
+  <!-- Guest connection point: (908, 372); right col right edge: cx=562+84=646 -->
+  <line x1="908" y1="372" x2="646" y2="110" stroke="#000" stroke-width="1"/>
+  <line x1="908" y1="372" x2="646" y2="248" stroke="#000" stroke-width="1"/>
+  <line x1="908" y1="372" x2="646" y2="385" stroke="#000" stroke-width="1"/>
+
+  <!-- LEFT COLUMN — Admin only (cx=282) -->
+  <ellipse cx="282" cy="110" rx="84" ry="24" fill="white" stroke="#000" stroke-width="1.5"/>
+  <text x="282" y="115" text-anchor="middle" font-size="12">Manage Configurations</text>
+
+  <ellipse cx="282" cy="218" rx="84" ry="24" fill="white" stroke="#000" stroke-width="1.5"/>
+  <text x="282" y="223" text-anchor="middle" font-size="12">Queue Training Job</text>
+
+  <ellipse cx="282" cy="340" rx="84" ry="24" fill="white" stroke="#000" stroke-width="1.5"/>
+  <text x="282" y="345" text-anchor="middle" font-size="12">Monitor Training</text>
+
+  <!-- RIGHT COLUMN — shared (cx=562) -->
+  <ellipse cx="562" cy="110" rx="84" ry="24" fill="white" stroke="#000" stroke-width="1.5"/>
+  <text x="562" y="115" text-anchor="middle" font-size="12">Inspect Training Runs</text>
+
+  <ellipse cx="562" cy="248" rx="84" ry="24" fill="white" stroke="#000" stroke-width="1.5"/>
+  <text x="562" y="253" text-anchor="middle" font-size="12">Evaluate Model</text>
+
+  <ellipse cx="562" cy="385" rx="84" ry="24" fill="white" stroke="#000" stroke-width="1.5"/>
+  <text x="562" y="390" text-anchor="middle" font-size="12">Play vs AI Agent</text>
+
+  <!-- SUB USE CASES — dashed (cx=775) -->
+  <ellipse cx="775" cy="188" rx="74" ry="22" fill="white" stroke="#000" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="775" y="193" text-anchor="middle" font-size="11">Select Configuration</text>
+
+  <ellipse cx="775" cy="298" rx="74" ry="22" fill="white" stroke="#000" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="775" y="303" text-anchor="middle" font-size="11">Stop Job</text>
+
+  <!-- <<include>>: Queue Training Job → Select Configuration -->
+  <!-- UC2 right edge: 282+84=366, cy=218 → UC7 left edge: 775-74=701, cy=188 -->
+  <line x1="366" y1="218" x2="701" y2="188" stroke="#000" stroke-width="1" stroke-dasharray="5,3" marker-end="url(#open-arrow)"/>
+  <text x="532" y="197" text-anchor="middle" font-size="10" font-style="italic">&lt;&lt;include&gt;&gt;</text>
+
+  <!-- <<extend>>: Monitor Training → Stop Job -->
+  <!-- UC3 right edge: 366, cy=340 → UC8 left edge: 701, cy=298 -->
+  <line x1="366" y1="340" x2="701" y2="298" stroke="#000" stroke-width="1" stroke-dasharray="5,3" marker-end="url(#open-arrow)"/>
+  <text x="532" y="312" text-anchor="middle" font-size="10" font-style="italic">&lt;&lt;extend&gt;&gt;</text>
+
+  <!-- Legend -->
+  <rect x="138" y="437" width="350" height="32" fill="#f8f8f8" stroke="#ccc" stroke-width="1" rx="2"/>
+  <text x="148" y="451" font-size="10" fill="#555">Admin: full access — configure, train, evaluate, play</text>
+  <text x="148" y="464" font-size="10" fill="#555">Guest: read-only — inspect, evaluate, play</text>
+
+</svg>
 </div>
-</div>
+
 <script>
-mermaid.initialize({startOnLoad:true,theme:'base',themeVariables:{background:'#fff',mainBkg:'#fff',primaryColor:'#f8f8f8',primaryTextColor:'#000',primaryBorderColor:'#000',lineColor:'#000',clusterBkg:'#f5f5f5',clusterBorder:'#000',edgeLabelBackground:'#fff'}});
-function getSVG(id){return document.getElementById(id).querySelector('svg');}
-function exportSVG(id,name){const s=getSVG(id);if(!s)return;const c=s.cloneNode(true);c.style.background='white';const b=new Blob([new XMLSerializer().serializeToString(c)],{type:'image/svg+xml'});dl(URL.createObjectURL(b),name+'.svg');}
-function exportPNG(id,name){const s=getSVG(id);if(!s)return;const r=s.getBoundingClientRect(),w=Math.max(r.width,100),h=Math.max(r.height,100);const c=s.cloneNode(true);c.setAttribute('width',w);c.setAttribute('height',h);c.style.background='white';const b=new Blob([new XMLSerializer().serializeToString(c)],{type:'image/svg+xml;charset=utf-8'});const u=URL.createObjectURL(b);const i=new Image();i.onload=()=>{const sc=2,cv=document.createElement('canvas');cv.width=w*sc;cv.height=h*sc;const x=cv.getContext('2d');x.fillStyle='white';x.fillRect(0,0,cv.width,cv.height);x.scale(sc,sc);x.drawImage(i,0,0);dl(cv.toDataURL('image/png'),name+'.png');URL.revokeObjectURL(u);};i.src=u;}
+function getSVG(){return document.getElementById('diagram-svg');}
+function exportSVG(){
+  const s=getSVG();if(!s)return;
+  const c=s.cloneNode(true);c.style.background='white';
+  const b=new Blob([new XMLSerializer().serializeToString(c)],{type:'image/svg+xml'});
+  dl(URL.createObjectURL(b),'usecase_diagram.svg');
+}
+function exportPNG(){
+  const s=getSVG();if(!s)return;
+  const vb=s.viewBox.baseVal,w=vb.width,h=vb.height;
+  const c=s.cloneNode(true);c.setAttribute('width',w);c.setAttribute('height',h);c.style.background='white';
+  const b=new Blob([new XMLSerializer().serializeToString(c)],{type:'image/svg+xml;charset=utf-8'});
+  const u=URL.createObjectURL(b);const i=new Image();
+  i.onload=()=>{const sc=2,cv=document.createElement('canvas');cv.width=w*sc;cv.height=h*sc;
+    const x=cv.getContext('2d');x.fillStyle='white';x.fillRect(0,0,cv.width,cv.height);
+    x.scale(sc,sc);x.drawImage(i,0,0);dl(cv.toDataURL('image/png'),'usecase_diagram.png');URL.revokeObjectURL(u);};
+  i.src=u;
+}
 function dl(url,name){const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);}
 </script>
 </body>
