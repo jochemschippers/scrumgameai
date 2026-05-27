@@ -1,0 +1,33 @@
+name: Deploy to DigitalOcean
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: SSH Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_PASSWORD }}
+          script: |
+            set -e
+
+            # 1. Pull latest code
+            cd ${{ secrets.DEPLOY_PATH }}
+            git pull origin main
+
+            # 2. Install / update Python dependencies (using the venv)
+            venv/bin/pip install -r game/v2_deep_rl/control_center/backend/requirements.txt --quiet
+
+            # 3. Restart uvicorn via systemd
+            systemctl restart scrumgame
+
+            echo "Deploy complete."
