@@ -1,0 +1,117 @@
+/* ── Login overlay ──────────────────────────────────────────────────────────── */
+
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(92,141,245,.18) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 80%, rgba(57,181,114,.10) 0%, transparent 45%),
+    var(--bg);
+  z-index: 9999;
+}
+
+/* ── Animated grid overlay on login bg ─────────────────────────────────────── */
+
+.login-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(92,141,245,.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(92,141,245,.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+}
+
+/* ── Login card ─────────────────────────────────────────────────────────────── */
+
+.login-card {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 1px rgba(92,141,245,.12),
+    0 24px 64px rgba(0,0,0,.7);
+  padding: 40px 36px 32px;
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Top accent line on card */
+.login-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  border-radius: 0 0 2px 2px;
+}
+
+/* Brand inside login card */
+.login-card .brand-name {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-right: 0;
+  margin-bottom: 2px;
+}
+
+.login-subtitle {
+  margin: 0 0 22px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ── Login form fields ──────────────────────────────────────────────────────── */
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.login-field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.login-field input {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.login-field input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(92,141,245,.18);
+}
+
+/* ── Login error ────────────────────────────────────────────────────────────── */
+
+.login-error {
+  margin: 0 0 8px;
+  color: var(--danger);
+  font-size: 12px;
+  min-height: 18px;
+}

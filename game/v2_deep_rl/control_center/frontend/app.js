@@ -78,6 +78,7 @@ const state = {
   autopilotStopRequested: false,
   campaigns: [],
   activeCampaignId: null,
+  jobsPage: 0,
   playDiceBox: null,
   playDiceBoxReady: false,
   playDiceBoxInitPromise: null,
@@ -1264,9 +1265,14 @@ function renderRuns() {
   });
 }
 
+const JOBS_PER_PAGE = 5;
+
 function renderJobs() {
   const container = $("jobsList");
+  const paginationContainer = $("jobsPagination");
   container.innerHTML = "";
+  if (paginationContainer) paginationContainer.innerHTML = "";
+
   const visibleJobs = state.jobs.filter((job) => ["queued", "running", "completed", "failed", "stopped"].includes(job.status));
 
   if (
@@ -1278,6 +1284,7 @@ function renderJobs() {
   }
 
   if (!visibleJobs.length) {
+    state.jobsPage = 0;
     container.innerHTML = `<div class="empty-state">No jobs yet.</div>`;
     if (!state.activeProgressJobId) {
       renderTrainingProgress();
@@ -1298,7 +1305,15 @@ function renderJobs() {
     }
   }
 
-  visibleJobs.forEach((job) => {
+  // Clamp page to valid range (handles job dismissals shrinking the list)
+  const totalPages = Math.ceil(visibleJobs.length / JOBS_PER_PAGE);
+  if (state.jobsPage >= totalPages) state.jobsPage = totalPages - 1;
+  if (state.jobsPage < 0) state.jobsPage = 0;
+
+  const pageStart = state.jobsPage * JOBS_PER_PAGE;
+  const pageJobs = visibleJobs.slice(pageStart, pageStart + JOBS_PER_PAGE);
+
+  pageJobs.forEach((job) => {
     const card = document.createElement("article");
     card.className = "list-card";
     const queuedTrainingJobs = visibleJobs
@@ -1379,6 +1394,29 @@ function renderJobs() {
       }
     });
   });
+
+  // Render pagination controls (only when more than one page exists)
+  if (paginationContainer && totalPages > 1) {
+    const prevDisabled = state.jobsPage === 0 ? "disabled" : "";
+    const nextDisabled = state.jobsPage >= totalPages - 1 ? "disabled" : "";
+    paginationContainer.innerHTML = `
+      <button class="button secondary jobs-page-prev" type="button" ${prevDisabled}>&#8592; Prev</button>
+      <span class="jobs-page-label">Page ${state.jobsPage + 1} of ${totalPages}</span>
+      <button class="button secondary jobs-page-next" type="button" ${nextDisabled}>Next &#8594;</button>
+    `;
+    paginationContainer.querySelector(".jobs-page-prev")?.addEventListener("click", () => {
+      if (state.jobsPage > 0) {
+        state.jobsPage -= 1;
+        renderJobs();
+      }
+    });
+    paginationContainer.querySelector(".jobs-page-next")?.addEventListener("click", () => {
+      if (state.jobsPage < totalPages - 1) {
+        state.jobsPage += 1;
+        renderJobs();
+      }
+    });
+  }
 
   if (state.activeProgressJobId) {
     fetchTrainingProgress(state.activeProgressJobId, false).catch(() => {});

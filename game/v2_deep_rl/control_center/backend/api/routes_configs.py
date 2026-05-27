@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+
+from api.dependencies import require_admin
 
 from services.catalog_service import (
     delete_game_config_asset,
@@ -33,9 +35,9 @@ def get_game_config_details(config_id: str):
         raise HTTPException(status_code=404, detail=str(error)) from error
 
 
-@router.post("/game")
+@router.post("/game", dependencies=[Depends(require_admin)])
 def post_game_config(payload: dict):
-    """Create or update one managed game config asset."""
+    """Create or update one managed game config asset. Requires admin role."""
     try:
         return save_game_config_asset(payload)
     except ValueError as error:
@@ -51,9 +53,9 @@ def post_game_config_validate(payload: dict):
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
-@router.delete("/game/{config_id:path}")
+@router.delete("/game/{config_id:path}", dependencies=[Depends(require_admin)])
 def delete_game_config(config_id: str):
-    """Delete one managed custom game config asset."""
+    """Delete one managed custom game config asset. Requires admin role."""
     try:
         return delete_game_config_asset(config_id)
     except ValueError as error:
@@ -75,9 +77,9 @@ def get_training_config_details(config_id: str):
         raise HTTPException(status_code=404, detail=str(error)) from error
 
 
-@router.post("/training")
+@router.post("/training", dependencies=[Depends(require_admin)])
 def post_training_config(payload: dict):
-    """Create or update one managed training config asset."""
+    """Create or update one managed training config asset. Requires admin role."""
     try:
         return save_training_config_asset(payload)
     except ValueError as error:
@@ -93,9 +95,9 @@ def post_training_config_validate(payload: dict):
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
-@router.delete("/training/{config_id:path}")
+@router.delete("/training/{config_id:path}", dependencies=[Depends(require_admin)])
 def delete_training_config(config_id: str):
-    """Delete one managed custom training config asset."""
+    """Delete one managed custom training config asset. Requires admin role."""
     try:
         return delete_training_config_asset(config_id)
     except ValueError as error:

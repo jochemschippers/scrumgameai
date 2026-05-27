@@ -2,137 +2,74 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Sequence Diagram — ScrumGameAI v2</title>
+<title>Sequence Diagram — ScrumGameAI</title>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
   body{font-family:'Segoe UI',sans-serif;background:#fff;color:#000;padding:24px;}
-  header{margin-bottom:14px;}header h1{font-size:1.2rem;font-weight:700;}header p{color:#555;font-size:0.8rem;margin-top:3px;}
+  header{margin-bottom:14px;}
+  header h1{font-size:1.2rem;font-weight:700;}
+  header p{color:#555;font-size:0.8rem;margin-top:3px;}
   a.back{color:#000;font-size:0.8rem;text-decoration:none;border-bottom:1px solid #000;display:inline-block;margin-bottom:14px;}
   .export-bar{display:flex;gap:6px;margin-bottom:10px;}
   .btn{padding:4px 12px;font-size:0.75rem;border-radius:3px;cursor:pointer;font-family:inherit;}
-  .btn-png{background:#000;color:#fff;border:1px solid #000;}.btn-svg{background:#fff;color:#000;border:1px solid #000;}
-  .section{margin-bottom:24px;}
-  .section h2{font-size:0.9rem;font-weight:600;margin-bottom:8px;}
+  .btn-png{background:#000;color:#fff;border:1px solid #000;}
+  .btn-svg{background:#fff;color:#000;border:1px solid #000;}
   .diagram-wrap{border:1px solid #000;padding:16px;overflow:auto;}
 </style>
 </head>
 <body>
 <a class="back" href="index.html">← index</a>
-<header><h1>Sequence Diagrams</h1><p>Key interaction flows in the Control Center</p></header>
-
-<div class="section">
-  <h2>Play Session</h2>
-  <div class="export-bar">
-    <button class="btn btn-png" onclick="exportPNG('w1','sequence_play')">Export PNG</button>
-    <button class="btn btn-svg" onclick="exportSVG('w1','sequence_play')">Export SVG</button>
-  </div>
-  <div class="diagram-wrap" id="w1">
-  <div class="mermaid">
-%%{init:{'sequence':{'boxMargin':4,'messageMargin':20,'boxTextMargin':4,'noteMargin':10,'mirrorActors':false},'theme':'base','themeVariables':{'background':'#fff','mainBkg':'#fff','primaryColor':'#f8f8f8','primaryTextColor':'#000','primaryBorderColor':'#000','lineColor':'#000','actorBorder':'#000','actorBkg':'#fff','actorTextColor':'#000','actorLineColor':'#000','signalColor':'#000','signalTextColor':'#000','labelBoxBkgColor':'#f5f5f5','labelBoxBorderColor':'#000','labelTextColor':'#000','loopTextColor':'#000','noteBorderColor':'#000','noteBkgColor':'#f5f5f5','noteTextColor':'#000','activationBorderColor':'#000','activationBkgColor':'#f0f0f0'}}}%%
-sequenceDiagram
-    actor U as User
-    participant A as FastAPI
-    participant PS as PlayService
-    participant SMR as SharedMatchRunner
-    participant E as ScrumGameEnv
-    participant D as DQNAgent
-
-    U->>A: POST /play/start {run_id}
-    A->>PS: start_session(run_id)
-    PS->>E: ScrumGameEnv(config)
-    PS->>D: load_checkpoint(path)
-    A-->>U: {session_id, state}
-
-    loop Each Turn
-        U->>A: POST /play/step {action}
-        A->>SMR: run_step(action)
-        SMR->>E: step(action)
-        E-->>SMR: obs, reward, done
-        SMR->>D: select_action(obs)
-        D-->>SMR: ai_action
-        A-->>U: {state, reward, ai_suggestion, done}
-    end
-
-    U->>A: POST /play/end
-    A-->>U: final_scores
-  </div>
-  </div>
+<header>
+  <h1>Sequence Diagram</h1>
+  <p>Scenario: Queue and execute a training job</p>
+</header>
+<div class="export-bar">
+  <button class="btn btn-png" onclick="exportPNG('dw','sequence_diagram')">Export PNG</button>
+  <button class="btn btn-svg" onclick="exportSVG('dw','sequence_diagram')">Export SVG</button>
 </div>
-
-<div class="section">
-  <h2>Training Job Lifecycle</h2>
-  <div class="export-bar">
-    <button class="btn btn-png" onclick="exportPNG('w2','sequence_job')">Export PNG</button>
-    <button class="btn btn-svg" onclick="exportSVG('w2','sequence_job')">Export SVG</button>
-  </div>
-  <div class="diagram-wrap" id="w2">
-  <div class="mermaid">
-%%{init:{'sequence':{'boxMargin':4,'messageMargin':20,'boxTextMargin':4,'mirrorActors':false},'theme':'base','themeVariables':{'background':'#fff','mainBkg':'#fff','primaryColor':'#f8f8f8','primaryTextColor':'#000','primaryBorderColor':'#000','lineColor':'#000','actorBorder':'#000','actorBkg':'#fff','actorTextColor':'#000','actorLineColor':'#000','signalColor':'#000','signalTextColor':'#000','labelBoxBkgColor':'#f5f5f5','labelBoxBorderColor':'#000','noteBorderColor':'#000','noteBkgColor':'#f5f5f5','activationBorderColor':'#000','activationBkgColor':'#f0f0f0'}}}%%
+<div class="diagram-wrap" id="dw">
+<div class="mermaid">
+%%{init:{'sequence':{'boxMargin':6,'messageMargin':22,'boxTextMargin':5,'noteMargin':10,'mirrorActors':false},'theme':'base','themeVariables':{'background':'#fff','mainBkg':'#fff','primaryColor':'#f8f8f8','primaryTextColor':'#000','primaryBorderColor':'#000','lineColor':'#000','actorBorder':'#000','actorBkg':'#fff','actorTextColor':'#000','actorLineColor':'#000','signalColor':'#000','signalTextColor':'#000','labelBoxBkgColor':'#f5f5f5','labelBoxBorderColor':'#000','labelTextColor':'#000','loopTextColor':'#000','noteBorderColor':'#000','noteBkgColor':'#f5f5f5','noteTextColor':'#000','activationBorderColor':'#000','activationBkgColor':'#f0f0f0'}}}%%
 sequenceDiagram
     actor U as User
-    participant A as FastAPI
-    participant Q as QueueManager
-    participant J as JobRunner
-    participant T as TrainingAutopilot
-    participant AI as NVIDIA LLM
+    participant FE as Frontend (JS)
+    participant API as FastAPI
+    participant QM as QueueManager
+    participant JR as JobRunner
+    participant TP as train_dqn.py
 
-    U->>A: POST /jobs/train
-    A->>Q: enqueue_train_job(payload)
-    Q-->>U: {job_id}
-    Q->>J: run_job(job)
-    Note over J: python train_dqn.py ...
-    J->>T: analyze_run(run_dir)
-    alt continue / adjust
-        T-->>J: continue / lower_lr / extend_ε
-    else plateau
-        T->>AI: POST {run_summary}
-        AI-->>T: fine_tune or stop
-        alt fine_tune
-            J->>Q: enqueue fine-tune job
-        else stop
-            J->>J: save checkpoint
-        end
+    U->>FE: Click "Start Training"
+    FE->>API: POST /api/jobs/train {game_config, training_config}
+    API->>QM: enqueue_train_job(payload)
+    QM->>QM: Insert job record (status: queued)
+    QM-->>API: {job_id}
+    API-->>FE: {job_id, status: "queued"}
+    FE->>FE: Begin polling GET /api/jobs/{id}/progress
+
+    Note over JR: Background worker thread
+    JR->>QM: Poll for queued jobs
+    QM-->>JR: Queued job found
+    JR->>QM: Update status → "running"
+    JR->>TP: Spawn subprocess (train_dqn.py)
+
+    TP->>TP: Initialise ScrumGameEnv + DQNAgent
+
+    loop Training Episodes
+        TP->>TP: select_action(state) — ε-greedy
+        TP->>TP: env.step(action) → reward, next_state
+        TP->>TP: replay_buffer.push(transition)
+        TP->>TP: agent.train_step() — update Q-network
     end
-    Q-->>U: job complete
-  </div>
-  </div>
+
+    TP->>TP: Save final checkpoint (.pth)
+    TP-->>JR: Subprocess exits (code 0)
+    JR->>QM: Update status → "completed", set run_dir
+
+    FE->>API: GET /api/jobs/{id}/progress
+    API-->>FE: {status: "completed", metrics: {...}}
+    FE->>U: Display final metrics summary
 </div>
-
-<div class="section">
-  <h2>Campaign Execution</h2>
-  <div class="export-bar">
-    <button class="btn btn-png" onclick="exportPNG('w3','sequence_campaign')">Export PNG</button>
-    <button class="btn btn-svg" onclick="exportSVG('w3','sequence_campaign')">Export SVG</button>
-  </div>
-  <div class="diagram-wrap" id="w3">
-  <div class="mermaid">
-%%{init:{'sequence':{'boxMargin':4,'messageMargin':20,'boxTextMargin':4,'mirrorActors':false},'theme':'base','themeVariables':{'background':'#fff','mainBkg':'#fff','primaryColor':'#f8f8f8','primaryTextColor':'#000','primaryBorderColor':'#000','lineColor':'#000','actorBorder':'#000','actorBkg':'#fff','actorTextColor':'#000','actorLineColor':'#000','signalColor':'#000','signalTextColor':'#000','labelBoxBkgColor':'#f5f5f5','labelBoxBorderColor':'#000','noteBorderColor':'#000','noteBkgColor':'#f5f5f5','activationBorderColor':'#000','activationBkgColor':'#f0f0f0'}}}%%
-sequenceDiagram
-    actor U as User
-    participant A as FastAPI
-    participant CS as CampaignService
-    participant CVG as VariationGenerator
-    participant Q as QueueManager
-
-    U->>A: POST /campaigns {stages[]}
-    A->>CS: create_campaign(data)
-    A-->>U: {campaign_id}
-
-    U->>A: POST /campaigns/{id}/launch
-    A->>CS: advance_campaign(id)
-    CS->>CVG: generate_variations(config)
-    CVG-->>CS: [{variation_1}, ...]
-    CS->>Q: enqueue_train_job(stage)
-    A-->>U: campaign running
-
-    loop Each stage completes
-        Q-->>CS: job_complete
-        CS->>Q: enqueue next stage
-    end
-    CS-->>U: campaign complete
-  </div>
-  </div>
 </div>
 
 <script>

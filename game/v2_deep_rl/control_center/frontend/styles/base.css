@@ -1,0 +1,118 @@
+/* ── CSS custom properties & reset ─────────────────────────────────────────── */
+
+:root {
+  color-scheme: dark;
+
+  /* Backgrounds */
+  --bg:          #090e18;
+  --bg-soft:     #0d1322;
+
+  /* Surfaces
+     Each step is visibly distinct so panels, inputs, and hover
+     states never blend into each other.                          */
+  --panel:       #131d30;   /* card / panel surface               */
+  --panel-alt:   #1e2840;   /* elevated: nav chips, tag bg, etc.  */
+  --panel-muted: #0f1625;   /* recessed: inputs, inset panels     */
+
+  /* Borders — bright enough to define edges without being harsh  */
+  --border:        #374e6e;   /* card outlines, dividers           */
+  --border-strong: #4e6585;   /* focus rings, hover borders        */
+
+  /* Typography
+     --muted targets ≥ 7:1 on --panel so labels/captions are
+     always comfortable to read at small sizes.                   */
+  --text:  #e8edf8;   /* primary text    — ~15 : 1 on --panel     */
+  --muted: #96a6cc;   /* secondary text  — ~7.7: 1 on --panel     */
+
+  /* Accent (blue) */
+  --accent:        #5c8df5;
+  --accent-strong: #4273e8;
+  --accent-soft:   #162040;
+
+  /* Semantic colours */
+  --warning: #d4973a;
+  --danger:  #d95252;
+  --success: #39b572;
+
+  /* Misc */
+  --radius:    8px;
+  --shadow:    0 1px 3px rgba(0,0,0,.55), 0 4px 14px rgba(0,0,0,.4);
+  --shadow-lg: 0 8px 40px rgba(0,0,0,.65);
+}
+
+/* ── Light theme ────────────────────────────────────────────────────────────── */
+
+body[data-theme="light"] {
+  color-scheme: light;
+
+  --bg:           #f2f5fc;
+  --bg-soft:      #e8ecf7;
+
+  --panel:        #ffffff;
+  --panel-alt:    #edf1fa;
+  --panel-muted:  #e4e9f5;
+
+  --border:       #c6d0e8;
+  --border-strong: #96a8cc;
+
+  --text:         #192038;
+  --muted:        #566080;
+
+  --accent:        #3b6de0;
+  --accent-strong: #2756c8;
+  --accent-soft:   #dbe5fb;
+
+  --warning: #a0680e;
+  --danger:  #b82828;
+  --success: #1a8a46;
+
+  --shadow:    0 1px 3px rgba(0,0,0,.08), 0 4px 14px rgba(0,0,0,.06);
+  --shadow-lg: 0 8px 40px rgba(0,0,0,.14);
+}
+
+/* Overrides for the two hardcoded values in layout.css */
+body[data-theme="light"] .app-header {
+  background: linear-gradient(180deg, #ffffff 0%, #f0f4ff 100%);
+}
+body[data-theme="light"] .nav-button:hover {
+  background: rgba(0,0,0,0.05);
+}
+body[data-theme="light"] .nav-button.is-active {
+  background: rgba(59,109,224,0.12);
+}
+body[data-theme="light"] .nav-button.is-active:hover {
+  background: rgba(59,109,224,0.18);
+}
+
+/* ── End themes ─────────────────────────────────────────────────────────────── */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+  font-family: 'Inter', "Segoe UI", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+/* ── Thin scrollbars ────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar        { width: 5px; height: 5px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--border-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }

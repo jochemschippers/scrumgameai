@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+
+from api.dependencies import require_admin
 
 from services.training_autopilot import (
     analyze_run,
@@ -39,7 +41,7 @@ def analyze_run_endpoint(run_id: str):
         raise HTTPException(status_code=404, detail=str(exc))
 
 
-@router.post("/run/{run_id}")
+@router.post("/run/{run_id}", dependencies=[Depends(require_admin)])
 def run_autopilot_endpoint(run_id: str, body: AutopilotRunRequest = AutopilotRunRequest()):
     """
     Run the autopilot on a completed run: classify state, write decision record,
@@ -57,7 +59,7 @@ def autopilot_history_endpoint(run_id: str):
     return {"items": get_autopilot_history(run_id)}
 
 
-@router.post("/test-ai")
+@router.post("/test-ai", dependencies=[Depends(require_admin)])
 def test_ai_endpoint():
     """
     Call the AI advisor with dummy plateau metrics and return its raw response.
@@ -78,13 +80,13 @@ def get_autopilot_settings_endpoint():
     return get_settings()
 
 
-@router.post("/settings")
+@router.post("/settings", dependencies=[Depends(require_admin)])
 def update_autopilot_settings_endpoint(body: AutopilotSettingsPayload):
     """Update logic_enabled and/or ai_enabled toggles."""
     return save_settings(body.model_dump(exclude_none=True))
 
 
-@router.post("/stop-after-cycle")
+@router.post("/stop-after-cycle", dependencies=[Depends(require_admin)])
 def request_stop_endpoint():
     """
     Request the autopilot to stop after the current training block finishes.
@@ -94,7 +96,7 @@ def request_stop_endpoint():
     return {"stop_requested": True}
 
 
-@router.delete("/stop-after-cycle")
+@router.delete("/stop-after-cycle", dependencies=[Depends(require_admin)])
 def clear_stop_endpoint():
     """Clear a pending stop-after-cycle request so the autopilot resumes."""
     clear_stop_request()
