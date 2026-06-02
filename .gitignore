@@ -26,6 +26,9 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
+# context files
+context/
+
 # Misc
 .DS_Store
 
