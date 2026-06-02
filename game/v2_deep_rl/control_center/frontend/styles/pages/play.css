@@ -503,9 +503,9 @@
 
 .play-dice-modal {
   width: min(680px, 94%);
-  max-height: min(620px, 94%);
+  max-height: min(560px, 94%);
   display: grid;
-  grid-template-rows: auto minmax(220px, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
   padding: 16px;
   border: 1px solid rgba(216, 238, 252, 0.24);
@@ -513,6 +513,7 @@
   background: linear-gradient(180deg, rgba(24, 38, 49, 0.78), rgba(9, 15, 21, 0.72));
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.46);
   backdrop-filter: blur(9px);
+  overflow: hidden;
 }
 
 .play-dice-box {
@@ -527,70 +528,14 @@
 
 .play-dice-card {
   display: grid;
+  align-content: start;
   gap: 10px;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
   color: var(--play-muted);
 }
 
-/* ── Dice animation ─────────────────────────────────────────────────────────── */
-
-.dice-animation-slot {
-  display: grid;
-  place-items: center;
-  min-height: 64px;
-  border: 1px dashed rgba(245, 184, 73, 0.55);
-  border-radius: 12px;
-  background: rgba(245, 184, 73, 0.08);
-  color: #ffe2a7;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.dice-animation-slot.is-rolling {
-  animation: diceShake 0.42s linear infinite;
-}
-
-.fallback-dice-stage {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  width: 100%;
-  height: 100%;
-  min-height: 260px;
-  perspective: 900px;
-}
-
-.fallback-die {
-  width: 58px;
-  height: 58px;
-  display: grid;
-  place-items: center;
-  border: 2px solid rgba(255, 255, 255, 0.68);
-  border-radius: 12px;
-  background: linear-gradient(135deg, #f9fbff, #9bb4c8);
-  color: #101820;
-  font-family: Consolas, "SFMono-Regular", monospace;
-  font-size: 24px;
-  font-weight: 900;
-  box-shadow: 0 14px 24px rgba(0, 0, 0, 0.36);
-  transform-style: preserve-3d;
-  animation: fallbackDieRoll 0.9s cubic-bezier(.2,.8,.2,1);
-}
-
-@keyframes diceShake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-2px) rotate(-1deg); }
-  75% { transform: translateX(2px) rotate(1deg); }
-}
-
-@keyframes fallbackDieRoll {
-  0% { transform: translate3d(-28px, -18px, 0) rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
-  55% { transform: translate3d(12px, 12px, 80px) rotateX(560deg) rotateY(420deg) rotateZ(160deg); }
-  100% { transform: translate3d(0, 0, 0) rotateX(720deg) rotateY(540deg) rotateZ(360deg); }
-}
+/* Dice animation removed — results are shown as text only */
 
 /* ── Dice summary ───────────────────────────────────────────────────────────── */
 

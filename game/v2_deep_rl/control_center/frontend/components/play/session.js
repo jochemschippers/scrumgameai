@@ -81,7 +81,6 @@ export async function advancePlayRound(humanAction = null) {
     return;
   }
   document.dispatchEvent(new CustomEvent("showPlayDiceOverlay"));
-  $("playDiceCard")?.querySelector(".dice-animation-slot")?.classList.add("is-rolling");
   const humanSeat = state.playSession.seats?.find((seat) => seat.controller.type === "human" && !seat.done);
   const payload = humanAction === null
     ? {}
@@ -91,7 +90,6 @@ export async function advancePlayRound(humanAction = null) {
     body: JSON.stringify(payload),
   });
   document.dispatchEvent(new CustomEvent("playSessionUpdated"));
-  document.dispatchEvent(new CustomEvent("rollPlayDiceForLatestTurn"));
 }
 
 export async function refreshPlaySession() {

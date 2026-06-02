@@ -370,6 +370,7 @@ def seat_payload(seat: dict[str, Any]) -> dict[str, Any]:
             "expected_value": state["expected_value"],
             "win_probability": state["win_probability"],
             "current_product_completed": state["current_product_completed"],
+            "target_next_sprints": state["target_next_sprints"],
         },
         "valid_actions": [
             {

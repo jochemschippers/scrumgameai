@@ -130,11 +130,22 @@ export function renderPlayTopbar() {
   const sessionCode = $("playSessionCode");
   const roundCode = $("playRoundCode");
   const incidentBanner = $("playIncidentBanner");
+  const refreshButton = $("refreshPlayButton");
   if (!sessionCode || !roundCode || !incidentBanner) return;
 
   const session = state.playSession;
   sessionCode.textContent = session?.id || "No session";
   roundCode.textContent = session ? String(session.round_number) : "-";
+
+  if (refreshButton) {
+    if (session?.done) {
+      refreshButton.textContent = "New Game";
+      refreshButton.classList.add("primary");
+    } else {
+      refreshButton.textContent = "Refresh";
+      refreshButton.classList.remove("primary");
+    }
+  }
 
   const incident = session?.board?.incident;
   if (incident?.active) {
@@ -219,7 +230,7 @@ export function renderPlayActionButtons(humanSeat) {
     ...products.map((product) => ({
       action_id: Number(product.product_id),
       label: `Switch to ${product.name}`,
-      hint: `Start S${humanSeat.state?.target_next_sprints?.[Number(product.product_id) - 1] || 1}`,
+      hint: "",
     })),
   ];
   const selected = Number(select.value || (humanSeat.valid_actions || [])[0]?.action_id || 0);
