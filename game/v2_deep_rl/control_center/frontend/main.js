@@ -19,7 +19,7 @@ import { renderDirectEvaluation, runDirectEvaluation, exportDirectEvaluationJson
 import { renderCheckpointComparison, runCheckpointComparison, exportComparisonJson, exportComparisonCsv } from './components/evaluation/comparison.js';
 import { renderPlaySession, renderPlayBoard, renderPlaySeatEditor } from './components/play/board.js';
 import { createPlaySession, advancePlayRound, refreshPlaySession, latestPlayTurn } from './components/play/session.js';
-import { hidePlayDiceOverlay, rollPlayDice } from './components/play/dice.js';
+import { hidePlayDiceOverlay } from './components/play/dice.js';
 
 // ── Theme switcher ────────────────────────────────────────────────────────────
 
@@ -510,12 +510,7 @@ document.addEventListener("showPlayDiceOverlay", () => {
   document.getElementById("playDiceOverlay")?.classList.remove("hidden");
 });
 
-document.addEventListener("rollPlayDiceForLatestTurn", () => {
-  const latestDice = latestPlayTurn()?.dice;
-  if (latestDice) {
-    rollPlayDice(latestDice).catch(() => {});
-  }
-});
+
 
 // ── Connection module override — call _refreshAll after connecting ────────────
 
@@ -722,8 +717,14 @@ function attachEvents() {
 
   $("refreshPlayButton").addEventListener("click", async () => {
     try {
-      await refreshPlaySession();
-      showMessage("Refreshed play session.");
+      if (state.playSession?.done) {
+        state.playSession = null;
+        document.dispatchEvent(new CustomEvent("playSessionUpdated"));
+        showMessage("Ready for a new game.");
+      } else {
+        await refreshPlaySession();
+        showMessage("Refreshed play session.");
+      }
     } catch (error) {
       showMessage(error.message, "error");
     }
