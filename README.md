@@ -30,8 +30,6 @@ Those files define the classical board assumptions used in the simulator:
 
 - `gamedata/`
   Source material, PDFs, and the prototype app used to shape the simulator assumptions.
-- `game/README.md`
-  Short navigation guide for the code workspace.
 - `game/v1_assignment/`
   Baseline, Q-Learning, SARSA, Monte Carlo, comparison scripts, report notes, and tabular artifacts.
 - `game/v2_deep_rl/`
