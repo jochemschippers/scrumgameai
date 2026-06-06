@@ -1,3 +1,5 @@
+"""Implement history behavior for the autopilot package."""
+
 from __future__ import annotations
 
 import json
@@ -7,6 +9,7 @@ from services.app_paths import RUNS_DIR
 
 
 def write_decision_record(run_dir: Path, decision: dict) -> None:
+    """Append a serializable autopilot decision dictionary to a local JSONL report log file."""
     records_path = run_dir / "reports" / "autopilot_decisions.jsonl"
     records_path.parent.mkdir(parents=True, exist_ok=True)
     with records_path.open("a", encoding="utf-8") as handle:

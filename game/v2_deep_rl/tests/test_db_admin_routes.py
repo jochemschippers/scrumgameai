@@ -1,9 +1,13 @@
+"""Test db admin routes behavior."""
+
 from __future__ import annotations
 
 import pytest
 
 
+# Handle credentials.
 def _credentials(username: str, password: str):
+    # Group the state and behavior for credentials.
     class Credentials:
         pass
 
@@ -13,6 +17,7 @@ def _credentials(username: str, password: str):
     return credentials
 
 
+# Handle temp user db.
 @pytest.fixture
 def temp_user_db(tmp_path, monkeypatch):
     from storage import jobs_db
@@ -26,6 +31,7 @@ def temp_user_db(tmp_path, monkeypatch):
     return jobs_db
 
 
+# Verify init db seeds admin and guest users.
 def test_init_db_seeds_admin_and_guest_users(temp_user_db):
     users = temp_user_db.list_users()
 
@@ -34,18 +40,21 @@ def test_init_db_seeds_admin_and_guest_users(temp_user_db):
     assert all("password_hash" not in user for user in users)
 
 
+# Verify db admin accepts seeded admin user.
 def test_db_admin_accepts_seeded_admin_user(temp_user_db):
     from api.routes_db_admin import require_db_admin
 
     assert require_db_admin(_credentials("admin", "admin-secret")) == "admin"
 
 
+# Verify db admin accepts seeded guest user.
 def test_db_admin_accepts_seeded_guest_user(temp_user_db):
     from api.routes_db_admin import require_db_admin
 
     assert require_db_admin(_credentials("guest", "guest-secret")) == "guest"
 
 
+# Verify db admin rejects wrong password.
 def test_db_admin_rejects_wrong_password(temp_user_db):
     from api.routes_db_admin import require_db_admin
 

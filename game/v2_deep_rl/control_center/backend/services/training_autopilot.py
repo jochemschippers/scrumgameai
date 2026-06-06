@@ -1,3 +1,14 @@
+"""
+Autopilot Compatibility Facade.
+
+This module acts as a compatibility facade exposing the Training Autopilot functionality.
+It binds together state storage, deterministic classification rules, LLM advisor queries,
+and job runners. It wraps deep imports to allow mock-patching during tests.
+
+Connections:
+  - Sub-modules: `services/autopilot/analysis.py`, `services/autopilot/runner.py`, `services/autopilot/state.py`.
+"""
+
 from __future__ import annotations
 
 from services.app_paths import ARTIFACTS_DIR, RUNS_DIR
@@ -31,10 +42,12 @@ def analyze_run(run_id: str, context: dict | None = None) -> dict:
 
 
 def _call_ai_advisor(*args, **kwargs) -> dict:
+    """Invoke the AI advisor model or mock fallback inside the runner namespace."""
     return _runner.call_ai_advisor(*args, **kwargs)
 
 
 def _derive_base_run_name(run_id: str) -> str:
+    """Determine the base name of a training run by stripping sequence suffixes."""
     return derive_base_run_name(run_id)
 
 

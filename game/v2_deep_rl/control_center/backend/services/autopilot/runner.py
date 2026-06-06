@@ -1,3 +1,23 @@
+"""
+Autopilot Execution Orchestrator.
+
+This module orchestrates the execution flow of the Training Autopilot.
+When a training job finishes, this runner is triggered to classify performance, consult the AI advisor if
+a plateau is reached, write decision logs, handle user stop-after-cycle requests, and automatically enqueue
+the next training job with adjusted parameters (carrying over context like LR reduction counters).
+
+Key Flow:
+  1. Classify Run: Calls `analysis.analyze_run` to get a rule-based training state assessment.
+  2. Auto-Continue Check: Loops training runs if `auto_continue_enabled` is set in the configuration.
+  3. AI Advisor Fallback: Queries LLM advisor if logic recommends stopping but AI intervention limits are not exceeded.
+  4. User Flags: Checks if the user requested a graceful stop after this training segment.
+  5. Enqueue Job: If not stopping, builds a new run name (e.g. `run_v2`, `run_v3`) and enqueues it.
+
+Connections:
+  - Imports: `enqueue_train_job` and `enqueue_evaluation_job` from `jobs.queue_manager`.
+  - Used by: Called by route controllers or job runner hooks when training runs finish.
+"""
+
 from __future__ import annotations
 
 from services.app_paths import RUNS_DIR
@@ -67,7 +87,7 @@ def run_autopilot(run_id: str, dry_run: bool = False, context: dict | None = Non
             "auto_continue_cycles": auto_continue_cycles,
         }
 
-    # --- AI advisor: only when logic says stop (not regression) and budget remains ---
+    # Regression stops are deliberately final; an LLM cannot override that guardrail.
     settings = get_settings()
     ai_enabled = settings.get("ai_enabled", True)
     if not dry_run and decision["action"] == "stop" and ai_enabled and ai_intervention_count < MAX_AI_INTERVENTIONS:
@@ -85,7 +105,7 @@ def run_autopilot(run_id: str, dry_run: bool = False, context: dict | None = Non
             decision["advisor"] = "ai"
             decision["next_payload"] = ai_result["next_payload"]
 
-    # --- User-requested stop overrides everything except dry_run ---
+    # A user stop request has priority over automated continuation decisions.
     if not dry_run and decision["action"] not in {"stop", "stop_regression"} and is_stop_requested():
         decision["action"] = "stop"
         decision["reason"] = "Stop requested by user via stop-after-cycle flag. " + decision["reason"]

@@ -1,4 +1,20 @@
-// ── Entry point — imports all modules and wires events ────────────────────────
+/**
+ * Control Center Frontend Main Entry Point and Coordinator.
+ * 
+ * This module orchestrates the initialization and lifecycle of the Control Center Single Page Application (SPA).
+ * It manages global theme toggles, routes navigation inspect requests, synchronization of selectors,
+ * applies read-only guest-role restrictions, and attaches click/submit event listeners to DOM controls.
+ * 
+ * Key Responsibilities:
+ *   1. System Boot: Wires connection listeners and initializes themes (dark/light mode).
+ *   2. Data Coordination: Refreshes cache sets (checkpoints, configs, jobs, runs) via API calls.
+ *   3. Guest Security: Disables write capabilities (saves, queues, updates) for read-only user sessions.
+ *   4. DOM Bindings: Registers event handlers for tabs, configuration validations, evaluation campaigns, and play simulations.
+ * 
+ * Connections:
+ *   - Entrypoint: Loaded by `control_center/frontend/index.html` (type="module").
+ *   - Imports: Stores state data via `state/store.js` and calls subcomponents for configurations, evaluations, training, and play.
+ */
 import { getToken, setToken, getRole, setRole, isGuest, apiRequest } from './api/client.js';
 import { showLoginScreen, hideLoginScreen, logout } from './components/auth.js';
 import { state } from './state/store.js';
@@ -26,6 +42,7 @@ import { hidePlayDiceOverlay } from './components/play/dice.js';
 const _THEME_KEY = "cc_theme";
 const _THEMES = ["dark", "light"];
 
+/** Set theme. */
 function setTheme(name) {
   if (!_THEMES.includes(name)) name = "dark";
   document.body.dataset.theme = name;
@@ -35,6 +52,7 @@ function setTheme(name) {
   });
 }
 
+/** Initialize theme. */
 function initTheme() {
   const saved = localStorage.getItem(_THEME_KEY) || "dark";
   setTheme(saved);
@@ -64,6 +82,7 @@ function syncSelectors() {
   $("activeCheckpointIncludeAllToggle").checked = state.includeCheckpointSelections;
 }
 
+/** Refresh checkpoints. */
 async function _refreshCheckpoints() {
   try {
     const checkpoints = await apiRequest("/checkpoints", {}, 120000);
@@ -78,6 +97,7 @@ async function _refreshCheckpoints() {
   }
 }
 
+/** Refresh all. */
 async function _refreshAll() {
   clearMessage();
   const [health, gameConfigs, trainingConfigs, runs, jobs] = await Promise.all([
@@ -154,6 +174,7 @@ function renderRunDetail() {
   );
   const rating = state.runRating;
   const gradeColors = { S: "#7c3aed", A: "#16a34a", B: "#0284c7", C: "#ca8a04", D: "#ea580c", F: "#dc2626" };
+  /** Handle rating html. */
   const ratingHtml = (() => {
     if (!rating) return "";
     if (rating.grade === "N/A") return `<span class="tag">rating unavailable</span>`;
@@ -230,6 +251,7 @@ function renderRunDetail() {
   });
 }
 
+/** Clear evaluation results. */
 function _clearEvaluationResults() {
   state.directEvaluation = null;
   state.comparisonEvaluation = null;
@@ -272,6 +294,7 @@ const _GUEST_DISABLE_IDS = [
   "checkpointCompareForm",
 ];
 
+/** Apply guest restrictions. */
 function applyGuestRestrictions() {
   if (!isGuest()) return;
 
@@ -402,6 +425,7 @@ function resetGuestRestrictions() {
   });
 }
 
+/** Handle open inspect for run. */
 async function openInspectForRun(runId, announce = true) {
   await fetchRunDetail(runId, false);
   renderRunDetail();
@@ -431,6 +455,7 @@ async function openInspectForRun(runId, announce = true) {
   }
 }
 
+/** Handle open inspect for job. */
 async function openInspectForJob(jobId, announce = true) {
   await fetchJobDetail(jobId, false);
   const job = state.jobDetail;

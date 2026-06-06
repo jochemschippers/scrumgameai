@@ -1,3 +1,19 @@
+"""
+Checkpoint Evaluation & Comparison Route Controller.
+
+This module exposes endpoints to run synchronous evaluations and comparative tests on trained models.
+Unlike long-running training jobs, these endpoints quickly run a fixed, seeded batch of game simulations using
+greedy action-selection to assess policy performance or compare two models side-by-side.
+
+Key Endpoints:
+  - `POST /testing/evaluate`: Evaluates a single model checkpoint on a specific config for a fixed set of episodes.
+  - `POST /testing/compare`: Runs two checkpoints side-by-side under identical random seeds to measure win/draw rates,
+    average sprint completion, and financial return differences.
+
+Connections:
+  - Imports: Performance calculation handlers from `services.testing_service`.
+"""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException

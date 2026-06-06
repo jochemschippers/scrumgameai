@@ -1,3 +1,5 @@
+"""Implement rating behavior for the autopilot package."""
+
 from __future__ import annotations
 
 from services.app_paths import RUNS_DIR
@@ -46,6 +48,7 @@ def compute_run_rating(run_id: str) -> dict:
         # Use average of last 3 windows for a stable estimate.
         sample = eval_rows[-3:]
         def _avg(key: str) -> float | None:
+            """Calculate the mean value of a specified key across the sample rows."""
             vals = [safe_float(r.get(key)) for r in sample]
             vals = [v for v in vals if v is not None]
             return sum(vals) / len(vals) if vals else None

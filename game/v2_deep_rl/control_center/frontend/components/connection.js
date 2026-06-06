@@ -1,3 +1,15 @@
+/**
+ * Backend Connection and Progress Polling Handler.
+ * 
+ * This module manages the connection lifecycle between the frontend interface and the FastAPI server.
+ * It tries auto-connecting to candidate URLs, toggles manual input connection screens, and schedules
+ * throttled background polling cycles (`_runPollCycle`) to fetch jobs, training progress, and autopilot metrics.
+ * 
+ * Connections:
+ *   - Imports: Shared state, API clients, UI notifications, and component render functions.
+ *   - Exported functions: `autoConnect`, `startProgressPolling`, and UI selectors. Called by `main.js`.
+ */
+
 import { state } from '../state/store.js';
 import { apiRequest } from '../api/client.js';
 import { showLoginScreen } from './auth.js';
@@ -13,6 +25,7 @@ let _pollInFlight = false;
 
 export { AUTO_CONNECT_URLS };
 
+/** Show connected ui. */
 export function _showConnectedUi() {
   const manual = $("backendManualConnect");
   const actions = $("backendConnectedActions");
@@ -20,6 +33,7 @@ export function _showConnectedUi() {
   if (actions) actions.style.display = "";
 }
 
+/** Show manual connect ui. */
 export function _showManualConnectUi() {
   const manual = $("backendManualConnect");
   const actions = $("backendConnectedActions");
@@ -27,11 +41,13 @@ export function _showManualConnectUi() {
   if (actions) actions.style.display = "none";
 }
 
+/** Handle try connect. */
 export async function _tryConnect(url) {
   state.apiBaseUrl = url.replace(/\/$/, "");
   // Note: refreshAll will be called from main.js
 }
 
+/** Handle auto connect. */
 export async function autoConnect() {
   for (const url of AUTO_CONNECT_URLS) {
     try {
@@ -53,6 +69,7 @@ export async function autoConnect() {
   return false;
 }
 
+/** Run poll cycle. */
 export async function _runPollCycle() {
   if (_pollInFlight) return;
   _pollInFlight = true;
@@ -102,10 +119,12 @@ export async function _runPollCycle() {
   }
 }
 
+/** Start progress polling. */
 export function startProgressPolling() {
   if (state.progressPollHandle) {
     clearTimeout(state.progressPollHandle);
   }
+  /** Schedule schedule. */
   const schedule = async () => {
     await _runPollCycle();
     state.progressPollHandle = setTimeout(schedule, 5000);

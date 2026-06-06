@@ -1,3 +1,5 @@
+/** Implement jobs user-interface behavior. */
+
 import { state } from '../../state/store.js';
 import { $, showMessage, selectedGameConfig, selectedTrainingConfig, selectedCheckpoint, currentTrainingMode, runLabelFromPath, buildOptions } from '../../utils/helpers.js';
 import { escapeHtml, checkpointUiLabel, checkpointCompatibilityTone as compatTone } from '../../utils/formatting.js';
@@ -8,6 +10,7 @@ import { updateSummaryPills, setPage } from '../navigation.js';
 
 const JOBS_PER_PAGE = 5;
 
+/** Render jobs. */
 export function renderJobs() {
   const container = $("jobsList");
   const paginationContainer = $("jobsPagination");
@@ -163,6 +166,7 @@ export function renderJobs() {
   }
 }
 
+/** Render job detail. */
 export function renderJobDetail() {
   const label = $("jobDetailLabel");
   const container = $("jobDetailCard");
@@ -227,6 +231,7 @@ export function renderJobDetail() {
   });
 }
 
+/** Render job log. */
 export function renderJobLog() {
   const container = $("jobLogCard");
   if (!state.jobLog) {
@@ -238,6 +243,7 @@ export function renderJobLog() {
   container.textContent = (state.jobLog.lines || []).join("\n") || "(no log yet)";
 }
 
+/** Render training selection summary. */
 export function renderTrainingSelectionSummary() {
   const container = $("trainingSelectionSummary");
   const gameConfig = selectedGameConfig();
@@ -262,6 +268,7 @@ export function renderTrainingSelectionSummary() {
   `;
 }
 
+/** Render training preflight. */
 export function renderTrainingPreflight() {
   const container = $("trainingPreflightCard");
   const mode = currentTrainingMode();
@@ -317,6 +324,7 @@ export function renderTrainingPreflight() {
   `;
 }
 
+/** Refresh jobs. */
 export async function refreshJobs() {
   const payload = await apiRequest("/jobs");
   state.jobs = payload.items || [];
@@ -329,6 +337,7 @@ export async function refreshJobs() {
   }
 }
 
+/** Fetch job detail. */
 export async function fetchJobDetail(jobId, announce = false) {
   state.activeJobDetailId = Number(jobId);
   state.jobDetail = await apiRequest(`/jobs/${state.activeJobDetailId}`);
@@ -344,6 +353,7 @@ export async function fetchJobDetail(jobId, announce = false) {
   }
 }
 
+/** Refresh training preflight. */
 export async function refreshTrainingPreflight() {
   const mode = currentTrainingMode();
   const checkpoint = selectedCheckpoint();
@@ -368,6 +378,7 @@ export async function refreshTrainingPreflight() {
   renderTrainingPreflight();
 }
 
+/** Queue training job. */
 export async function queueTrainingJob(event) {
   event.preventDefault();
   const mode = currentTrainingMode();
@@ -423,6 +434,7 @@ export async function queueTrainingJob(event) {
   await refreshJobs();
 }
 
+/** Queue robustness job. */
 export async function queueRobustnessJob(event) {
   event.preventDefault();
   const runId = $("robustnessRunSelect").value;

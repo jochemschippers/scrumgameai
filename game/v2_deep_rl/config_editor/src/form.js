@@ -1,7 +1,24 @@
+/**
+ * Configuration Editor Form Data Collector.
+ * 
+ * This module extracts user input values from the HTML form elements, validates them,
+ * and updates the central state. It also builds the final, canonical JSON object used for export.
+ * 
+ * Connections:
+ *   - Imports: `state` from `state.js`, utils and board functions.
+ *   - Exported functions: `readFormIntoState` and `canonicalConfig`. Called during render,
+ *     download, and clipboard actions to ensure the state is fully up-to-date with form fields.
+ */
+
 import { state } from './state.js';
 import { $, normalizeProductKey, numberValue, parseNumberList } from './utils.js';
 import { syncShapeFromInputs } from './board.js';
 
+/**
+ * Scans all input, select, and textarea elements in the DOM configuration editor,
+ * sanitizes and casts their values appropriately, and writes them into the shared `state` object.
+ * Adjusts nested objects (such as dice rules, refinement rules, and incident cards) dynamically.
+ */
 export function readFormIntoState() {
   state.config_name = $("configNameInput").value.trim();
   state.schema_version = $("schemaVersionInput").value.trim();
@@ -82,6 +99,11 @@ export function readFormIntoState() {
   }));
 }
 
+/**
+ * Syncs current DOM fields to state and returns a deep copy of the canonical config object.
+ * 
+ * @returns {Object} Deep clone of the configuration state.
+ */
 export function canonicalConfig() {
   readFormIntoState();
   return structuredClone(state);

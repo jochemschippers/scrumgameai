@@ -1,3 +1,5 @@
+"""Test routes play shared behavior."""
+
 from __future__ import annotations
 
 import sys
@@ -17,16 +19,19 @@ from api.routes_play import router as play_router  # noqa: E402
 from services import play_service  # noqa: E402
 
 
+# Handle setup function.
 def setup_function():
     play_service.PLAY_SESSIONS.clear()
 
 
+# Handle client.
 def _client() -> TestClient:
     app = FastAPI()
     app.include_router(play_router)
     return TestClient(app)
 
 
+# Verify play api creates fetches and advances shared session.
 def test_play_api_creates_fetches_and_advances_shared_session():
     client = _client()
     create_response = client.post(
@@ -53,6 +58,7 @@ def test_play_api_creates_fetches_and_advances_shared_session():
     assert len(advance_response.json()["turn_log"]) == 2
 
 
+# Verify play api rejects invalid shared sessions.
 def test_play_api_rejects_invalid_shared_sessions():
     client = _client()
 

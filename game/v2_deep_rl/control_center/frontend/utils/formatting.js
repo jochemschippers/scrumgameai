@@ -1,9 +1,13 @@
+/** Implement formatting behavior for the utils package. */
+
 import { state } from '../state/store.js';
 
+/** Format json. */
 export function formatJson(value) {
   return JSON.stringify(value, null, 2);
 }
 
+/** Handle escape html. */
 export function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -13,6 +17,7 @@ export function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+/** Handle checkpoint ui label. */
 export function checkpointUiLabel(checkpoint) {
   if (!checkpoint) return "";
   let source = checkpoint.source_type || "checkpoint";
@@ -32,6 +37,7 @@ export function checkpointUiLabel(checkpoint) {
   return `${source} | ${typeLabel}${episodeLabel}${legacySuffix}`;
 }
 
+/** Format run source label. */
 export function formatRunSourceLabel(runName) {
   const raw = String(runName || "").trim();
   const match = raw.match(/^run_(\d{4}-\d{2}-\d{2})_(\d{4})(?:_(.+))?$/);
@@ -54,6 +60,7 @@ export function formatRunSourceLabel(runName) {
     : `${datePart} ${timeLabel}${iteration}`;
 }
 
+/** Handle checkpoint compatibility tone. */
 export function checkpointCompatibilityTone(status) {
   const value = String(status || "").toLowerCase();
   if (value.includes("mismatch") || value.includes("incompatible")) return "bad";
@@ -62,6 +69,7 @@ export function checkpointCompatibilityTone(status) {
   return "";
 }
 
+/** Handle checkpoint category. */
 export function checkpointCategory(checkpoint) {
   const type = String(checkpoint?.checkpoint_type || "").toLowerCase();
   const label = String(checkpoint?.label || "").toLowerCase();
@@ -71,6 +79,7 @@ export function checkpointCategory(checkpoint) {
   return "other";
 }
 
+/** Handle checkpoint group label. */
 export function checkpointGroupLabel(checkpoint) {
   if (checkpoint.source_type === "run") {
     return checkpoint.source_run || "run";
@@ -87,10 +96,12 @@ export function checkpointGroupLabel(checkpoint) {
   return checkpoint.source_type || "Other";
 }
 
+/** Return whether model selectable. */
 export function isModelSelectable(checkpoint) {
   return checkpointCategory(checkpoint) !== "intermediate";
 }
 
+/** Handle sidebar checkpoint options. */
 export function sidebarCheckpointOptions() {
   const includeAll = Boolean(state.includeCheckpointSelections);
   return state.checkpoints
@@ -99,6 +110,7 @@ export function sidebarCheckpointOptions() {
     .sort((left, right) => left.ui_label.localeCompare(right.ui_label));
 }
 
+/** Format number. */
 export function formatNumber(value, digits = 2) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) {
     return "-";
@@ -106,6 +118,7 @@ export function formatNumber(value, digits = 2) {
   return Number(value).toFixed(digits);
 }
 
+/** Format currency. */
 export function formatCurrency(value) {
   const amount = Number(value || 0);
   return `${amount < 0 ? "-" : ""}€${Math.abs(Math.round(amount)).toLocaleString()}`;

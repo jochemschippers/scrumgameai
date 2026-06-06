@@ -1,3 +1,5 @@
+"""Test campaign autopilot integration behavior."""
+
 from __future__ import annotations
 
 import csv
@@ -29,6 +31,7 @@ LOG_HEADER = [
 EVAL_HEADER = ["episode", "average_reward", "bankruptcy_rate", "average_ending_money", "invalid_action_rate"]
 
 
+# Write csv.
 def _write_csv(path: Path, header: list[str], rows: list[list]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
@@ -37,6 +40,7 @@ def _write_csv(path: Path, header: list[str], rows: list[list]) -> None:
         writer.writerows(rows)
 
 
+# Create plateau run.
 def _make_plateau_run(runs_dir: Path, run_id: str) -> None:
     run_dir = runs_dir / run_id
     (run_dir / "checkpoints").mkdir(parents=True, exist_ok=True)
@@ -95,6 +99,7 @@ def _make_plateau_run(runs_dir: Path, run_id: str) -> None:
     _write_csv(run_dir / "reports" / "logs.csv", LOG_HEADER, log_rows)
 
 
+# Verify run autopilot stop notifies campaign.
 def test_run_autopilot_stop_notifies_campaign(tmp_path):
     from services.training_autopilot import run_autopilot
 

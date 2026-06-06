@@ -1,3 +1,26 @@
+"""
+Configuration Management System for the Deep RL Scrum Game.
+
+This module defines, validates, and translates configurations used across the 
+entire application. It separates runtime rule variables from agent training 
+hyperparameters, providing stability hashes (signatures) to ensure training runs 
+can be audited and compared accurately.
+
+Key Data Structures:
+  - GameConfig: The game rules, economy (costs, loans, penalties), product layout,
+                refinement regimes, and incident deck details.
+  - TrainingConfig: Deep RL training settings (episodes, learning rate, gamma, epsilon decay, etc.)
+  - DiceRuleConfig: Defines how features on a cell determine how many dice are rolled.
+  - RefinementConfig: Configures refinement probability tables for products.
+  - IncidentConfig: Configures the incident deck, card draws, and card effects.
+
+Connections:
+  - Imported by: `game_runtime.scrum_game_env` (uses GameConfig for game state initialization)
+  - Imported by: `training.train_dqn` (uses both GameConfig and TrainingConfig to run RL training)
+  - Imported by: FastAPI backend routes (`routes_configs.py`) to edit and save game templates.
+  - Used in: `play.shared_match_runner` to load deployment scenarios.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -6,7 +29,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-
+# Define key directory paths relative to the current file.
+# BASE_DIR points to the `v2_deep_rl/` root folder.
 BASE_DIR = Path(__file__).resolve().parents[1]
 CONFIG_DIR = BASE_DIR / "configs"
 DEFAULT_GAME_CONFIG_PATH = CONFIG_DIR / "default_game_config.json"
@@ -28,10 +52,12 @@ class DiceRuleConfig:
     dice_sides: int
 
     def matches(self, feature_count: int) -> bool:
+        """Return True if the supplied value falls within the features range of this rule."""
         upper_ok = self.max_features is None or feature_count <= self.max_features
         return feature_count >= self.min_features and upper_ok
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert the instance to a serializable dictionary."""
         return {
             "min_features": self.min_features,
             "max_features": self.max_features,
@@ -41,6 +67,7 @@ class DiceRuleConfig:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "DiceRuleConfig":
+        """Build an instance from a dictionary payload."""
         return cls(
             min_features=int(payload["min_features"]),
             max_features=None if payload.get("max_features") is None else int(payload["max_features"]),
@@ -58,6 +85,7 @@ class RefinementRuleConfig:
     decrease_rolls: tuple[int, ...]
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert the instance to a serializable dictionary."""
         return {
             "product_key": self.product_key,
             "increase_rolls": list(self.increase_rolls),
@@ -66,6 +94,7 @@ class RefinementRuleConfig:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "RefinementRuleConfig":
+        """Build an instance from a dictionary payload."""
         return cls(
             product_key=str(payload["product_key"]),
             increase_rolls=tuple(int(value) for value in payload.get("increase_rolls", [])),
@@ -83,6 +112,7 @@ class RefinementConfig:
     product_rules: tuple[RefinementRuleConfig, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert the instance to a serializable dictionary."""
         return {
             "active": self.active,
             "model_name": self.model_name,
@@ -92,6 +122,7 @@ class RefinementConfig:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "RefinementConfig":
+        """Build an instance from a dictionary payload."""
         return cls(
             active=bool(payload.get("active", True)),
             model_name=str(payload.get("model_name", "Standard (ID 301)")),
@@ -119,6 +150,7 @@ class IncidentCardConfig:
     weight: float = 1.0
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert the instance to a serializable dictionary."""
         return {
             "card_id": self.card_id,
             "name": self.name,
@@ -134,6 +166,7 @@ class IncidentCardConfig:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "IncidentCardConfig":
+        """Build an instance from a dictionary payload."""
         return cls(
             card_id=int(payload["card_id"]),
             name=str(payload["name"]),
@@ -161,6 +194,7 @@ class IncidentConfig:
     cards: tuple[IncidentCardConfig, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert the instance to a serializable dictionary."""
         return {
             "active": self.active,
             "allow_player_specific_incidents": self.allow_player_specific_incidents,
@@ -171,6 +205,7 @@ class IncidentConfig:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "IncidentConfig":
+        """Build an instance from a dictionary payload."""
         return cls(
             active=bool(payload.get("active", True)),
             allow_player_specific_incidents=bool(payload.get("allow_player_specific_incidents", False)),
@@ -212,13 +247,16 @@ class GameConfig:
 
     @property
     def products_count(self) -> int:
+        """Get total products count from configured names."""
         return len(self.product_names)
 
     @property
     def sprints_per_product(self) -> int:
+        """Get sprints per product count from the first product's configuration row."""
         return len(self.board_ring_values[0]) if self.board_ring_values else 0
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert the instance to a serializable dictionary."""
         return {
             "schema_version": self.schema_version,
             "config_name": self.config_name,
@@ -246,6 +284,7 @@ class GameConfig:
         }
 
     def rule_payload(self) -> dict[str, Any]:
+        """Extract only the parts of a game config that define execution rules."""
         payload = self.to_dict()
         payload.pop("config_name", None)
         payload.pop("config_description", None)
@@ -254,6 +293,7 @@ class GameConfig:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "GameConfig":
+        """Build an instance from a dictionary payload."""
         config = cls(
             schema_version=str(payload.get("schema_version", "1.0")),
             config_name=str(payload.get("config_name", "Unnamed Config")),
@@ -316,6 +356,7 @@ class TrainingConfig:
     auto_continue_cycles: int = 0
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert the instance to a serializable dictionary."""
         return {
             "episodes": self.episodes,
             "evaluation_episodes": self.evaluation_episodes,
@@ -340,12 +381,14 @@ class TrainingConfig:
         }
 
     def signature_payload(self) -> dict[str, Any]:
+        """Extract training parameters relevant to signature calculation."""
         payload = self.to_dict()
         payload.pop("run_notes", None)
         return payload
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "TrainingConfig":
+        """Build an instance from a dictionary payload."""
         return cls(
             episodes=int(payload.get("episodes", 500000)),
             evaluation_episodes=int(payload.get("evaluation_episodes", 100)),
@@ -371,17 +414,20 @@ class TrainingConfig:
 
 
 def _read_json_file(path: Path) -> dict[str, Any]:
+    """Read and deserialize JSON payload from disk."""
     with path.open("r", encoding="utf-8") as file:
         return json.load(file)
 
 
 def _write_json_file(path: Path, payload: dict[str, Any]) -> None:
+    """Serialize and write a JSON payload to disk."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as file:
         json.dump(payload, file, indent=2)
 
 
 def _hash_payload(payload: dict[str, Any]) -> str:
+    """Return a SHA-256 hash representation of a normalized dictionary."""
     normalized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
@@ -610,6 +656,7 @@ def build_default_incident_cards(product_names: list[str]) -> tuple[IncidentCard
 
 
 def _severity_multiplier_from_label(label: str) -> float:
+    """Map human incident severity labels to float multiplier factors."""
     mapping = {
         "low": 0.75,
         "normal": 1.0,

@@ -19,9 +19,11 @@ for p in (str(BACKEND_DIR), str(ENGINE_DIR)):
 if "torch" not in sys.modules:
     _torch_stub = types.ModuleType("torch")
 
+    # Handle stub save.
     def _stub_save(obj, path, **kwargs):
         pass  # no-op by default; individual tests override via monkeypatch
 
+    # Handle stub load.
     def _stub_load(path, map_location=None, weights_only=False, **kwargs):
         return {}  # no-op by default
 
@@ -31,13 +33,21 @@ if "torch" not in sys.modules:
     # Minimal nn stub
     _nn = types.ModuleType("torch.nn")
 
+    # Group the state and behavior for fake module.
     class _FakeModule:
+        # Initialize the instance from the supplied configuration.
         def __init__(self, *args, **kwargs): pass
+        # Initialize subclass.
         def __init_subclass__(cls, **kwargs): pass
+        # Handle parameters.
         def parameters(self): return iter([])
+        # Handle state dict.
         def state_dict(self): return {}
+        # Load state dict.
         def load_state_dict(self, sd): pass
+        # Handle eval.
         def eval(self): return self
+        # Handle train.
         def train(self): return self
 
     _nn.Module = _FakeModule
@@ -60,34 +70,48 @@ def _make_stub(name, attrs):
         setattr(mod, k, v)
     return mod
 
+# Implement the fake dqnagent's decision behavior.
 class _FakeDQNAgent:
+    # Initialize the instance from the supplied configuration.
     def __init__(self, *a, **kw):
         self.state_dim = kw.get("state_dim", 30)
         self.num_actions = kw.get("num_actions", 8)
         self.device = "cpu"
         self.training_steps = 0
 
+        # Group the state and behavior for fake buf.
         class _FakeBuf:
+            # Handle state dict.
             def state_dict(self): return {}
+            # Load state dict.
             def load_state_dict(self, s): pass
+            # Return the number of stored items.
             def __len__(self): return 0
 
         self.replay_buffer = _FakeBuf()
 
+        # Group the state and behavior for fake net.
         class _FakeNet:
+            # Handle state dict.
             def state_dict(self): return {}
+            # Load state dict.
             def load_state_dict(self, sd, strict=True): pass
+            # Handle eval.
             def eval(self): return self
+            # Handle train.
             def train(self): return self
 
         self.policy_network = _FakeNet()
         self.target_network = _FakeNet()
 
+    # Handle training state dict.
     def training_state_dict(self):
         return {"optimizer_state_dict": {}, "replay_buffer": {}, "training_steps": 0}
 
+    # Load training state dict.
     def load_training_state_dict(self, state, include_replay=True): pass
 
+# Handle fake encode state.
 def _fake_encode_state(state, env): return []
 
 if "rl.dqn_agent" not in sys.modules:
@@ -97,10 +121,13 @@ if "rl.dqn_agent" not in sys.modules:
     })
 
 if "game_runtime.scrum_game_env" not in sys.modules:
+    # Group the state and behavior for fake env.
     class _FakeEnv:
         num_actions = 8
         turns_with_loan = 0
+        # Reset reset.
         def reset(self, seed=None): return {}
+        # Advance step.
         def step(self, action): return {}, 0, True, {}
 
     sys.modules["game_runtime.scrum_game_env"] = _make_stub("game_runtime.scrum_game_env", {

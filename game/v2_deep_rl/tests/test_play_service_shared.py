@@ -1,3 +1,5 @@
+"""Test play service shared behavior."""
+
 from __future__ import annotations
 
 import pytest
@@ -9,10 +11,12 @@ for module_name in ("shared_match_runner", "match_runner", "scrum_game_env"):
 from services import play_service
 
 
+# Handle setup function.
 def setup_function():
     play_service.PLAY_SESSIONS.clear()
 
 
+# Verify create shared session rejects invalid seat counts.
 def test_create_shared_session_rejects_invalid_seat_counts():
     with pytest.raises(ValueError, match="At least one seat"):
         play_service.create_session({"mode": "shared", "game_config_id": "default_game_config", "seats": []})
@@ -27,6 +31,7 @@ def test_create_shared_session_rejects_invalid_seat_counts():
         )
 
 
+# Verify create shared session rejects multiple humans.
 def test_create_shared_session_rejects_multiple_humans():
     with pytest.raises(ValueError, match="at most one human"):
         play_service.create_session(
@@ -38,6 +43,7 @@ def test_create_shared_session_rejects_multiple_humans():
         )
 
 
+# Verify create shared session rejects model without checkpoint.
 def test_create_shared_session_rejects_model_without_checkpoint():
     with pytest.raises(ValueError, match="requires checkpoint_id"):
         play_service.create_session(
@@ -49,6 +55,7 @@ def test_create_shared_session_rejects_model_without_checkpoint():
         )
 
 
+# Verify create and advance shared ai session.
 def test_create_and_advance_shared_ai_session():
     session = play_service.create_session(
         {
@@ -70,6 +77,7 @@ def test_create_and_advance_shared_ai_session():
     assert len(advanced["turn_log"]) == 2
 
 
+# Verify legacy human action payload is supported.
 def test_legacy_human_action_payload_is_supported():
     session = play_service.create_session(
         {

@@ -1,3 +1,5 @@
+/** Implement autopilot user-interface behavior. */
+
 import { state } from '../../state/store.js';
 import { $, showMessage, runLabelFromPath } from '../../utils/helpers.js';
 import { escapeHtml, formatNumber } from '../../utils/formatting.js';
@@ -5,6 +7,7 @@ import { apiRequest, isGuest } from '../../api/client.js';
 
 const _GUEST_ATTR = 'disabled title="Guests cannot perform this action"';
 
+/** Handle action tag. */
 export function actionTag(action) {
   const tones = {
     continue: "good",
@@ -16,6 +19,7 @@ export function actionTag(action) {
   return `<span class="tag ${tones[action] || ""}">${escapeHtml(action || "-")}</span>`;
 }
 
+/** Fetch autopilot data. */
 export async function fetchAutopilotData(runId) {
   if (!runId) return;
   try {
@@ -33,6 +37,7 @@ export async function fetchAutopilotData(runId) {
   renderAutopilotPanel();
 }
 
+/** Render autopilot panel. */
 export function renderAutopilotPanel() {
   const settings = state.autopilotSettings;
   const history = state.autopilotHistory;
@@ -213,6 +218,7 @@ export function renderAutopilotPanel() {
   }).join("");
 }
 
+/** Render autopilot training panel. */
 export function renderAutopilotTrainingPanel() {
   const card = $("autopilotTrainingCard");
   const label = $("autopilotTrainingStatusLabel");
@@ -322,6 +328,7 @@ export function renderAutopilotTrainingPanel() {
   }
 }
 
+/** Refresh autopilot settings. */
 export async function refreshAutopilotSettings() {
   try {
     const [settings, stopStatus] = await Promise.all([

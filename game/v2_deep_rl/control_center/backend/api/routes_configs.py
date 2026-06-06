@@ -1,3 +1,20 @@
+"""
+Configuration Catalog Route Controller.
+
+This module exposes endpoints to manage game rule configurations and training hyperparameter presets.
+It allows listing, loading, saving, validating, and deleting both default/bundled configurations
+and custom, user-defined configuration files.
+
+Key Endpoints:
+  - `GET /configs/game` / `GET /configs/training`: Lists all available configuration catalog items.
+  - `POST /configs/game` / `POST /configs/training`: Persists config files (requires admin privileges).
+  - `POST /configs/game/validate` / `POST /configs/training/validate`: Validates syntax and parses derived properties (like signatures).
+  - `DELETE /configs/game/{id}` / `DELETE /configs/training/{id}`: Deletes custom configs (requires admin privileges).
+
+Connections:
+  - Imports: Catalog service handlers from `services.catalog_service`.
+"""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException

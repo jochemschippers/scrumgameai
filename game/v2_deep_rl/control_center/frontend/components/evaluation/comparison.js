@@ -1,9 +1,12 @@
+/** Implement comparison user-interface behavior. */
+
 import { state } from '../../state/store.js';
 import { $, showMessage, downloadJsonFile, downloadCsvFile, parseSeedList, buildOptions } from '../../utils/helpers.js';
 import { escapeHtml, sidebarCheckpointOptions } from '../../utils/formatting.js';
 import { renderBarChart, renderTable } from '../../utils/charts.js';
 import { apiRequest } from '../../api/client.js';
 
+/** Render checkpoint comparison. */
 export function renderCheckpointComparison() {
   const host = $("checkpointCompareResult");
   const metricsHost = $("comparisonMetrics");
@@ -117,6 +120,7 @@ export function renderCheckpointComparison() {
   );
 }
 
+/** Run checkpoint comparison. */
 export async function runCheckpointComparison(event) {
   event.preventDefault();
   const rightCheckpointId = $("compareCheckpointSelect").value;
@@ -136,6 +140,7 @@ export async function runCheckpointComparison(event) {
   renderCheckpointComparison();
 }
 
+/** Export comparison json. */
 export function exportComparisonJson() {
   if (!state.comparisonEvaluation) {
     showMessage("Run a checkpoint comparison first.", "error");
@@ -145,6 +150,7 @@ export function exportComparisonJson() {
   showMessage("Exported checkpoint comparison JSON.");
 }
 
+/** Export comparison csv. */
 export function exportComparisonCsv() {
   if (!state.comparisonEvaluation) {
     showMessage("Run a checkpoint comparison first.", "error");

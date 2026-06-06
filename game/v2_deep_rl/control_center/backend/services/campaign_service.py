@@ -1,3 +1,21 @@
+"""
+Robustness Campaign Coordinator Service.
+
+This service manages the lifecycle of Robustness Evaluation Campaigns.
+When a campaign is created, the system systematically generates and schedules new training/evaluation jobs,
+applying targeted rule variations (using `campaign_variation_generator`) to the current checkpoint policy.
+It tracks which variations have completed, logs history summaries, and handles manual campaign stops and escalations.
+
+Key Responsibilities:
+  - State Persistence: Reads and writes campaign progress JSON records under `artifacts/campaigns/`.
+  - Next-Variation Generation: Runs generation logic to mutate game rules and enqueues a new training job.
+  - Lifecycle Events: Triggers advance steps when associated autopilot runs complete or stop.
+
+Connections:
+  - Imports: `enqueue_train_job` from `jobs.queue_manager`, generator helper from `services.campaign_variation_generator`.
+  - Exported functions: `create_campaign`, `get_campaign`, `list_campaigns`, `stop_campaign`, `escalate_campaign`, `on_run_stopped`.
+"""
+
 from __future__ import annotations
 
 import json
@@ -14,14 +32,17 @@ CAMPAIGNS_DIR = ARTIFACTS_DIR / "campaigns"
 
 
 def _ensure_dir() -> None:
+    """Ensure that the local campaigns directory structure exists on disk."""
     CAMPAIGNS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _campaign_path(campaign_id: str) -> Path:
+    """Resolve and return the absolute file path for a specific campaign JSON record."""
     return CAMPAIGNS_DIR / f"{campaign_id}.json"
 
 
 def _read_campaign(campaign_id: str) -> dict:
+    """Load and parse the JSON record file for a specific campaign ID."""
     path = _campaign_path(campaign_id)
     if not path.exists():
         raise FileNotFoundError(f"Campaign not found: {campaign_id}")
@@ -29,16 +50,19 @@ def _read_campaign(campaign_id: str) -> dict:
 
 
 def _write_campaign(data: dict) -> None:
+    """Serialize and save campaign metadata and history record to disk."""
     _ensure_dir()
     _campaign_path(data["campaign_id"]).write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
 def _make_campaign_id() -> str:
+    """Generate a unique timestamped campaign identifier."""
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M")
     return f"campaign_{ts}_{uuid.uuid4().hex[:6]}"
 
 
 def create_campaign(base_run_id: str, max_variations: int = 5) -> str:
+    """Create campaign state around an existing run and return its identifier."""
     _ensure_dir()
     campaign_id = _make_campaign_id()
     _write_campaign(
@@ -57,10 +81,12 @@ def create_campaign(base_run_id: str, max_variations: int = 5) -> str:
 
 
 def get_campaign(campaign_id: str) -> dict:
+    """Retrieve campaign state payload by its identifier."""
     return _read_campaign(campaign_id)
 
 
 def list_campaigns() -> list[dict]:
+    """Scan the catalog directory and list all campaign JSON records."""
     _ensure_dir()
     campaigns = []
     for path in sorted(CAMPAIGNS_DIR.glob("campaign_*.json")):
@@ -72,12 +98,14 @@ def list_campaigns() -> list[dict]:
 
 
 def stop_campaign(campaign_id: str) -> None:
+    """Halt a running campaign and mark its database status flag as stopped."""
     data = _read_campaign(campaign_id)
     data["status"] = "stopped"
     _write_campaign(data)
 
 
 def get_campaign_for_run(run_id: str) -> dict | None:
+    """Search active campaigns to locate one containing the specified run ID."""
     for campaign in list_campaigns():
         if campaign.get("status") != "running":
             continue
@@ -87,10 +115,12 @@ def get_campaign_for_run(run_id: str) -> dict | None:
 
 
 def _next_run_id(campaign: dict) -> str:
+    """Formulate the identifier string for the next variation run inside the campaign."""
     return f"{campaign['base_run_id']}_cv{campaign['variations_completed'] + 1}"
 
 
 def _save_varied_config(campaign_id: str, variation_index: int, config_dict: dict) -> Path:
+    """Save the mutated game rules config for the current campaign variation index."""
     _ensure_dir()
     path = CAMPAIGNS_DIR / f"{campaign_id}_game_config_v{variation_index}.json"
     path.write_text(json.dumps(config_dict, indent=2), encoding="utf-8")
@@ -98,6 +128,7 @@ def _save_varied_config(campaign_id: str, variation_index: int, config_dict: dic
 
 
 def on_run_stopped(run_id: str, metrics: dict) -> None:
+    """Advance the campaign associated with a run that autopilot has stopped."""
     campaign = get_campaign_for_run(run_id)
     if campaign is None:
         return
@@ -105,6 +136,7 @@ def on_run_stopped(run_id: str, metrics: dict) -> None:
 
 
 def _generate_and_queue_next(campaign: dict, from_run_id: str, metrics: dict, escalate: bool) -> None:
+    """Generate, persist, and queue the next variation, then update state."""
     cid = campaign["campaign_id"]
     variation_index = campaign["variations_completed"] + 1
     run_dir = RUNS_DIR / from_run_id
@@ -159,6 +191,7 @@ def _generate_and_queue_next(campaign: dict, from_run_id: str, metrics: dict, es
 
 
 def escalate_campaign(campaign_id: str) -> None:
+    """Trigger campaign escalation, force-injecting a high-difficulty rules variation."""
     campaign = _read_campaign(campaign_id)
     last_run_id = campaign["current_run_id"]
     metrics = {

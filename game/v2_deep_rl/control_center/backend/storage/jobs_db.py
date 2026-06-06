@@ -1,3 +1,19 @@
+"""
+Control Center Relational Database Storage.
+
+This module manages the SQLite schema initialization and CRUD helper queries for the Control Center database (`control_center.db`).
+It handles table creation, user password hashing/salting using HMAC PBKDF2-SHA256, session authentication checks,
+and background job queue logging (storing parameters, execution logs, run dirs, result paths, and worker PIDs).
+
+Database Schema:
+  - `users` Table: Stores secure credentials (username, salt/hash, role: admin/guest, activity flag).
+  - `jobs` Table: Tracks long-running training/evaluation background task states (queued, running, completed, failed, stopped).
+
+Connections:
+  - Imports: System path settings from `services.app_paths`.
+  - Used by: Route guards (`dependencies.py`), auth routers (`routes_auth.py`), and job scheduling managers (`queue_manager.py`).
+"""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -16,16 +32,19 @@ PASSWORD_HASH_ITERATIONS = 260_000
 
 
 def utc_now_iso() -> str:
+    """Return the current UTC timestamp formatted as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat()
 
 
 def get_connection() -> sqlite3.Connection:
+    """Open and return a new SQLite database connection with row factory configured."""
     connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
     return connection
 
 
 def init_db() -> None:
+    """Initialize database tables and seed default users if not already present."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with get_connection() as connection:
         connection.execute(
@@ -79,6 +98,7 @@ def init_db() -> None:
 
 
 def hash_password(password: str) -> str:
+    """Hash password using PBKDF2-HMAC-SHA256 with a unique salt."""
     salt = secrets.token_hex(16)
     digest = hashlib.pbkdf2_hmac(
         "sha256",
@@ -90,6 +110,7 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, password_hash: str) -> bool:
+    """Verify password against a PBKDF2-HMAC-SHA256 hash in a constant-time comparison."""
     try:
         algorithm, iterations_raw, salt, expected = str(password_hash).split("$", 3)
         iterations = int(iterations_raw)
@@ -107,6 +128,7 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 
 def _seed_user(connection, username, password, role):
+    """Insert a seed user if the username does not exist in the database."""
     existing = connection.execute(
         "SELECT id FROM users WHERE username = ?", (username,)
     ).fetchone()
@@ -120,12 +142,14 @@ def _seed_user(connection, username, password, role):
 
 
 def get_user_by_username(username: str):
+    """Retrieve user details dictionary by username."""
     with get_connection() as conn:
         row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
     return dict(row) if row else None
 
 
 def authenticate_user(username: str, password: str):
+    """Authenticate credentials and return user dict if valid and active."""
     user = get_user_by_username(username)
     if not user or not int(user.get("is_active", 0)):
         return None
@@ -135,6 +159,7 @@ def authenticate_user(username: str, password: str):
 
 
 def list_users():
+    """Retrieve all users sorted by ID."""
     with get_connection() as conn:
         rows = conn.execute(
             "SELECT id, username, role, is_active, created_at, updated_at FROM users ORDER BY id ASC"
@@ -143,6 +168,7 @@ def list_users():
 
 
 def _row_to_job(row):
+    """Parse sqlite3.Row and deserialize job payload JSON."""
     if row is None:
         return None
     payload = dict(row)
@@ -151,6 +177,7 @@ def _row_to_job(row):
 
 
 def create_job(job_type, payload, stdout_log_path="", run_dir="", result_path=""):
+    """Create a new job in the database with status 'queued'."""
     with get_connection() as conn:
         cursor = conn.execute(
             "INSERT INTO jobs (job_type, status, payload_json, created_at, stdout_log_path, run_dir, result_path, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -161,18 +188,21 @@ def create_job(job_type, payload, stdout_log_path="", run_dir="", result_path=""
 
 
 def list_jobs():
+    """List all database jobs sorted from newest to oldest."""
     with get_connection() as conn:
         rows = conn.execute("SELECT * FROM jobs ORDER BY id DESC").fetchall()
     return [_row_to_job(r) for r in rows]
 
 
 def get_job(job_id):
+    """Retrieve a single job record by its ID."""
     with get_connection() as conn:
         row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
     return _row_to_job(row)
 
 
 def delete_job(job_id):
+    """Delete a job record by its ID and return True if successful."""
     with get_connection() as conn:
         cursor = conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
         conn.commit()
@@ -180,6 +210,7 @@ def delete_job(job_id):
 
 
 def update_job(job_id, **fields):
+    """Update job fields in database and return the updated job record."""
     if not fields:
         return get_job(job_id)
     assignments = []

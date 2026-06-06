@@ -1,3 +1,21 @@
+"""
+Model Checkpoints Catalog and Compatibility Evaluator.
+
+This service scans all saved model checkpoint paths across active runs, local reference directories,
+and legacy folders. It parses sidecar JSON descriptors to obtain model parameters (state size, action space)
+without loading heavy PyTorch state dictionaries directly (preventing RAM bottlenecks on the main API process).
+It also evaluates whether a model checkpoint is compatible for resuming or fine-tuning with a target game config.
+
+Key Features:
+  - Cache Management: Caches checkpoint listings with an expiration time to optimize disk IO.
+  - Compatibility Check: Compares checkpoint `state_dim` and `num_actions` with the target network architecture.
+  - Strict vs. Soft Match: Checks if the rule signature matches exactly (strict resume) or if only shape matches (fine-tuning).
+
+Connections:
+  - Imports: Directory paths from `services.app_paths`, catalog operations from `services.checkpoints.catalog`.
+  - Exported functions: `list_checkpoints`, `resolve_checkpoint_path`, and `get_checkpoint_compatibility`. Called by `api/routes_checkpoints.py`.
+"""
+
 from __future__ import annotations
 
 import time
@@ -35,12 +53,14 @@ _CHECKPOINT_CACHE_TTL: float = 60.0
 
 
 def _invalidate_checkpoint_cache() -> None:
+    """Invalidate the cached list of checkpoints."""
     global _checkpoint_cache, _checkpoint_cache_time
     _checkpoint_cache = None
     _checkpoint_cache_time = 0.0
 
 
 def _sync_checkpoint_catalog_paths() -> None:
+    """Synchronize environment-dependent paths down to the base checkpoints catalog module."""
     checkpoint_catalog.CURRENT_CHECKPOINT_DIR = CURRENT_CHECKPOINT_DIR
     checkpoint_catalog.DROPLET_RUNS_DIR = DROPLET_RUNS_DIR
     checkpoint_catalog.PLAYABLE_MODEL_V1_DIR = PLAYABLE_MODEL_V1_DIR
@@ -55,6 +75,7 @@ def _sync_checkpoint_catalog_paths() -> None:
 
 
 def list_checkpoints() -> list[dict]:
+    """Return checkpoint metadata, avoiding model loads whenever possible."""
     global _checkpoint_cache, _checkpoint_cache_time, _checkpoint_cache_run_count
     _sync_checkpoint_catalog_paths()
     now = time.monotonic()
@@ -200,6 +221,7 @@ def list_checkpoints() -> list[dict]:
 
 
 def get_checkpoint_by_id(checkpoint_id: str) -> dict | None:
+    """Retrieve details of a single checkpoint from the catalog by its ID."""
     for item in list_checkpoints():
         if item["id"] == checkpoint_id:
             return item
@@ -207,6 +229,7 @@ def get_checkpoint_by_id(checkpoint_id: str) -> dict | None:
 
 
 def resolve_checkpoint_path(checkpoint_id: str) -> Path:
+    """Resolve a catalog ID to a repository-contained checkpoint file."""
     checkpoint = get_checkpoint_by_id(checkpoint_id)
     if checkpoint is None:
         raise ValueError(f"Checkpoint `{checkpoint_id}` was not found.")
@@ -224,6 +247,7 @@ def resolve_checkpoint_path(checkpoint_id: str) -> Path:
 
 
 def get_checkpoint_compatibility(checkpoint_id: str, game_config_id: str) -> dict:
+    """Compare checkpoint metadata and network shape with a target config."""
     checkpoint = get_checkpoint_by_id(checkpoint_id)
     if checkpoint is None:
         raise ValueError(f"Checkpoint `{checkpoint_id}` was not found.")

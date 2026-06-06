@@ -1,15 +1,20 @@
+/** Implement dice user-interface behavior. */
+
 import { $ } from '../../utils/helpers.js';
 import { escapeHtml, formatCurrency } from '../../utils/formatting.js';
 import { latestPlayTurn, productNameById } from './session.js';
 
+/** Show play dice overlay. */
 export function showPlayDiceOverlay() {
   $("playDiceOverlay")?.classList.remove("hidden");
 }
 
+/** Hide play dice overlay. */
 export function hidePlayDiceOverlay() {
   $("playDiceOverlay")?.classList.add("hidden");
 }
 
+/** Render play dice preview. */
 export function renderPlayDicePreview(humanSeat, actionId) {
   const host = $("playDiceCard");
   if (!host || !humanSeat) return;
@@ -23,6 +28,7 @@ export function renderPlayDicePreview(humanSeat, actionId) {
   `;
 }
 
+/** Render play dice zone. */
 export function renderPlayDiceZone() {
   const host = $("playDiceCard");
   if (!host) return;

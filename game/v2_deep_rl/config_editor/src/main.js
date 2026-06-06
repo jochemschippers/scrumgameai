@@ -1,3 +1,15 @@
+/**
+ * Main Entry Point for the modular Configuration Editor.
+ * 
+ * This module coordinates the startup boot sequence and attaches global event listeners
+ * to the DOM. It wires user actions (imports, exports, updates) to the shared state
+ * and triggers UI re-renders.
+ * 
+ * Connections:
+ *   - Entry Point: Script tag in `config_editor/index.html` (type="module")
+ *   - Imports: `state.js`, `utils.js`, `board.js`, `form.js`, `render.js`, `actions.js`.
+ */
+
 import { state } from './state.js';
 import { $ } from './utils.js';
 import { syncShapeFromInputs, rebuildRefinementRulesFromProducts } from './board.js';
@@ -5,6 +17,7 @@ import { readFormIntoState } from './form.js';
 import { renderAll, updatePreview } from './render.js';
 import { downloadJson, copyJson, importJsonFile, resetDefaults } from './actions.js';
 
+/** Attach global and button-specific DOM event listeners. */
 function attachListeners() {
   document.addEventListener("input", (event) => {
     if (event.target.matches("input, textarea, select")) {

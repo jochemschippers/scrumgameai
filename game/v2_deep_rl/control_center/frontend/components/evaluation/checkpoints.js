@@ -1,3 +1,5 @@
+/** Implement checkpoints user-interface behavior. */
+
 import { state } from '../../state/store.js';
 import { $, showMessage, downloadCheckpointFile } from '../../utils/helpers.js';
 import { escapeHtml, checkpointUiLabel, checkpointCompatibilityTone } from '../../utils/formatting.js';
@@ -5,6 +7,7 @@ import { apiRequest } from '../../api/client.js';
 import { renderContextCard, updateSummaryPills } from '../navigation.js';
 import { renderTrainingSelectionSummary, renderTrainingPreflight } from '../training/jobs.js';
 
+/** Render compatibility. */
 export function renderCompatibility() {
   const container = $("compatibilityCard");
   if (!state.compatibility) {
@@ -24,12 +27,14 @@ export function renderCompatibility() {
   `;
 }
 
+/** Clear compatibility result. */
 export function clearCompatibilityResult() {
   state.compatibility = null;
   renderCompatibility();
   renderContextCard();
 }
 
+/** Render checkpoint detail. */
 export function renderCheckpointDetail() {
   const container = $("checkpointDetailCard");
   const checkpoint = state.checkpoints.find((item) => item.id === state.activeCheckpointId);
@@ -74,6 +79,7 @@ export function renderCheckpointDetail() {
   });
 }
 
+/** Refresh checkpoints. */
 export async function refreshCheckpoints() {
   try {
     const checkpoints = await apiRequest("/checkpoints", {}, 120000);
@@ -88,6 +94,7 @@ export async function refreshCheckpoints() {
   }
 }
 
+/** Run compatibility. */
 export async function runCompatibility() {
   if (!state.activeCheckpointId || !state.activeGameConfigId) {
     showMessage("Select both a game config and a checkpoint first.", "error");

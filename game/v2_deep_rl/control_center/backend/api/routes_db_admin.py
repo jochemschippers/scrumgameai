@@ -1,3 +1,19 @@
+"""
+Database Admin Route Controller.
+
+This module provides a read-only, HTML-based database browser for inspecting SQLite tables
+contained in `control_center.db`. It uses Basic HTTP Auth to verify administrative credentials
+and renders schema layouts and tabular row content for debug purposes.
+
+Key Endpoints:
+  - `GET /admin/db`: Renders the index panel listing all SQLite tables.
+  - `GET /admin/db/tables/{table}`: Paginated view displaying the selected table schema and rows.
+
+Connections:
+  - Imports: DB credentials checking via `authenticate_user` from `storage.jobs_db`.
+  - Guards: `require_db_admin` enforces Basic authentication.
+"""
+
 from __future__ import annotations
 
 import html
@@ -22,14 +38,17 @@ PAGE_SIZE_MAX = 500
 
 
 def _admin_password() -> str:
+    """Retrieve the db admin password from the environment."""
     return os.environ.get("CONTROL_CENTER_DB_PASSWORD") or os.environ.get("DB_ADMIN_PASSWORD") or ""
 
 
 def _admin_username() -> str:
+    """Retrieve the db admin username from the environment."""
     return os.environ.get("CONTROL_CENTER_DB_USER") or "admin"
 
 
 def require_db_admin(credentials: HTTPBasicCredentials = Depends(security)) -> str:
+    """Require database administrator credentials via Basic Auth."""
     user = authenticate_user(credentials.username, credentials.password)
     if user and user.get("role") in {"admin", "guest"}:
         return str(user["username"])
@@ -48,17 +67,20 @@ def require_db_admin(credentials: HTTPBasicCredentials = Depends(security)) -> s
 
 
 def _connect() -> sqlite3.Connection:
+    """Create a read-only sqlite3 connection to the control center database."""
     connection = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
     connection.row_factory = sqlite3.Row
     return connection
 
 
 def _database_exists() -> None:
+    """Ensure the control center database file exists on disk."""
     if not DB_PATH.exists():
         raise HTTPException(status_code=404, detail=f"Database file not found: {DB_PATH}")
 
 
 def _tables(connection: sqlite3.Connection) -> list[str]:
+    """List all user-defined table names in the database."""
     rows = connection.execute(
         """
         SELECT name
@@ -71,12 +93,14 @@ def _tables(connection: sqlite3.Connection) -> list[str]:
 
 
 def _require_table(connection: sqlite3.Connection, table: str) -> str:
+    """Verify that a table exists, raising 404 if missing."""
     if table not in _tables(connection):
         raise HTTPException(status_code=404, detail=f"Table not found: {table}")
     return table
 
 
 def _render_page(title: str, body: str) -> HTMLResponse:
+    """Render a basic HTML dashboard page with responsive styling."""
     safe_title = html.escape(title)
     return HTMLResponse(
         f"""<!doctype html>
@@ -125,6 +149,7 @@ def _render_page(title: str, body: str) -> HTMLResponse:
 
 @router.get("", response_class=HTMLResponse)
 def db_home(_: str = Depends(require_db_admin)):
+    """Render the main database schema summary page."""
     _database_exists()
     with _connect() as connection:
         tables = _tables(connection)
@@ -148,6 +173,8 @@ def db_table(
     limit: int = Query(100, ge=1, le=PAGE_SIZE_MAX),
     offset: int = Query(0, ge=0),
 ):
+    """Render a paginated HTML data browser table view for a specific SQLite database table."""
+
     _database_exists()
     with _connect() as connection:
         table = _require_table(connection, table)

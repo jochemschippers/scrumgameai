@@ -1,3 +1,5 @@
+/** Implement defaults behavior for the constants package. */
+
 export const AUTH_TOKEN_KEY = "cc_auth_token";
 export const AUTH_ROLE_KEY = "cc_auth_role";
 

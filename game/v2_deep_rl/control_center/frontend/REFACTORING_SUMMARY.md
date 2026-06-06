@@ -124,9 +124,10 @@ main.js (entry point - imports all modules)
 5. **Explicit Exports** - Only exported functions are used by other modules
 6. **Clear Naming** - Modules named after their primary domain (auth, connection, etc.)
 
-## Migration Path
+## Migration Status
 
-The old `app.js` file is still present but is no longer referenced by `index.html`. To fully complete the refactoring, `app.js` can be deleted after confirming all functionality works through the module structure.
+The old `app.js` file is retained as an inactive migration reference.
+`index.html` loads only the modular `main.js` entry point.
 
 ## Implementation Notes
 

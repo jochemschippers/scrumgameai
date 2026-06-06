@@ -1,7 +1,23 @@
+/**
+ * Configuration Editor Renderer.
+ * 
+ * This module is responsible for updating the DOM inputs, creating matrix tables,
+ * displaying list configurations (like dice rules, product names, refinement values, and incident cards),
+ * and updating the final live JSON preview shown on the editor panel.
+ * 
+ * Connections:
+ *   - Imports: `state` from `state.js`, utils functions, and `canonicalConfig` from `form.js`.
+ *   - Exported functions: `renderAll` and `updatePreview` are called by `main.js` and other modules
+ *     whenever a change in inputs, size, uploads, or state resets occurs.
+ */
+
 import { state } from './state.js';
 import { $, escapeHtml, slugifyFileName } from './utils.js';
 import { canonicalConfig } from './form.js';
 
+/**
+ * Populates top-level game rule inputs (like money, loans, scrum counts) with values from the state.
+ */
 export function renderMetadata() {
   $("configNameInput").value = state.config_name;
   $("schemaVersionInput").value = state.schema_version;
@@ -23,6 +39,9 @@ export function renderMetadata() {
   $("dailyScrumTargetInput").value = state.daily_scrum_target;
 }
 
+/**
+ * Renders the product names grid, spawning a labeled text input for each product.
+ */
 export function renderProductNames() {
   const host = $("productNamesGrid");
   host.innerHTML = "";
@@ -38,6 +57,10 @@ export function renderProductNames() {
   });
 }
 
+/**
+ * Builds and injects an interactive HTML table representing the board matrix.
+ * Each cell includes inputs for the Sprint Value (ring value) and the Required Features.
+ */
 export function renderBoardMatrix() {
   const host = $("boardMatrixContainer");
   const sprintCount = state.board_ring_values[0]?.length || 1;
@@ -73,6 +96,9 @@ export function renderBoardMatrix() {
   host.innerHTML = html;
 }
 
+/**
+ * Renders list items representing dice rolling rules for different feature thresholds.
+ */
 export function renderDiceRules() {
   const host = $("diceRulesList");
   host.innerHTML = "";
@@ -96,6 +122,9 @@ export function renderDiceRules() {
   });
 }
 
+/**
+ * Renders the inputs for product refinement rules (e.g. increase/decrease rolls on Daily Scrum).
+ */
 export function renderRefinementRules() {
   $("refinementActiveInput").checked = Boolean(state.refinement.active);
   $("refinementModelInput").value = state.refinement.model_name;
@@ -121,6 +150,9 @@ export function renderRefinementRules() {
   });
 }
 
+/**
+ * Renders the incident card list editor, allowing customization of card IDs, names, effects, targets, weights, etc.
+ */
 export function renderIncidentCards() {
   $("incidentActiveInput").checked = Boolean(state.incident.active);
   $("playerSpecificIncidentsInput").checked = Boolean(state.incident.allow_player_specific_incidents);
@@ -158,6 +190,10 @@ export function renderIncidentCards() {
   });
 }
 
+/**
+ * Updates the serialized JSON text preview panel and refreshes the summary stats panel.
+ * Dynamically computes a safe filename suggestion if the name isn't customized yet.
+ */
 export function updatePreview() {
   const config = canonicalConfig();
   $("jsonPreview").textContent = JSON.stringify(config, null, 2);
@@ -170,6 +206,9 @@ export function updatePreview() {
   }
 }
 
+/**
+ * Renders all sections of the configuration editor interface.
+ */
 export function renderAll() {
   renderMetadata();
   renderProductNames();

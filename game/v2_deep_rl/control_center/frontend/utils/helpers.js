@@ -1,3 +1,5 @@
+/** Implement helpers behavior for the utils package. */
+
 import { state } from '../state/store.js';
 import { escapeHtml } from './formatting.js';
 
@@ -5,6 +7,7 @@ export function $(id) {
   return document.getElementById(id);
 }
 
+/** Show message. */
 export function showMessage(text, type = "success") {
   const box = $("globalMessage");
   if (state.messageTimer) {
@@ -22,6 +25,7 @@ export function showMessage(text, type = "success") {
   }
 }
 
+/** Clear message. */
 export function clearMessage() {
   const box = $("globalMessage");
   if (state.messageTimer) {
@@ -32,23 +36,28 @@ export function clearMessage() {
   box.className = "message hidden";
 }
 
+/** Handle clone. */
 export function clone(value) {
   return structuredClone(value);
 }
 
+/** Parse json editor. */
 export function parseJsonEditor(id) {
   return JSON.parse($(id).value);
 }
 
+/** Normalize product key. */
 export function normalizeProductKey(value) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+/** Handle number value. */
 export function numberValue(inputId, fallback = 0) {
   const value = Number($(inputId).value);
   return Number.isFinite(value) ? value : fallback;
 }
 
+/** Parse number list. */
 export function parseNumberList(value) {
   return String(value || "")
     .split(",")
@@ -56,6 +65,7 @@ export function parseNumberList(value) {
     .filter((item) => Number.isFinite(item));
 }
 
+/** Parse seed list. */
 export function parseSeedList(value) {
   return String(value || "")
     .split(",")
@@ -63,44 +73,54 @@ export function parseSeedList(value) {
     .filter((item) => Number.isFinite(item));
 }
 
+/** Handle selected game config. */
 export function selectedGameConfig() {
   return state.gameConfigs.find((item) => item.id === state.activeGameConfigId) || null;
 }
 
+/** Handle selected training config. */
 export function selectedTrainingConfig() {
   return state.trainingConfigs.find((item) => item.id === state.activeTrainingConfigId) || null;
 }
 
+/** Handle selected checkpoint. */
 export function selectedCheckpoint() {
   return state.checkpoints.find((item) => item.id === state.activeCheckpointId) || null;
 }
 
+/** Handle checkpoint by path. */
 export function checkpointByPath(pathValue) {
   return state.checkpoints.find((item) => item.path === pathValue) || null;
 }
 
+/** Handle selected progress job. */
 export function selectedProgressJob() {
   return state.jobs.find((item) => item.id === state.activeProgressJobId) || null;
 }
 
+/** Handle selected progress run. */
 export function selectedProgressRun() {
   return state.runs.find((item) => item.id === state.activeProgressRunId) || null;
 }
 
+/** Handle job for run id. */
 export function jobForRunId(runId) {
   return state.jobs.find((item) => runLabelFromPath(item.run_dir) === runId) || null;
 }
 
+/** Handle current training mode. */
 export function currentTrainingMode() {
   return $("trainModeSelect")?.value || "train";
 }
 
+/** Run label from path. */
 export function runLabelFromPath(pathValue) {
   if (!pathValue) return "-";
   const normalized = String(pathValue).replaceAll("\\", "/").split("/");
   return normalized[normalized.length - 1] || pathValue;
 }
 
+/** Download json file. */
 export function downloadJsonFile(fileName, payload) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -111,7 +131,9 @@ export function downloadJsonFile(fileName, payload) {
   URL.revokeObjectURL(url);
 }
 
+/** Download csv file. */
 export function downloadCsvFile(fileName, headers, rows) {
+  /** Handle escape. */
   const escape = (value) => {
     const text = String(value ?? "");
     return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
@@ -128,6 +150,7 @@ export function downloadCsvFile(fileName, headers, rows) {
   URL.revokeObjectURL(url);
 }
 
+/** Download checkpoint file. */
 export function downloadCheckpointFile(checkpoint) {
   if (!checkpoint?.id) {
     throw new Error("Select a brain before downloading.");
@@ -138,6 +161,7 @@ export function downloadCheckpointFile(checkpoint) {
   anchor.click();
 }
 
+/** Build options. */
 export function buildOptions(selectId, items, valueKey = "id", labelKey = "label", emptyLabel = "None") {
   const select = $(selectId);
   const currentValue = select.value;

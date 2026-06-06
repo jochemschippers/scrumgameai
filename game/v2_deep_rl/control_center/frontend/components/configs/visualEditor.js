@@ -1,15 +1,19 @@
+/** Implement visual editor user-interface behavior. */
+
 import { state } from '../../state/store.js';
 import { $, clone, numberValue, normalizeProductKey, parseNumberList, parseJsonEditor } from '../../utils/helpers.js';
 import { formatJson, escapeHtml } from '../../utils/formatting.js';
 import { DEFAULT_GAME_CONFIG } from '../../constants/defaults.js';
 import { isGuest } from '../../api/client.js';
 
+/** Handle ensure visual game config. */
 export function ensureVisualGameConfig() {
   if (!state.visualGameConfig) {
     state.visualGameConfig = clone(DEFAULT_GAME_CONFIG);
   }
 }
 
+/** Handle rebuild visual board. */
 export function rebuildVisualBoard(productCount, sprintCount) {
   const config = state.visualGameConfig;
   const nextRingValues = [];
@@ -28,6 +32,7 @@ export function rebuildVisualBoard(productCount, sprintCount) {
   config.board_features = nextFeatures;
 }
 
+/** Handle rebuild visual product names. */
 export function rebuildVisualProductNames(productCount) {
   const config = state.visualGameConfig;
   const nextNames = [];
@@ -37,6 +42,7 @@ export function rebuildVisualProductNames(productCount) {
   config.product_names = nextNames;
 }
 
+/** Handle rebuild visual refinement rules. */
 export function rebuildVisualRefinementRules() {
   state.visualGameConfig.refinement.product_rules = state.visualGameConfig.product_names.map((name) => ({
     product_key: normalizeProductKey(name),
@@ -45,6 +51,7 @@ export function rebuildVisualRefinementRules() {
   }));
 }
 
+/** Handle ensure visual shape consistency. */
 export function ensureVisualShapeConsistency() {
   ensureVisualGameConfig();
   const config = state.visualGameConfig;
@@ -57,6 +64,7 @@ export function ensureVisualShapeConsistency() {
   }
 }
 
+/** Synchronize visual shape from inputs. */
 export function syncVisualShapeFromInputs() {
   const productCount = Math.max(1, numberValue("productsCountInput", state.visualGameConfig.product_names.length));
   const sprintCount = Math.max(1, numberValue("sprintsPerProductInput", state.visualGameConfig.board_ring_values[0]?.length || 1));
@@ -67,6 +75,7 @@ export function syncVisualShapeFromInputs() {
   }
 }
 
+/** Read visual editor into state. */
 export function readVisualEditorIntoState() {
   ensureVisualGameConfig();
   const config = state.visualGameConfig;
@@ -148,6 +157,7 @@ export function readVisualEditorIntoState() {
   return clone(config);
 }
 
+/** Render visual metadata. */
 export function renderVisualMetadata() {
   const config = state.visualGameConfig;
   $("configNameInput").value = config.config_name;
@@ -170,6 +180,7 @@ export function renderVisualMetadata() {
   $("dailyScrumTargetInput").value = config.daily_scrum_target;
 }
 
+/** Render visual product names. */
 export function renderVisualProductNames() {
   const host = $("productNamesGrid");
   host.innerHTML = "";
@@ -184,6 +195,7 @@ export function renderVisualProductNames() {
   });
 }
 
+/** Render visual board matrix. */
 export function renderVisualBoardMatrix() {
   const host = $("boardMatrixContainer");
   const sprintCount = state.visualGameConfig.board_ring_values[0]?.length || 1;
@@ -216,6 +228,7 @@ export function renderVisualBoardMatrix() {
   host.innerHTML = html;
 }
 
+/** Render visual dice rules. */
 export function renderVisualDiceRules() {
   const host = $("diceRulesList");
   host.innerHTML = "";
@@ -238,6 +251,7 @@ export function renderVisualDiceRules() {
   });
 }
 
+/** Render visual refinement rules. */
 export function renderVisualRefinementRules() {
   const config = state.visualGameConfig;
   $("refinementActiveInput").checked = Boolean(config.refinement.active);
@@ -262,6 +276,7 @@ export function renderVisualRefinementRules() {
   });
 }
 
+/** Render visual incident cards. */
 export function renderVisualIncidentCards() {
   const config = state.visualGameConfig;
   $("incidentActiveInput").checked = Boolean(config.incident.active);
@@ -298,6 +313,7 @@ export function renderVisualIncidentCards() {
   });
 }
 
+/** Synchronize game json editor from visual. */
 export function syncGameJsonEditorFromVisual() {
   try {
     const canonical = readVisualEditorIntoState();
@@ -317,6 +333,7 @@ export function syncGameJsonEditorFromVisual() {
   }
 }
 
+/** Render visual editor. */
 export function renderVisualEditor() {
   ensureVisualShapeConsistency();
   renderVisualMetadata();

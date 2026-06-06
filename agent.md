@@ -197,7 +197,8 @@ Use this before rereading code.
 
 ### Frontend
 
-- `control_center/frontend/app.js` is a large vanilla-JS SPA.
+- `control_center/frontend/main.js` is the active vanilla-JS SPA entry point.
+- `control_center/frontend/app.js` is an inactive pre-module migration reference.
 - Pages:
   - `Design`
   - `Train`

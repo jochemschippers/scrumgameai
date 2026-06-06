@@ -1,3 +1,5 @@
+"""Test campaign service behavior."""
+
 from __future__ import annotations
 
 import json
@@ -7,10 +9,12 @@ from unittest.mock import patch
 import pytest
 
 
+# Patch dir.
 def _patch_dir(campaigns_dir):
     return patch("services.campaign_service.CAMPAIGNS_DIR", campaigns_dir)
 
 
+# Handle base config dict.
 def _base_config_dict() -> dict:
     return {
         "schema_version": "2.0",
@@ -45,6 +49,7 @@ def _base_config_dict() -> dict:
     }
 
 
+# Create run dir.
 def _make_run_dir(runs_dir: Path, run_id: str, game_config: dict | None = None) -> Path:
     run_dir = runs_dir / run_id
     (run_dir / "checkpoints").mkdir(parents=True, exist_ok=True)
@@ -54,6 +59,7 @@ def _make_run_dir(runs_dir: Path, run_id: str, game_config: dict | None = None) 
     return run_dir
 
 
+# Verify create campaign writes json.
 def test_create_campaign_writes_json(tmp_path):
     from services.campaign_service import create_campaign
 
@@ -73,6 +79,7 @@ def test_create_campaign_writes_json(tmp_path):
     assert data["escalate_mode"] is False
 
 
+# Verify get campaign returns data.
 def test_get_campaign_returns_data(tmp_path):
     from services.campaign_service import create_campaign, get_campaign
 
@@ -86,6 +93,7 @@ def test_get_campaign_returns_data(tmp_path):
     assert result["max_variations"] == 3
 
 
+# Verify get campaign unknown raises.
 def test_get_campaign_unknown_raises(tmp_path):
     from services.campaign_service import get_campaign
 
@@ -95,6 +103,7 @@ def test_get_campaign_unknown_raises(tmp_path):
         get_campaign("nonexistent")
 
 
+# Verify list campaigns returns all.
 def test_list_campaigns_returns_all(tmp_path):
     from services.campaign_service import create_campaign, list_campaigns
 
@@ -109,6 +118,7 @@ def test_list_campaigns_returns_all(tmp_path):
     assert cid1 in ids and cid2 in ids
 
 
+# Verify stop campaign sets status.
 def test_stop_campaign_sets_status(tmp_path):
     from services.campaign_service import create_campaign, get_campaign, stop_campaign
 
@@ -122,6 +132,7 @@ def test_stop_campaign_sets_status(tmp_path):
     assert result["status"] == "stopped"
 
 
+# Verify get campaign for run finds by base run id.
 def test_get_campaign_for_run_finds_by_base_run_id(tmp_path):
     from services.campaign_service import create_campaign, get_campaign_for_run
 
@@ -135,6 +146,7 @@ def test_get_campaign_for_run_finds_by_base_run_id(tmp_path):
     assert result["campaign_id"] == cid
 
 
+# Verify get campaign for run returns none when stopped.
 def test_get_campaign_for_run_returns_none_when_stopped(tmp_path):
     from services.campaign_service import create_campaign, get_campaign_for_run, stop_campaign
 
@@ -148,6 +160,7 @@ def test_get_campaign_for_run_returns_none_when_stopped(tmp_path):
     assert result is None
 
 
+# Verify get campaign for run finds by current run id.
 def test_get_campaign_for_run_finds_by_current_run_id(tmp_path):
     from services.campaign_service import create_campaign, get_campaign, get_campaign_for_run, _write_campaign
 
@@ -163,6 +176,7 @@ def test_get_campaign_for_run_finds_by_current_run_id(tmp_path):
     assert result["campaign_id"] == cid
 
 
+# Verify on run stopped queues next job.
 def test_on_run_stopped_queues_next_job(tmp_path):
     from services.campaign_service import create_campaign, get_campaign, on_run_stopped
 
@@ -189,6 +203,7 @@ def test_on_run_stopped_queues_next_job(tmp_path):
     assert result["variation_history"][0]["reason"] == "test reason"
 
 
+# Verify on run stopped completes at max variations.
 def test_on_run_stopped_completes_at_max_variations(tmp_path):
     from services.campaign_service import create_campaign, get_campaign, on_run_stopped
 
@@ -213,6 +228,7 @@ def test_on_run_stopped_completes_at_max_variations(tmp_path):
     assert result["status"] == "completed"
 
 
+# Verify on run stopped no op when no campaign.
 def test_on_run_stopped_no_op_when_no_campaign(tmp_path):
     from services.campaign_service import on_run_stopped
 
@@ -230,6 +246,7 @@ def test_on_run_stopped_no_op_when_no_campaign(tmp_path):
     mock_enqueue.assert_not_called()
 
 
+# Verify escalate queues job with escalate mode.
 def test_escalate_queues_job_with_escalate_mode(tmp_path):
     from services.campaign_service import create_campaign, escalate_campaign, get_campaign
 

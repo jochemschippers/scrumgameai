@@ -26,6 +26,7 @@ LOG_HEADER = [
 ]
 
 
+# Write csv.
 def _write_csv(path: Path, header: list, rows: list[list]):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as f:
@@ -226,6 +227,7 @@ class TestEpsilonGate:
         decision = autopilot.analyze_run("run_test")
         assert decision["metrics"]["reward_improvement_ratio"] is not None
 
+    # Verify various high epsilons all continue.
     @pytest.mark.parametrize("epsilon", [0.51, 0.789, 0.894, 1.0])
     def test_various_high_epsilons_all_continue(self, runs_dir, epsilon):
         import services.training_autopilot as autopilot
@@ -233,6 +235,7 @@ class TestEpsilonGate:
         decision = autopilot.analyze_run("run_test")
         assert decision["action"] == "continue"
 
+    # Verify various low epsilons run plateau check.
     @pytest.mark.parametrize("epsilon", [0.0, 0.25, 0.49])
     def test_various_low_epsilons_run_plateau_check(self, runs_dir, epsilon):
         import services.training_autopilot as autopilot
@@ -255,6 +258,7 @@ class TestContinuationPayload:
         decision = autopilot.analyze_run("run_test")
         assert decision["next_payload"]["resume_mode"] == "strict"
 
+    # Verify continue uses incremental episodes.
     def test_continue_uses_incremental_episodes(self, runs_dir):
         import services.training_autopilot as autopilot
         _make_run(runs_dir, "run_test", final_epsilon=0.789)
@@ -262,6 +266,7 @@ class TestContinuationPayload:
         decision = autopilot.analyze_run("run_test")
         assert decision["next_payload"]["resume_episodes_mode"] == "incremental"
 
+    # Verify continue episodes equals constant.
     def test_continue_episodes_equals_constant(self, runs_dir):
         import services.training_autopilot as autopilot
         _make_run(runs_dir, "run_test", final_epsilon=0.789)

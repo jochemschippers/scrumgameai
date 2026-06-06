@@ -54,7 +54,7 @@ Deep-RL track:
 
 ```powershell
 cd game\v2_deep_rl
-py play_best_dqn_game.py
+py -m play.play_best_dqn_game
 ```
 
 ## v1 Assignment Track
@@ -78,11 +78,11 @@ Artifacts are stored inside `game/v1_assignment/artifacts/`.
 Use `game/v2_deep_rl` if you want the stronger experimental agent and dashboard tooling.
 
 Main scripts:
-- `train_dqn.py`
+- `training/train_dqn.py`
   Trains the DQN with replay memory and checkpointing.
-- `dashboard.py`
+- `dashboard_app/dashboard.py`
   Streamlit dashboard for live training diagnostics.
-- `play_best_dqn_game.py`
+- `play/play_best_dqn_game.py`
   Greedy DQN demo runner.
 
 Artifacts are stored inside `game/v2_deep_rl/artifacts/`.

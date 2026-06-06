@@ -1,5 +1,26 @@
+"""
+FastAPI application assembly for the Scrum Game Control Center.
+
+This module acts as the core entrypoint/assembly for the FastAPI backend service.
+It sets up global HTTP middleware, registers API routing endpoints, handles database initialization,
+and mounts the static web frontend files.
+
+Key Responsibilities:
+  1. CORS Management: Configures cross-origin resource sharing for development environments.
+  2. Middleware Authentication: Evaluates incoming requests to enforce Bearer JWT authentication for protected API prefixes.
+  3. Router Registration: Integrates modules from `api/` (configs, jobs, runs, checkpoints, campaigns, autopilot, etc.).
+  4. Frontend Hosting: Mounts the frontend SPA directory statically to serve HTML, JS, and CSS components.
+
+Connections:
+  - Spawned By: `control_center/backend/run_api.py`
+  - Imports: Routes from `api/`, path configurations from `services.app_paths`, database from `storage.jobs_db`.
+  - Serves: HTML and static JS files from `control_center/frontend/`.
+"""
+
 from __future__ import annotations
+
 import os
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -18,9 +39,8 @@ from api.routes_testing import router as testing_router
 from services.app_paths import ENGINE_ROOT
 from storage.jobs_db import init_db
 
-# API route prefixes that require a valid JWT token.
-# Static files (/, /styles/, /assets/, etc.) are intentionally excluded
-# so the login page itself can load without a token.
+# Authentication is scoped to API prefixes. Static assets and the login page
+# must remain public so a browser without a token can start the login flow.
 _PROTECTED_PREFIXES = (
     "/autopilot",
     "/campaigns",
@@ -39,11 +59,11 @@ app = FastAPI(
     description="Custom backend for configs, runs, checkpoints, training jobs, testing, and play.",
 )
 
-# 1. FIX THE 405 ERRORS (CORS)
-# This tells the browser: "It is okay to talk to me from the frontend."
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, change this to your specific IP/Domain
+    # LAN development uses different browser origins. Internet-facing deployments
+    # should replace this wildcard with an explicit allowlist.
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -55,7 +75,6 @@ async def auth_middleware(request: Request, call_next):
     """Block access to API routes unless a valid JWT is present."""
     path = request.url.path
 
-    # Always allow: preflight, auth routes, health check, static files
     if (
         request.method == "OPTIONS"
         or path.startswith("/auth/")
@@ -64,7 +83,6 @@ async def auth_middleware(request: Request, call_next):
     ):
         return await call_next(request)
 
-    # Check Authorization header
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
@@ -89,16 +107,17 @@ app.include_router(jobs_router)
 app.include_router(play_router)
 app.include_router(testing_router)
 
+
 @app.get("/health", tags=["system"])
 def health():
+    """Return liveness information without importing the ML runtime."""
     return {
         "status": "ok",
         "engine_root": str(ENGINE_ROOT),
         "api_version": "0.1.0",
     }
 
-# 2. FIX THE 404 ERRORS (Static Files)
-# This mounts your frontend folder so you can visit http://127.0.0.1:8000/ instead of opening the file
 frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
 if os.path.exists(frontend_dir):
+    # Mount last so explicit API routes take precedence over frontend files.
     app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")

@@ -1,3 +1,14 @@
+"""
+Path Configuration and Module Import Manager.
+
+This module defines directory paths used by the Control Center backend to locate configuration libraries,
+training runs, model checkpoint directories, and legacy references. It also provides a utility function
+to dynamically prepend the RL engine root to the python `sys.path` search list.
+
+Connections:
+  - Imported by: App services, route controllers, and job queue runners.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path

@@ -1,3 +1,22 @@
+"""
+Job Queue Management Route Controller.
+
+This module exposes endpoints to interact with the Background Job Queue.
+Training models and running robust evaluations are long-running CPU/GPU processes. To prevent
+request timeouts and resource exhaustion, tasks are queued as Jobs. This controller allows clients to
+enqueue, monitor (live logs and charts), stop, and dismiss jobs.
+
+Key Endpoints:
+  - `GET /jobs`: Retrieves the status list of all queued, running, and terminal jobs.
+  - `GET /jobs/{job_id}/progress`: Fetches real-time metric streams (e.g. rolling rewards, loss) for active jobs.
+  - `POST /jobs/train`: Places a new DQN training, fine-tuning, or resume task onto the queue.
+  - `POST /jobs/{job_id}/stop`: Forcefully terminates a running job or removes a pending task from the queue.
+
+Connections:
+  - Imports: Queue and job runner primitives from `jobs.queue_manager`.
+  - Guards: Operations that modify the job queue (train, evaluate, stop, dismiss) require admin access.
+"""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException

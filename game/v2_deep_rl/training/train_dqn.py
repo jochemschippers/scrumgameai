@@ -1,3 +1,39 @@
+"""
+Training Loop Orchestrator for the Scrum Game Double DQN Agent.
+
+This module provides the main executable training script, configuring the environment,
+decaying exploration parameters, orchestrating agent optimization steps, and running
+periodic evaluations.
+
+Training Flow:
+  1. Parse command-line parameters and load game rules / training hyperparameters.
+  2. Setup directory output paths under `artifacts/runs/run_[timestamp]_[suffix]/`.
+  3. Reconstruct or resume model networks from checkpoints.
+  4. (Optional) Sample randomized game templates if Domain Randomization is enabled.
+  5. Run training loops: step env, store transitions in ReplayBuffer, perform backprop.
+  6. Decay epsilon exploration linearly.
+  7. Run periodic evaluation greedily (epsilon = 0) and update `best_scrum_model.pth`.
+  8. Write logs, curves, metrics, and configurations at completion.
+
+Resume Modes:
+  - strict: Checks rule signature (requires matching game configurations) and restores
+    both optimizer parameters and replay buffers for seamless training continuation.
+  - fine-tune: Restores model weights but bypasses signature check, allowing transfer
+    learning from other layouts/rules as long as PyTorch input/output shapes match.
+
+Domain Randomization:
+  - If enabled, samples new configs every N training episodes so the agent generalizes.
+  - Evaluates performance across held-out randomized game profiles to report robust statistics.
+
+Connections:
+  - Direct Entrypoint: Run via command `py -m training.train_dqn`
+  - Utilizes: `game_runtime.scrum_game_env.ScrumGameEnv`
+  - Utilizes: `rl.dqn_agent.DQNAgent` and `rl.checkpoint_utils`
+  - Called by: `control_center/backend/jobs/job_runner.py` during web-server training tasks.
+"""
+
+from __future__ import annotations
+
 import argparse
 import csv
 from datetime import datetime
@@ -28,6 +64,7 @@ from game_rules.rule_randomization import sample_game_config
 from game_runtime.scrum_game_env import ScrumGameEnv
 from rl.dqn_agent import encode_state
 from rl.model_utils import save_metrics_json
+
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -481,6 +518,7 @@ def evaluate_for_training_config(
     num_episodes=1000,
     seed=1042,
 ):
+    """Evaluate DQN agent performance, factoring in whether rule randomization is active."""
     if training_config.rule_randomization_enabled:
         return evaluate_dqn_agent_on_randomized_rules(
             agent,
@@ -712,24 +750,32 @@ def train_dqn_agent(
             epsilon_decay_episodes=resolved_training_config.epsilon_decay_episodes,
         )
 
+        # Execute the episode steps until a terminal state is reached
         while not done:
+            # 1. Action Selection: Choose action based on epsilon-greedy policy (exploit vs. explore)
             action = agent.choose_action(state_vector, epsilon=epsilon)
             episode_action_counts[action] += 1
 
+            # 2. Environment Transition: Advance game step, get next observation and reward
             next_state, reward, done, info = active_training_env.step(action)
             next_state_vector = encode_state(next_state, active_training_env)
+            
+            # Track occurrence of invalid/illegal action attempts by the model
             if info.get("invalid_action"):
                 invalid_actions_this_episode += 1
 
+            # 3. Memory & Optimization: Save transition to Replay Buffer and perform backprop training step
             agent.store_transition(state_vector, action, reward, next_state_vector, done)
             loss = agent.train_step()
 
             if loss is not None:
                 training_losses.append(loss)
 
+            # Accumulate reward and shift state references
             cumulative_reward += reward
             state_vector = next_state_vector
 
+            # Flag bankruptcy terminal conditions
             if done and info.get("terminal_reason") == "bankruptcy":
                 bankruptcy_this_episode = 1
 

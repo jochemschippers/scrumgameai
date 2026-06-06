@@ -1,3 +1,40 @@
+"""
+Stateful Gymnasium-Style Environment for the Scrum Game.
+
+This module contains ScrumGameEnv, the core simulator representing the Scrum Game.
+It tracks the financial status, active product, sprint progress, and refinement/incident
+variables. It implements a step-action pattern compatible with reinforcement learning
+frameworks.
+
+Observation Space:
+  A dictionary containing:
+    - current_money: Active player's cash reserves.
+    - current_product: The active product index (1-based).
+    - current_sprint: The active sprint index (1-based) of the current product.
+    - features_required: Features required to succeed on the current sprint.
+    - sprint_value: The target payout (before penalties/bonuses) of the active sprint.
+    - loan_active / interest_due / debt_ratio: Financial liabilities metrics.
+    - win_probability / expected_value: Analytical variables representing success chance and payout.
+    - remaining_turns: Sprint turns left before game over.
+    - target_* arrays: Lists showing the state of all products simultaneously (features, payout, completed, etc.)
+
+Action Space:
+  Discrete action space of size 1 + N (where N = number of products):
+    - Action 0: Continue on the currently active product and resolve its next sprint.
+    - Action 1..N: Switch to Product N (1-based index), paying switch costs, and resolve its next sprint.
+
+Exact Win Probability Calculation:
+  Instead of using Monte Carlo simulations to estimate success chance for a sprint's features count,
+  this environment precomputes the exact mathematical probability of success by convolving discrete sum distributions
+  of dice rolls (e.g. sum of 3d6, 2d10, or 1d20). These are cached dynamically at class level to optimize CPU overhead.
+
+Connections:
+  - Configured via: `config_manager.GameConfig`
+  - Rules resolved via: `game_rules.cards.IncidentDeck` and `game_rules.refinements.ConfiguredRefinementModel`
+  - Sampled by: `game_rules.rule_randomization.sample_game_config` (during domain randomized training)
+  - Driven by: `training.train_dqn.py` (RL training loop), `play.match_runner` (play simulators)
+"""
+
 from __future__ import annotations
 
 import random
@@ -8,7 +45,9 @@ from game_rules.refinements import ConfiguredRefinementModel
 
 
 class ScrumGameEnv:
-    """Config-driven Gym-style environment for the deep-RL Scrum Game branch."""
+    """
+    Config-driven Gym-style environment for the deep-RL Scrum Game branch.
+    """
 
     # Shared across all instances — avoids recomputing expensive convolutions when
     # rule randomization creates many environments with identical dice/scrum params.
@@ -24,6 +63,7 @@ class ScrumGameEnv:
         players_count=None,
         allow_player_specific_incidents=None,
     ):
+        """Initialize the environment instance from the supplied configuration."""
         base_config = game_config or load_game_config(game_config_path)
         self.game_config = self._apply_legacy_overrides(
             base_config,
@@ -133,6 +173,7 @@ class ScrumGameEnv:
         players_count=None,
         allow_player_specific_incidents=None,
     ) -> GameConfig:
+        """Apply legacy config overrides to backward-compatible parameter options."""
         payload = base_config.to_dict()
         if incidents_active is not None:
             payload["incident"]["active"] = bool(incidents_active)
@@ -147,9 +188,11 @@ class ScrumGameEnv:
         return GameConfig.from_dict(payload)
 
     def _build_incident_deck(self):
+        """Assemble the active incident cards into a randomized IncidentDeck."""
         return IncidentDeck(self.incident_cards) if self.incident_cards else None
 
     def _compute_visible_value_reference(self):
+        """Estimate the maximum potential sprint value including possible incident card value boosts."""
         candidate_values = [self.max_base_sprint_value]
         for card in self.game_config.incident.cards:
             if card.set_value_money is not None:

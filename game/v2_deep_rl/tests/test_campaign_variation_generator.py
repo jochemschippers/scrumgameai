@@ -1,9 +1,12 @@
+"""Test campaign variation generator behavior."""
+
 from __future__ import annotations
 
 import json
 from unittest.mock import MagicMock, patch
 
 
+# Handle base config dict.
 def _base_config_dict():
     return {
         "schema_version": "2.0",
@@ -41,6 +44,7 @@ def _base_config_dict():
     }
 
 
+# Verify clamp starting money within safe bounds.
 def test_clamp_starting_money_within_safe_bounds():
     from services.campaign_variation_generator import clamp_diff
 
@@ -49,6 +53,7 @@ def test_clamp_starting_money_within_safe_bounds():
     assert result["starting_money"] == 31250
 
 
+# Verify clamp max turns within safe bounds.
 def test_clamp_max_turns_within_safe_bounds():
     from services.campaign_variation_generator import clamp_diff
 
@@ -57,6 +62,7 @@ def test_clamp_max_turns_within_safe_bounds():
     assert result["max_turns"] == 8
 
 
+# Verify clamp incident draw probability.
 def test_clamp_incident_draw_probability():
     from services.campaign_variation_generator import clamp_diff
 
@@ -65,6 +71,7 @@ def test_clamp_incident_draw_probability():
     assert result["incident_draw_probability"] == 0.5
 
 
+# Verify escalate allows wider starting money.
 def test_escalate_allows_wider_starting_money():
     from services.campaign_variation_generator import clamp_diff
 
@@ -73,6 +80,7 @@ def test_escalate_allows_wider_starting_money():
     assert result["starting_money"] == 39000
 
 
+# Verify clamp dice sides.
 def test_clamp_dice_sides():
     from services.campaign_variation_generator import clamp_diff
 
@@ -81,6 +89,7 @@ def test_clamp_dice_sides():
     assert result["dice_rule_0_dice_sides"] == 8
 
 
+# Verify apply diff to config dict.
 def test_apply_diff_to_config_dict():
     from services.campaign_variation_generator import apply_diff_to_config
 
@@ -99,6 +108,7 @@ def test_apply_diff_to_config_dict():
     assert result["max_turns"] == 6
 
 
+# Verify generate with mocked ai returns new config.
 def test_generate_with_mocked_ai_returns_new_config():
     from services.campaign_variation_generator import generate_variation
 
@@ -135,6 +145,7 @@ def test_generate_with_mocked_ai_returns_new_config():
     assert "starting_money" in changes
 
 
+# Verify generate falls back on ai failure.
 def test_generate_falls_back_on_ai_failure():
     from services.campaign_variation_generator import generate_variation
 

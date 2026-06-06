@@ -40,6 +40,7 @@ LOG_HEADER = [
 ]
 
 
+# Write csv.
 def _write_csv(path: Path, header: list, rows: list[list]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as f:
@@ -145,6 +146,7 @@ class TestStopBranch:
         decision = autopilot.analyze_run("run_stop")
         assert decision["action"] == "stop"
 
+    # Verify stop next payload is none.
     def test_stop_next_payload_is_none(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -158,6 +160,7 @@ class TestStopBranch:
         decision = autopilot.analyze_run("run_stop")
         assert decision["next_payload"] is None
 
+    # Verify stop reason mentions plateau.
     def test_stop_reason_mentions_plateau(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -171,6 +174,7 @@ class TestStopBranch:
         decision = autopilot.analyze_run("run_stop")
         assert "plateau" in decision["reason"].lower()
 
+    # Verify stop includes bankruptcy rate in reason.
     def test_stop_includes_bankruptcy_rate_in_reason(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -185,6 +189,7 @@ class TestStopBranch:
         decision = autopilot.analyze_run("run_stop")
         assert "45" in decision["reason"] or "bankruptcy" in decision["reason"].lower()
 
+    # Verify stop improvement metric near zero.
     def test_stop_improvement_metric_near_zero(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -229,6 +234,7 @@ class TestLowerLrBranch:
         # Mean ≈ -3875, std large due to big swings, improvement = (-1000 - -5000) / 5000 = 80%
         return [-5000.0, -2000.0, -6000.0, -1000.0]
 
+    # Verify improving high variance gives lower lr.
     def test_improving_high_variance_gives_lower_lr(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -242,6 +248,7 @@ class TestLowerLrBranch:
         decision = autopilot.analyze_run("run_lr")
         assert decision["action"] == "lower_lr"
 
+    # Verify lower lr halves learning rate.
     def test_lower_lr_halves_learning_rate(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -257,6 +264,7 @@ class TestLowerLrBranch:
         new_lr = decision["next_payload"]["learning_rate"]
         assert new_lr == pytest.approx(0.0005, rel=1e-4)
 
+    # Verify lower lr uses fine tune resume mode.
     def test_lower_lr_uses_fine_tune_resume_mode(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -270,6 +278,7 @@ class TestLowerLrBranch:
         assert decision["action"] == "lower_lr"
         assert decision["next_payload"]["resume_mode"] == "fine-tune"
 
+    # Verify lower lr payload has continue episodes.
     def test_lower_lr_payload_has_continue_episodes(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -299,6 +308,7 @@ class TestLowerLrBranch:
             new_lr = decision["next_payload"]["learning_rate"]
             assert new_lr >= autopilot._LR_MIN
 
+    # Verify lower lr reason mentions noise.
     def test_lower_lr_reason_mentions_noise(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -319,6 +329,7 @@ class TestLowerLrBranch:
 # ---------------------------------------------------------------------------
 
 class TestExtendEpsilonDecayBranch:
+    # Verify flat rewards high invalid rate extends epsilon.
     def test_flat_rewards_high_invalid_rate_extends_epsilon(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -332,6 +343,7 @@ class TestExtendEpsilonDecayBranch:
         decision = autopilot.analyze_run("run_ext")
         assert decision["action"] == "extend_epsilon_decay"
 
+    # Verify extend increases epsilon decay episodes.
     def test_extend_increases_epsilon_decay_episodes(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -368,6 +380,7 @@ class TestExtendEpsilonDecayBranch:
         expected = original_decay + int(original_decay * (autopilot.EPSILON_EXTENSION_FACTOR - 1.0))
         assert decision["next_payload"]["epsilon_decay_episodes"] == expected
 
+    # Verify extend uses fine tune resume mode.
     def test_extend_uses_fine_tune_resume_mode(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -382,6 +395,7 @@ class TestExtendEpsilonDecayBranch:
         assert decision["action"] == "extend_epsilon_decay"
         assert decision["next_payload"]["resume_mode"] == "fine-tune"
 
+    # Verify extend reason mentions invalid actions.
     def test_extend_reason_mentions_invalid_actions(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -411,6 +425,7 @@ class TestExtendEpsilonDecayBranch:
         # 0.10 is NOT > 0.10, so the else branch fires → stop
         assert decision["action"] == "stop"
 
+    # Verify just above threshold extends.
     def test_just_above_threshold_extends(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -430,6 +445,7 @@ class TestExtendEpsilonDecayBranch:
 # ---------------------------------------------------------------------------
 
 class TestLrReductionCountCap:
+    # Handle high variance rewards.
     def _high_variance_rewards(self) -> list[float]:
         return [-5000.0, -2000.0, -6000.0, -1000.0]
 
@@ -449,6 +465,7 @@ class TestLrReductionCountCap:
         )
         assert decision["action"] == "stop"
 
+    # Verify below max reductions still lower lr.
     def test_below_max_reductions_still_lower_lr(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -464,6 +481,7 @@ class TestLrReductionCountCap:
         )
         assert decision["action"] == "lower_lr"
 
+    # Verify cap reason mentions lr reductions.
     def test_cap_reason_mentions_lr_reductions(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -481,6 +499,7 @@ class TestLrReductionCountCap:
         reason_lower = decision["reason"].lower()
         assert "lr" in reason_lower or "learning rate" in reason_lower or "reduct" in reason_lower
 
+    # Verify lr reduction count zero is first reduction.
     def test_lr_reduction_count_zero_is_first_reduction(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -497,6 +516,7 @@ class TestLrReductionCountCap:
         assert decision["action"] == "lower_lr"
         assert "1/" in decision["reason"] or "reduction 1" in decision["reason"].lower()
 
+    # Verify various counts above max all stop.
     @pytest.mark.parametrize("count", [3, 5, 10])
     def test_various_counts_above_max_all_stop(self, runs_dir, count):
         import services.training_autopilot as autopilot
@@ -572,6 +592,7 @@ class TestAiAdvisorSkippedOnDryRun:
         enqueue_mock.assert_not_called()
         assert decision["job_enqueued"] is False
 
+    # Verify dry run stop sets job enqueued false.
     def test_dry_run_stop_sets_job_enqueued_false(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -747,24 +768,29 @@ class TestRunAutopilotVersionedNaming:
 # ---------------------------------------------------------------------------
 
 class TestDeriveBaseRunName:
+    # Verify standard run id with name.
     def test_standard_run_id_with_name(self):
         import services.training_autopilot as autopilot
         assert autopilot._derive_base_run_name("run_2024-01-15_1200_myexperiment") == "myexperiment"
 
+    # Verify run id without name returns empty.
     def test_run_id_without_name_returns_empty(self):
         import services.training_autopilot as autopilot
         assert autopilot._derive_base_run_name("run_2024-01-15_1200") == ""
 
+    # Verify strips trailing v suffix.
     def test_strips_trailing_v_suffix(self):
         import services.training_autopilot as autopilot
         assert autopilot._derive_base_run_name("run_2024-01-15_1200_myexperiment_v2") == "myexperiment"
         assert autopilot._derive_base_run_name("run_2024-01-15_1200_myexperiment_v10") == "myexperiment"
 
+    # Verify non matching run id returns empty.
     def test_non_matching_run_id_returns_empty(self):
         import services.training_autopilot as autopilot
         assert autopilot._derive_base_run_name("arbitrary_string") == ""
         assert autopilot._derive_base_run_name("") == ""
 
+    # Verify underscore in name preserved.
     def test_underscore_in_name_preserved(self):
         import services.training_autopilot as autopilot
         result = autopilot._derive_base_run_name("run_2024-01-15_1200_my_long_name")
@@ -791,6 +817,7 @@ class TestRegressionBranch:
         decision = autopilot.analyze_run("run_reg")
         assert decision["action"] == "stop_regression"
 
+    # Verify regression next payload is none.
     def test_regression_next_payload_is_none(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -803,6 +830,7 @@ class TestRegressionBranch:
         decision = autopilot.analyze_run("run_reg")
         assert decision["next_payload"] is None
 
+    # Verify regression reason mentions regress.
     def test_regression_reason_mentions_regress(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -869,6 +897,7 @@ class TestBankruptcyImprovingOverride:
         decision = autopilot.analyze_run("run_br_improve")
         assert decision["action"] == "continue"
 
+    # Verify continuing on bankruptcy improvement has next payload.
     def test_continuing_on_bankruptcy_improvement_has_next_payload(self, runs_dir):
         import services.training_autopilot as autopilot
 
@@ -883,6 +912,7 @@ class TestBankruptcyImprovingOverride:
         decision = autopilot.analyze_run("run_br_improve")
         assert decision["next_payload"] is not None
 
+    # Verify reason mentions bankruptcy improvement.
     def test_reason_mentions_bankruptcy_improvement(self, runs_dir):
         import services.training_autopilot as autopilot
 

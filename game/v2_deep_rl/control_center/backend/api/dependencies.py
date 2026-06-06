@@ -1,3 +1,14 @@
+"""
+FastAPI Security Dependencies.
+
+This module provides reusable route dependencies to handle access control, role authorization,
+and user parsing by decapsulating the client's Bearer JWT payload.
+
+Key Functions:
+  - `get_current_user`: Checks for a valid JWT signature and retrieves user context.
+  - `require_admin`: Restricts write operations (e.g. initiating training, deleting database entries) to admin users.
+"""
+
 from __future__ import annotations
 
 from fastapi import Depends, HTTPException, status

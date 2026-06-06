@@ -1,3 +1,23 @@
+"""
+Training Run Metric Analyzer.
+
+This module implements the deterministic state-classification logic of the Training Autopilot.
+It reads the csv log files for a completed run (`evaluation_history.csv` and `logs.csv`),
+computes rolling average improvement slopes, measures reward standard deviation coefficients
+(CV) to check noise variance, analyzes bankruptcy rate trends, and checks invalid action percentages.
+
+Autopilot Decision States:
+  - `continue`: Reward is still improving steadily.
+  - `lower_lr`: Reward is improving but has high variance (noise).
+  - `extend_epsilon_decay`: Reward is flat but invalid action rate is high (agent needs more exploration).
+  - `stop_regression`: Reward actively dropped below threshold (severe regression; stops immediately).
+  - `stop`: Reward has plateaued (prompts AI advisor fallback if enabled).
+
+Connections:
+  - Imports: Helper functions from `services.io_utils`.
+  - Used by: `services/autopilot/runner.py` to classify runs and construct next run payloads.
+"""
+
 from __future__ import annotations
 
 import math

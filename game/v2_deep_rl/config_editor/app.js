@@ -1,3 +1,18 @@
+/**
+ * Inactive Single-File Configuration Editor (Migration Reference).
+ * 
+ * NOTE: This file is preserved as an inactive reference representing the original,
+ * non-modular implementation of the configuration editor before it was refactored into the modular `src/` modules.
+ * It contains form reading, state management, UI rendering, table construction, and file import/export
+ * logic coupled within a single IIFE wrapper.
+ * 
+ * Historical Structure:
+ *   - IIFE encapsulation: localizes `DEFAULT_CONFIG` state and DOM helper functions.
+ *   - Form sync: `readFormIntoState()` processes DOM field changes.
+ *   - Board reshape: `syncShapeFromInputs()` modifies matrix dimensions.
+ *   - Local import/export: `downloadJson()` and `importJsonFile()` manage browser-level file access.
+ */
+
 (function () {
   "use strict";
 
@@ -133,12 +148,14 @@
     return document.getElementById(id);
   }
 
+  /** Normalize product key. */
   function normalizeProductKey(value) {
     return String(value || "")
       .toLowerCase()
       .replace(/[^a-z0-9]/g, "");
   }
 
+  /** Handle slugify file name. */
   function slugifyFileName(value) {
     const slug = String(value || "")
       .toLowerCase()
@@ -147,11 +164,13 @@
     return slug || "my_custom_config";
   }
 
+  /** Handle number value. */
   function numberValue(inputId, fallback = 0) {
     const value = Number($(inputId).value);
     return Number.isFinite(value) ? value : fallback;
   }
 
+  /** Parse number list. */
   function parseNumberList(value) {
     return String(value || "")
       .split(",")
@@ -159,6 +178,7 @@
       .filter((item) => Number.isFinite(item));
   }
 
+  /** Handle rebuild board if needed. */
   function rebuildBoardIfNeeded(productCount, sprintCount) {
     const nextRingValues = [];
     const nextFeatures = [];
@@ -178,6 +198,7 @@
     state.board_features = nextFeatures;
   }
 
+  /** Handle rebuild product names if needed. */
   function rebuildProductNamesIfNeeded(productCount) {
     const nextNames = [];
     for (let index = 0; index < productCount; index += 1) {
@@ -186,6 +207,7 @@
     state.product_names = nextNames;
   }
 
+  /** Handle rebuild refinement rules from products. */
   function rebuildRefinementRulesFromProducts() {
     state.refinement.product_rules = state.product_names.map((name) => ({
       product_key: normalizeProductKey(name),
@@ -194,6 +216,7 @@
     }));
   }
 
+  /** Handle ensure shape consistency from state. */
   function ensureShapeConsistencyFromState() {
     const productCount = Math.max(1, state.product_names?.length || state.board_ring_values?.length || 1);
     const sprintCount = Math.max(1, state.board_ring_values?.[0]?.length || state.board_features?.[0]?.length || 1);
@@ -204,6 +227,7 @@
     }
   }
 
+  /** Synchronize shape from inputs. */
   function syncShapeFromInputs() {
     const productCount = Math.max(1, numberValue("productsCountInput", state.product_names.length));
     const sprintCount = Math.max(1, numberValue("sprintsPerProductInput", state.board_ring_values[0]?.length || 1));
@@ -216,6 +240,7 @@
     }
   }
 
+  /** Read form into state. */
   function readFormIntoState() {
     state.config_name = $("configNameInput").value.trim();
     state.schema_version = $("schemaVersionInput").value.trim();
@@ -296,11 +321,13 @@
     }));
   }
 
+  /** Handle canonical config. */
   function canonicalConfig() {
     readFormIntoState();
     return structuredClone(state);
   }
 
+  /** Render metadata. */
   function renderMetadata() {
     $("configNameInput").value = state.config_name;
     $("schemaVersionInput").value = state.schema_version;
@@ -322,6 +349,7 @@
     $("dailyScrumTargetInput").value = state.daily_scrum_target;
   }
 
+  /** Render product names. */
   function renderProductNames() {
     const host = $("productNamesGrid");
     host.innerHTML = "";
@@ -337,6 +365,7 @@
     });
   }
 
+  /** Render board matrix. */
   function renderBoardMatrix() {
     const host = $("boardMatrixContainer");
     const sprintCount = state.board_ring_values[0]?.length || 1;
@@ -372,6 +401,7 @@
     host.innerHTML = html;
   }
 
+  /** Render dice rules. */
   function renderDiceRules() {
     const host = $("diceRulesList");
     host.innerHTML = "";
@@ -395,6 +425,7 @@
     });
   }
 
+  /** Render refinement rules. */
   function renderRefinementRules() {
     $("refinementActiveInput").checked = Boolean(state.refinement.active);
     $("refinementModelInput").value = state.refinement.model_name;
@@ -420,6 +451,7 @@
     });
   }
 
+  /** Render incident cards. */
   function renderIncidentCards() {
     $("incidentActiveInput").checked = Boolean(state.incident.active);
     $("playerSpecificIncidentsInput").checked = Boolean(state.incident.allow_player_specific_incidents);
@@ -457,6 +489,7 @@
     });
   }
 
+  /** Update preview. */
   function updatePreview() {
     const config = canonicalConfig();
     $("jsonPreview").textContent = JSON.stringify(config, null, 2);
@@ -469,6 +502,7 @@
     }
   }
 
+  /** Render all. */
   function renderAll() {
     renderMetadata();
     renderProductNames();
@@ -479,6 +513,7 @@
     updatePreview();
   }
 
+  /** Download json. */
   function downloadJson() {
     const fileName = $("downloadFileNameInput").value.trim() || "custom_game_config.json";
     const blob = new Blob([JSON.stringify(canonicalConfig(), null, 2)], { type: "application/json" });
@@ -492,6 +527,7 @@
     URL.revokeObjectURL(url);
   }
 
+  /** Copy json. */
   async function copyJson() {
     const text = JSON.stringify(canonicalConfig(), null, 2);
     try {
@@ -502,6 +538,7 @@
     }
   }
 
+  /** Import json file. */
   function importJsonFile(file) {
     const reader = new FileReader();
     reader.onload = function () {
@@ -519,6 +556,7 @@
     reader.readAsText(file);
   }
 
+  /** Reset defaults. */
   function resetDefaults() {
     Object.keys(state).forEach((key) => delete state[key]);
     Object.assign(state, structuredClone(DEFAULT_CONFIG));
@@ -526,6 +564,7 @@
     renderAll();
   }
 
+  /** Handle escape html. */
   function escapeHtml(value) {
     return String(value)
       .replaceAll("&", "&amp;")
@@ -535,6 +574,7 @@
       .replaceAll("'", "&#039;");
   }
 
+  /** Attach listeners. */
   function attachListeners() {
     document.addEventListener("input", (event) => {
       if (event.target.matches("input, textarea, select")) {

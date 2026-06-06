@@ -1,3 +1,5 @@
+/** Implement direct eval user-interface behavior. */
+
 import { state } from '../../state/store.js';
 import { $, showMessage, downloadJsonFile, downloadCsvFile, parseSeedList } from '../../utils/helpers.js';
 import { escapeHtml } from '../../utils/formatting.js';
@@ -5,6 +7,7 @@ import { renderBarChart, renderTable } from '../../utils/charts.js';
 import { apiRequest } from '../../api/client.js';
 import { renderCheckpointComparison } from './comparison.js';
 
+/** Render direct evaluation. */
 export function renderDirectEvaluation() {
   const host = $("directEvaluationResult");
   const metricsHost = $("directEvaluationMetrics");
@@ -100,6 +103,7 @@ export function renderDirectEvaluation() {
   );
 }
 
+/** Clear evaluation results. */
 export function clearEvaluationResults() {
   state.directEvaluation = null;
   state.comparisonEvaluation = null;
@@ -107,6 +111,7 @@ export function clearEvaluationResults() {
   renderCheckpointComparison();
 }
 
+/** Run direct evaluation. */
 export async function runDirectEvaluation(event) {
   event.preventDefault();
   if (!state.activeCheckpointId || !state.activeGameConfigId) {
@@ -124,6 +129,7 @@ export async function runDirectEvaluation(event) {
   renderDirectEvaluation();
 }
 
+/** Export direct evaluation json. */
 export function exportDirectEvaluationJson() {
   if (!state.directEvaluation) {
     showMessage("Run a direct evaluation first.", "error");
@@ -133,6 +139,7 @@ export function exportDirectEvaluationJson() {
   showMessage("Exported direct evaluation JSON.");
 }
 
+/** Export direct evaluation csv. */
 export function exportDirectEvaluationCsv() {
   if (!state.directEvaluation) {
     showMessage("Run a direct evaluation first.", "error");

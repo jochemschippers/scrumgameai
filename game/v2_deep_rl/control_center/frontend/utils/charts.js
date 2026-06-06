@@ -1,11 +1,15 @@
+/** Implement charts behavior for the utils package. */
+
 import { escapeHtml, formatNumber } from './formatting.js';
 import { $ } from './helpers.js';
 
+/** Build polyline. */
 export function buildPolyline(points, width, height) {
   if (!points.length) return "";
   return points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
 }
 
+/** Render table. */
 export function renderTable(hostId, columns, rows) {
   const host = $(hostId);
   if (!rows.length) {
@@ -26,6 +30,7 @@ export function renderTable(hostId, columns, rows) {
   host.innerHTML = `<table class="data-table"><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
+/** Render line chart. */
 export function renderLineChart(hostId, series, valueKey, lineColor, caption) {
   const host = $(hostId);
   const filtered = (series || []).filter((item) => Number.isFinite(item?.[valueKey]));
@@ -63,6 +68,7 @@ export function renderLineChart(hostId, series, valueKey, lineColor, caption) {
   `;
 }
 
+/** Render bar chart. */
 export function renderBarChart(hostId, rows, valueKey, labelKey, positiveColor, negativeColor, caption) {
   const host = $(hostId);
   const filtered = (rows || []).filter((item) => Number.isFinite(Number(item?.[valueKey])));

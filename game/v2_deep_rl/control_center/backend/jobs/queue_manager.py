@@ -1,3 +1,21 @@
+"""
+Job Queue Orchestrator and Process Monitor.
+
+This module is the core process scheduler for long-running DQN training and robustness evaluation tasks.
+It manages scheduling locks, enqueues jobs in SQLite, starts subprocesses using detaching flags to keep
+tasks alive independently of the web API thread, tails stdout logs, and monitors OS PIDs to detect and record failures.
+
+Key Capabilities:
+  - State Synchronization: Cleans up dead processes and updates database fields to prevent orphaned running states.
+  - Job Dispatcher: Dispatches the oldest queued job in the background, isolating execution from the web server thread.
+  - Signal Control: Force-kills running processes and process trees (using `taskkill` on Windows, or PGID signals on Unix).
+  - Progress Aggregation: Parses active CSV files (`logs.csv` and `evaluation_history.csv`) to calculate completion ratios.
+
+Connections:
+  - Imports: `choose_python_command`/`is_pid_running` from `jobs.processes`, and SQLite queries from `storage.jobs_db`.
+  - Used by: Job endpoints in `api/routes_jobs.py` to schedule and manage tasks.
+"""
+
 from __future__ import annotations
 
 import json
@@ -53,6 +71,7 @@ def refresh_job_states() -> list[dict]:
 
 
 def dispatch_next_job() -> dict | None:
+    """Start the oldest queued job when no other worker is running."""
     init_db()
     jobs = refresh_job_states()
     if any(job["status"] == "running" for job in jobs):
@@ -63,7 +82,11 @@ def dispatch_next_job() -> dict | None:
         return None
 
     stdout_path = queued_job.get("stdout_log_path") or ""
-    stdout_log_path = Path(stdout_path) if stdout_path else default_stdout_log(Path(queued_job["run_dir"]), queued_job["job_type"])
+    stdout_log_path = (
+        Path(stdout_path)
+        if stdout_path
+        else default_stdout_log(Path(queued_job["run_dir"]), queued_job["job_type"])
+    )
     stdout_log_path.parent.mkdir(parents=True, exist_ok=True)
 
     with stdout_log_path.open("ab") as stdout_handle:
@@ -102,16 +125,19 @@ def dispatch_next_job() -> dict | None:
 
 
 def list_jobs() -> list[dict]:
+    """Retrieve all background jobs and verify their active process states."""
     init_db()
     return refresh_job_states()
 
 
 def get_job_details(job_id: int) -> dict | None:
+    """Retrieve full database record details for a single job by ID."""
     init_db()
     return get_job(job_id)
 
 
 def _read_run_metadata(run_dir: Path | None) -> dict:
+    """Safely read and deserialize JSON metadata files from a run directory."""
     if not run_dir:
         return {}
     metadata_path = run_dir / "run_metadata.json"
@@ -125,6 +151,7 @@ def _read_run_metadata(run_dir: Path | None) -> dict:
 
 
 def get_job_progress(job_id: int) -> dict | None:
+    """Load, process, and return training progress, rolling metrics, and chart series for a job."""
     init_db()
     refresh_job_states()
     job = get_job(job_id)
@@ -220,11 +247,12 @@ def get_job_progress(job_id: int) -> dict | None:
 
 
 def get_job_log_tail(job_id: int, max_lines: int = 80) -> dict | None:
+    """Retrieve the last N lines of stdout logs for a background worker."""
     init_db()
     refresh_job_states()
     job = get_job(job_id)
     if job is None:
-      return None
+        return None
 
     log_path_raw = job.get("stdout_log_path") or ""
     log_path = Path(log_path_raw) if log_path_raw else None
@@ -246,6 +274,7 @@ def get_job_log_tail(job_id: int, max_lines: int = 80) -> dict | None:
 
 
 def enqueue_train_job(payload: dict) -> dict:
+    """Create a new training or fine-tuning job entry on the queue and dispatch the runner."""
     init_db()
     resume_from = payload.get("resume_from")
     resume_mode = payload.get("resume_mode", "strict")
@@ -264,6 +293,7 @@ def enqueue_train_job(payload: dict) -> dict:
 
 
 def enqueue_evaluation_job(payload: dict) -> dict:
+    """Create a new evaluation/robustness job entry on the queue and dispatch the runner."""
     init_db()
     job_type = payload.get("job_type", "robustness")
     if job_type not in {"evaluate", "robustness"}:
@@ -285,6 +315,7 @@ def enqueue_evaluation_job(payload: dict) -> dict:
 
 
 def stop_job(job_id: int) -> dict:
+    """Abort a queued job or force-kill a running worker process and its process tree."""
     init_db()
     job = get_job(job_id)
     if job is None:
@@ -312,6 +343,7 @@ def stop_job(job_id: int) -> dict:
 
 
 def dismiss_job(job_id: int) -> dict:
+    """Remove a finished or stopped job record from the database history catalog."""
     init_db()
     job = get_job(job_id)
     if job is None:

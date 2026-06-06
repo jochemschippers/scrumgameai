@@ -1,8 +1,11 @@
+/** Implement training config user-interface behavior. */
+
 import { state } from '../../state/store.js';
 import { $, showMessage, parseJsonEditor, clone } from '../../utils/helpers.js';
 import { apiRequest } from '../../api/client.js';
 import { escapeHtml, formatJson } from '../../utils/formatting.js';
 
+/** Render training configs. */
 export function renderTrainingConfigs() {
   $("trainingConfigCount").textContent = `${state.trainingConfigs.length}`;
   const container = $("trainingConfigsList");
@@ -23,6 +26,7 @@ export function renderTrainingConfigs() {
   });
 }
 
+/** Render training config validation. */
 export function renderTrainingConfigValidation() {
   const container = $("trainingConfigValidationCard");
   if (!state.trainingConfigValidation) {
@@ -48,6 +52,7 @@ export function renderTrainingConfigValidation() {
   `;
 }
 
+/** Load active training config into editor. */
 export async function loadActiveTrainingConfigIntoEditor() {
   if (!state.activeTrainingConfigId) {
     showMessage("Select a training config first.", "error");
@@ -59,6 +64,7 @@ export async function loadActiveTrainingConfigIntoEditor() {
   $("trainingConfigFileNameInput").value = payload.id === "default_training_config" ? "my_training_config" : payload.id;
 }
 
+/** Save training config. */
 export async function saveTrainingConfig(overwrite = false) {
   const config = parseJsonEditor("trainingConfigEditor");
   const body = {
@@ -79,6 +85,7 @@ export async function saveTrainingConfig(overwrite = false) {
   await validateTrainingConfigDraft(false).catch(() => {});
 }
 
+/** Validate training config draft. */
 export async function validateTrainingConfigDraft(showSuccess = false) {
   try {
     const config = parseJsonEditor("trainingConfigEditor");

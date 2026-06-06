@@ -1,3 +1,5 @@
+/** Implement navigation user-interface behavior. */
+
 import { state } from '../state/store.js';
 import { $, selectedGameConfig, selectedCheckpoint, selectedTrainingConfig } from '../utils/helpers.js';
 import { escapeHtml, checkpointUiLabel } from '../utils/formatting.js';
@@ -7,6 +9,7 @@ export const pages = PAGES;
 
 const _PAGE_KEY = "cc_page";
 
+/** Set page. */
 export function setPage(pageId) {
   // Fall back to "rules" if pageId is unknown (e.g. stale localStorage value)
   if (!pages[pageId]) pageId = "rules";
@@ -24,10 +27,12 @@ export function setPage(pageId) {
   renderContextCard();
 }
 
+/** Return saved page. */
 export function getSavedPage() {
   return localStorage.getItem(_PAGE_KEY) || "rules";
 }
 
+/** Update status card. */
 export function updateStatusCard() {
   const card = $("backendStatusCard");
   if (!state.health) {
@@ -39,6 +44,7 @@ export function updateStatusCard() {
   card.innerHTML = `<span>${state.health.status} | v${state.health.api_version}</span>`;
 }
 
+/** Update summary pills. */
 export function updateSummaryPills() {
   const activeGameConfig = state.gameConfigs.find((item) => item.id === state.activeGameConfigId);
   const activeCheckpoint = state.checkpoints.find((item) => item.id === state.activeCheckpointId);
@@ -48,6 +54,7 @@ export function updateSummaryPills() {
   $("summaryJobCount").textContent = `Jobs: ${visibleJobs.length}`;
 }
 
+/** Render context card. */
 export function renderContextCard() {
   const body = $("contextCardBody");
   const gameConfig = selectedGameConfig();

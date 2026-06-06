@@ -1,16 +1,27 @@
-// ── Auth helpers ─────────────────────────────────────────────────────────────
+/**
+ * Monolithic Frontend Script (Migration Reference).
+ * 
+ * NOTE: This file represents the original, pre-refactor single-file implementation of the Control Center frontend.
+ * It has been decomposed into modular ES modules (located in `api/`, `components/`, `state/`, `utils/`, and `constants/`)
+ * and coordinated via the new `main.js` entrypoint.
+ * This file is retained as a backup reference.
+ */
 const AUTH_TOKEN_KEY = "cc_auth_token";
 
+/** Return token. */
 function getToken() {
   return localStorage.getItem(AUTH_TOKEN_KEY);
 }
+/** Set token. */
 function setToken(token) {
   localStorage.setItem(AUTH_TOKEN_KEY, token);
 }
+/** Clear token. */
 function clearToken() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
 }
 
+/** Show login screen. */
 function showLoginScreen() {
   const overlay = document.getElementById("loginOverlay");
   const shell = document.getElementById("appShell");
@@ -22,6 +33,7 @@ function showLoginScreen() {
   }, 50);
 }
 
+/** Hide login screen. */
 function hideLoginScreen() {
   const overlay = document.getElementById("loginOverlay");
   const shell = document.getElementById("appShell");
@@ -29,6 +41,7 @@ function hideLoginScreen() {
   if (shell) shell.style.display = "flex";
 }
 
+/** Handle logout. */
 function logout() {
   clearToken();
   showLoginScreen();
@@ -247,6 +260,7 @@ function $(id) {
   return document.getElementById(id);
 }
 
+/** Show message. */
 function showMessage(text, type = "success") {
   const box = $("globalMessage");
   if (state.messageTimer) {
@@ -264,6 +278,7 @@ function showMessage(text, type = "success") {
   }
 }
 
+/** Clear message. */
 function clearMessage() {
   const box = $("globalMessage");
   if (state.messageTimer) {
@@ -274,6 +289,7 @@ function clearMessage() {
   box.className = "message hidden";
 }
 
+/** Clear evaluation results. */
 function clearEvaluationResults() {
   state.directEvaluation = null;
   state.comparisonEvaluation = null;
@@ -281,12 +297,14 @@ function clearEvaluationResults() {
   renderCheckpointComparison();
 }
 
+/** Clear compatibility result. */
 function clearCompatibilityResult() {
   state.compatibility = null;
   renderCompatibility();
   renderContextCard();
 }
 
+/** Handle api request. */
 async function apiRequest(path, options = {}, timeoutMs = 20000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -324,18 +342,22 @@ async function apiRequest(path, options = {}, timeoutMs = 20000) {
   }
 }
 
+/** Format json. */
 function formatJson(value) {
   return JSON.stringify(value, null, 2);
 }
 
+/** Parse json editor. */
 function parseJsonEditor(id) {
   return JSON.parse($(id).value);
 }
 
+/** Handle clone. */
 function clone(value) {
   return structuredClone(value);
 }
 
+/** Handle escape html. */
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -345,15 +367,18 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+/** Normalize product key. */
 function normalizeProductKey(value) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+/** Handle number value. */
 function numberValue(inputId, fallback = 0) {
   const value = Number($(inputId).value);
   return Number.isFinite(value) ? value : fallback;
 }
 
+/** Parse number list. */
 function parseNumberList(value) {
   return String(value || "")
     .split(",")
@@ -361,6 +386,7 @@ function parseNumberList(value) {
     .filter((item) => Number.isFinite(item));
 }
 
+/** Handle checkpoint ui label. */
 function checkpointUiLabel(checkpoint) {
   if (!checkpoint) return "";
   let source = checkpoint.source_type || "checkpoint";
@@ -383,6 +409,7 @@ function checkpointUiLabel(checkpoint) {
   return `${source} | ${typeLabel}${episodeLabel}${legacySuffix}`;
 }
 
+/** Format run source label. */
 function formatRunSourceLabel(runName) {
   const raw = String(runName || "").trim();
   const match = raw.match(/^run_(\d{4}-\d{2}-\d{2})_(\d{4})(?:_(.+))?$/);
@@ -405,6 +432,7 @@ function formatRunSourceLabel(runName) {
     : `${datePart} ${timeLabel}${iteration}`;
 }
 
+/** Handle checkpoint compatibility tone. */
 function checkpointCompatibilityTone(status) {
   const value = String(status || "").toLowerCase();
   if (value.includes("mismatch") || value.includes("incompatible")) return "bad";
@@ -413,6 +441,7 @@ function checkpointCompatibilityTone(status) {
   return "";
 }
 
+/** Handle checkpoint category. */
 function checkpointCategory(checkpoint) {
   const type = String(checkpoint?.checkpoint_type || "").toLowerCase();
   const label = String(checkpoint?.label || "").toLowerCase();
@@ -422,6 +451,7 @@ function checkpointCategory(checkpoint) {
   return "other";
 }
 
+/** Handle checkpoint group label. */
 function checkpointGroupLabel(checkpoint) {
   if (checkpoint.source_type === "run") {
     return checkpoint.source_run || "run";
@@ -438,10 +468,12 @@ function checkpointGroupLabel(checkpoint) {
   return checkpoint.source_type || "Other";
 }
 
+/** Return whether model selectable. */
 function isModelSelectable(checkpoint) {
   return checkpointCategory(checkpoint) !== "intermediate";
 }
 
+/** Handle sidebar checkpoint options. */
 function sidebarCheckpointOptions() {
   const includeAll = Boolean(state.includeCheckpointSelections);
   return state.checkpoints
@@ -450,6 +482,7 @@ function sidebarCheckpointOptions() {
     .sort((left, right) => left.ui_label.localeCompare(right.ui_label));
 }
 
+/** Format number. */
 function formatNumber(value, digits = 2) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) {
     return "-";
@@ -457,44 +490,54 @@ function formatNumber(value, digits = 2) {
   return Number(value).toFixed(digits);
 }
 
+/** Handle selected game config. */
 function selectedGameConfig() {
   return state.gameConfigs.find((item) => item.id === state.activeGameConfigId) || null;
 }
 
+/** Handle selected training config. */
 function selectedTrainingConfig() {
   return state.trainingConfigs.find((item) => item.id === state.activeTrainingConfigId) || null;
 }
 
+/** Handle selected checkpoint. */
 function selectedCheckpoint() {
   return state.checkpoints.find((item) => item.id === state.activeCheckpointId) || null;
 }
 
+/** Handle checkpoint by path. */
 function checkpointByPath(pathValue) {
   return state.checkpoints.find((item) => item.path === pathValue) || null;
 }
 
+/** Handle selected progress job. */
 function selectedProgressJob() {
   return state.jobs.find((item) => item.id === state.activeProgressJobId) || null;
 }
 
+/** Handle selected progress run. */
 function selectedProgressRun() {
   return state.runs.find((item) => item.id === state.activeProgressRunId) || null;
 }
 
+/** Handle job for run id. */
 function jobForRunId(runId) {
   return state.jobs.find((item) => runLabelFromPath(item.run_dir) === runId) || null;
 }
 
+/** Handle current training mode. */
 function currentTrainingMode() {
   return $("trainModeSelect")?.value || "train";
 }
 
+/** Run label from path. */
 function runLabelFromPath(pathValue) {
   if (!pathValue) return "-";
   const normalized = String(pathValue).replaceAll("\\", "/").split("/");
   return normalized[normalized.length - 1] || pathValue;
 }
 
+/** Download json file. */
 function downloadJsonFile(fileName, payload) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -505,7 +548,9 @@ function downloadJsonFile(fileName, payload) {
   URL.revokeObjectURL(url);
 }
 
+/** Download csv file. */
 function downloadCsvFile(fileName, headers, rows) {
+  /** Handle escape. */
   const escape = (value) => {
     const text = String(value ?? "");
     return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
@@ -522,6 +567,7 @@ function downloadCsvFile(fileName, headers, rows) {
   URL.revokeObjectURL(url);
 }
 
+/** Download checkpoint file. */
 function downloadCheckpointFile(checkpoint) {
   if (!checkpoint?.id) {
     throw new Error("Select a brain before downloading.");
@@ -537,6 +583,7 @@ function downloadCheckpointFile(checkpoint) {
 // prevents request accumulation when the server is slow during training.
 let _pollInFlight = false;
 
+/** Run poll cycle. */
 async function _runPollCycle() {
   if (_pollInFlight) return;
   _pollInFlight = true;
@@ -586,10 +633,12 @@ async function _runPollCycle() {
   }
 }
 
+/** Start progress polling. */
 function startProgressPolling() {
   if (state.progressPollHandle) {
     clearTimeout(state.progressPollHandle);
   }
+  /** Schedule schedule. */
   const schedule = async () => {
     await _runPollCycle();
     state.progressPollHandle = setTimeout(schedule, 5000);
@@ -597,11 +646,13 @@ function startProgressPolling() {
   state.progressPollHandle = setTimeout(schedule, 5000);
 }
 
+/** Build polyline. */
 function buildPolyline(points, width, height) {
   if (!points.length) return "";
   return points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
 }
 
+/** Render table. */
 function renderTable(hostId, columns, rows) {
   const host = $(hostId);
   if (!rows.length) {
@@ -622,6 +673,7 @@ function renderTable(hostId, columns, rows) {
   host.innerHTML = `<table class="data-table"><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
+/** Render line chart. */
 function renderLineChart(hostId, series, valueKey, lineColor, caption) {
   const host = $(hostId);
   const filtered = (series || []).filter((item) => Number.isFinite(item?.[valueKey]));
@@ -659,6 +711,7 @@ function renderLineChart(hostId, series, valueKey, lineColor, caption) {
   `;
 }
 
+/** Render bar chart. */
 function renderBarChart(hostId, rows, valueKey, labelKey, positiveColor, negativeColor, caption) {
   const host = $(hostId);
   const filtered = (rows || []).filter((item) => Number.isFinite(Number(item?.[valueKey])));
@@ -701,6 +754,7 @@ function renderBarChart(hostId, rows, valueKey, labelKey, positiveColor, negativ
   `;
 }
 
+/** Set page. */
 function setPage(pageId) {
   state.activePage = pageId;
   document.querySelectorAll(".nav-button").forEach((button) => {
@@ -715,6 +769,7 @@ function setPage(pageId) {
   renderContextCard();
 }
 
+/** Update status card. */
 function updateStatusCard() {
   const card = $("backendStatusCard");
   if (!state.health) {
@@ -726,6 +781,7 @@ function updateStatusCard() {
   card.innerHTML = `<span>${state.health.status} | v${state.health.api_version}</span>`;
 }
 
+/** Update summary pills. */
 function updateSummaryPills() {
   const activeGameConfig = state.gameConfigs.find((item) => item.id === state.activeGameConfigId);
   const activeCheckpoint = state.checkpoints.find((item) => item.id === state.activeCheckpointId);
@@ -735,6 +791,7 @@ function updateSummaryPills() {
   $("summaryJobCount").textContent = `Jobs: ${visibleJobs.length}`;
 }
 
+/** Render context card. */
 function renderContextCard() {
   const body = $("contextCardBody");
   const gameConfig = selectedGameConfig();
@@ -763,6 +820,7 @@ function renderContextCard() {
   `;
 }
 
+/** Build options. */
 function buildOptions(selectId, items, valueKey = "id", labelKey = "label", emptyLabel = "None") {
   const select = $(selectId);
   const currentValue = select.value;
@@ -787,12 +845,14 @@ function buildOptions(selectId, items, valueKey = "id", labelKey = "label", empt
   }
 }
 
+/** Handle ensure visual game config. */
 function ensureVisualGameConfig() {
   if (!state.visualGameConfig) {
     state.visualGameConfig = clone(DEFAULT_GAME_CONFIG);
   }
 }
 
+/** Handle rebuild visual board. */
 function rebuildVisualBoard(productCount, sprintCount) {
   const config = state.visualGameConfig;
   const nextRingValues = [];
@@ -811,6 +871,7 @@ function rebuildVisualBoard(productCount, sprintCount) {
   config.board_features = nextFeatures;
 }
 
+/** Handle rebuild visual product names. */
 function rebuildVisualProductNames(productCount) {
   const config = state.visualGameConfig;
   const nextNames = [];
@@ -820,6 +881,7 @@ function rebuildVisualProductNames(productCount) {
   config.product_names = nextNames;
 }
 
+/** Handle rebuild visual refinement rules. */
 function rebuildVisualRefinementRules() {
   state.visualGameConfig.refinement.product_rules = state.visualGameConfig.product_names.map((name) => ({
     product_key: normalizeProductKey(name),
@@ -828,6 +890,7 @@ function rebuildVisualRefinementRules() {
   }));
 }
 
+/** Handle ensure visual shape consistency. */
 function ensureVisualShapeConsistency() {
   ensureVisualGameConfig();
   const config = state.visualGameConfig;
@@ -840,6 +903,7 @@ function ensureVisualShapeConsistency() {
   }
 }
 
+/** Synchronize visual shape from inputs. */
 function syncVisualShapeFromInputs() {
   const productCount = Math.max(1, numberValue("productsCountInput", state.visualGameConfig.product_names.length));
   const sprintCount = Math.max(1, numberValue("sprintsPerProductInput", state.visualGameConfig.board_ring_values[0]?.length || 1));
@@ -850,6 +914,7 @@ function syncVisualShapeFromInputs() {
   }
 }
 
+/** Read visual editor into state. */
 function readVisualEditorIntoState() {
   ensureVisualGameConfig();
   const config = state.visualGameConfig;
@@ -931,6 +996,7 @@ function readVisualEditorIntoState() {
   return clone(config);
 }
 
+/** Render visual metadata. */
 function renderVisualMetadata() {
   const config = state.visualGameConfig;
   $("configNameInput").value = config.config_name;
@@ -953,6 +1019,7 @@ function renderVisualMetadata() {
   $("dailyScrumTargetInput").value = config.daily_scrum_target;
 }
 
+/** Render visual product names. */
 function renderVisualProductNames() {
   const host = $("productNamesGrid");
   host.innerHTML = "";
@@ -967,6 +1034,7 @@ function renderVisualProductNames() {
   });
 }
 
+/** Render visual board matrix. */
 function renderVisualBoardMatrix() {
   const host = $("boardMatrixContainer");
   const sprintCount = state.visualGameConfig.board_ring_values[0]?.length || 1;
@@ -999,6 +1067,7 @@ function renderVisualBoardMatrix() {
   host.innerHTML = html;
 }
 
+/** Render visual dice rules. */
 function renderVisualDiceRules() {
   const host = $("diceRulesList");
   host.innerHTML = "";
@@ -1021,6 +1090,7 @@ function renderVisualDiceRules() {
   });
 }
 
+/** Render visual refinement rules. */
 function renderVisualRefinementRules() {
   const config = state.visualGameConfig;
   $("refinementActiveInput").checked = Boolean(config.refinement.active);
@@ -1045,6 +1115,7 @@ function renderVisualRefinementRules() {
   });
 }
 
+/** Render visual incident cards. */
 function renderVisualIncidentCards() {
   const config = state.visualGameConfig;
   $("incidentActiveInput").checked = Boolean(config.incident.active);
@@ -1081,6 +1152,7 @@ function renderVisualIncidentCards() {
   });
 }
 
+/** Synchronize game json editor from visual. */
 function syncGameJsonEditorFromVisual() {
   try {
     const canonical = readVisualEditorIntoState();
@@ -1100,6 +1172,7 @@ function syncGameJsonEditorFromVisual() {
   }
 }
 
+/** Render visual editor. */
 function renderVisualEditor() {
   ensureVisualShapeConsistency();
   renderVisualMetadata();
@@ -1111,6 +1184,7 @@ function renderVisualEditor() {
   syncGameJsonEditorFromVisual();
 }
 
+/** Render game configs. */
 function renderGameConfigs() {
   $("gameConfigCount").textContent = `${state.gameConfigs.length}`;
   const container = $("gameConfigsList");
@@ -1130,6 +1204,7 @@ function renderGameConfigs() {
   });
 }
 
+/** Render training configs. */
 function renderTrainingConfigs() {
   $("trainingConfigCount").textContent = `${state.trainingConfigs.length}`;
   const container = $("trainingConfigsList");
@@ -1150,6 +1225,7 @@ function renderTrainingConfigs() {
   });
 }
 
+/** Render game config validation. */
 function renderGameConfigValidation() {
   const container = $("gameConfigValidationCard");
   if (!state.gameConfigValidation) {
@@ -1174,6 +1250,7 @@ function renderGameConfigValidation() {
   `;
 }
 
+/** Render training config validation. */
 function renderTrainingConfigValidation() {
   const container = $("trainingConfigValidationCard");
   if (!state.trainingConfigValidation) {
@@ -1199,6 +1276,7 @@ function renderTrainingConfigValidation() {
   `;
 }
 
+/** Render runs. */
 function renderRuns() {
   $("runCount").textContent = `${state.runs.length}`;
   buildOptions("robustnessRunSelect", state.runs);
@@ -1267,6 +1345,7 @@ function renderRuns() {
 
 const JOBS_PER_PAGE = 5;
 
+/** Render jobs. */
 function renderJobs() {
   const container = $("jobsList");
   const paginationContainer = $("jobsPagination");
@@ -1425,6 +1504,7 @@ function renderJobs() {
   }
 }
 
+/** Render run detail. */
 function renderRunDetail() {
   const label = $("runDetailLabel");
   const container = $("runDetailCard");
@@ -1441,6 +1521,7 @@ function renderRunDetail() {
   const bestCheckpoint = checkpointByPath(metadata.best_checkpoint_path || state.runDetail.metadata?.best_checkpoint_path || state.runs.find((item) => item.id === state.runDetail.id)?.best_checkpoint_path);
   const rating = state.runRating;
   const gradeColors = { S: "#7c3aed", A: "#16a34a", B: "#0284c7", C: "#ca8a04", D: "#ea580c", F: "#dc2626" };
+  /** Handle rating html. */
   const ratingHtml = (() => {
     if (!rating) return "";
     if (rating.grade === "N/A") return `<span class="tag">rating unavailable</span>`;
@@ -1516,6 +1597,7 @@ function renderRunDetail() {
   });
 }
 
+/** Render job detail. */
 function renderJobDetail() {
   const label = $("jobDetailLabel");
   const container = $("jobDetailCard");
@@ -1580,6 +1662,7 @@ function renderJobDetail() {
   });
 }
 
+/** Render job log. */
 function renderJobLog() {
   const container = $("jobLogCard");
   if (!state.jobLog) {
@@ -1591,6 +1674,7 @@ function renderJobLog() {
   container.textContent = (state.jobLog.lines || []).join("\n") || "(no log yet)";
 }
 
+/** Render training selection summary. */
 function renderTrainingSelectionSummary() {
   const container = $("trainingSelectionSummary");
   const gameConfig = selectedGameConfig();
@@ -1615,6 +1699,7 @@ function renderTrainingSelectionSummary() {
   `;
 }
 
+/** Render training preflight. */
 function renderTrainingPreflight() {
   const container = $("trainingPreflightCard");
   const mode = currentTrainingMode();
@@ -1670,6 +1755,7 @@ function renderTrainingPreflight() {
   `;
 }
 
+/** Fetch autopilot data. */
 async function fetchAutopilotData(runId) {
   if (!runId) return;
   try {
@@ -1687,6 +1773,7 @@ async function fetchAutopilotData(runId) {
   renderAutopilotPanel();
 }
 
+/** Render autopilot panel. */
 function renderAutopilotPanel() {
   const settings = state.autopilotSettings;
   const history = state.autopilotHistory;
@@ -1865,6 +1952,7 @@ function renderAutopilotPanel() {
   }).join("");
 }
 
+/** Handle action tag. */
 function actionTag(action) {
   const tones = {
     continue: "good",
@@ -1876,6 +1964,7 @@ function actionTag(action) {
   return `<span class="tag ${tones[action] || ""}">${escapeHtml(action || "-")}</span>`;
 }
 
+/** Render autopilot training panel. */
 function renderAutopilotTrainingPanel() {
   const card = $("autopilotTrainingCard");
   const label = $("autopilotTrainingStatusLabel");
@@ -1983,6 +2072,7 @@ function renderAutopilotTrainingPanel() {
   }
 }
 
+/** Render campaign panel. */
 function renderCampaignPanel() {
   const card = $("campaignCard");
   const label = $("campaignStatusLabel");
@@ -2042,6 +2132,7 @@ function renderCampaignPanel() {
   escalateButton.style.display = display.status === "completed" ? "" : "none";
 }
 
+/** Refresh campaigns. */
 async function refreshCampaigns() {
   try {
     state.campaigns = await apiRequest("/campaigns");
@@ -2051,6 +2142,7 @@ async function refreshCampaigns() {
   renderCampaignPanel();
 }
 
+/** Refresh autopilot settings. */
 async function refreshAutopilotSettings() {
   try {
     const [settings, stopStatus] = await Promise.all([
@@ -2066,6 +2158,7 @@ async function refreshAutopilotSettings() {
   renderAutopilotPanel();
 }
 
+/** Render training progress. */
 function renderTrainingProgress() {
   const progressLabel = $("trainingProgressJobLabel");
   const container = $("trainingProgressCard");
@@ -2142,6 +2235,7 @@ function renderTrainingProgress() {
   );
 }
 
+/** Render compatibility. */
 function renderCompatibility() {
   const container = $("compatibilityCard");
   if (!state.compatibility) {
@@ -2161,6 +2255,7 @@ function renderCompatibility() {
   `;
 }
 
+/** Render checkpoint detail. */
 function renderCheckpointDetail() {
   const container = $("checkpointDetailCard");
   const checkpoint = state.checkpoints.find((item) => item.id === state.activeCheckpointId);
@@ -2207,6 +2302,7 @@ function renderCheckpointDetail() {
   });
 }
 
+/** Handle default seat name. */
 function defaultSeatName(type, index) {
   if (type === "human") return "Player";
   if (type === "model-expert") return `AI Expert ${index}`;
@@ -2216,6 +2312,7 @@ function defaultSeatName(type, index) {
   return `Random AI ${index}`;
 }
 
+/** Play seat payload. */
 function playSeatPayload(draft, index) {
   const displayName = String(draft.display_name || "").trim() || defaultSeatName(draft.type, index + 1);
   if (draft.type === "human") return { type: "human", display_name: displayName };
@@ -2232,6 +2329,7 @@ function playSeatPayload(draft, index) {
   return null;
 }
 
+/** Render play seat editor. */
 function renderPlaySeatEditor() {
   const host = $("playSeatEditor");
   if (!host) return;
@@ -2284,6 +2382,7 @@ function renderPlaySeatEditor() {
   });
 }
 
+/** Render play board. */
 function renderPlayBoard() {
   const host = $("playBoardCard");
   const label = $("playBoardStatus");
@@ -2354,6 +2453,7 @@ function renderPlayBoard() {
   `;
 }
 
+/** Render play topbar. */
 function renderPlayTopbar() {
   const sessionCode = $("playSessionCode");
   const roundCode = $("playRoundCode");
@@ -2375,6 +2475,7 @@ function renderPlayTopbar() {
   }
 }
 
+/** Render play standings. */
 function renderPlayStandings() {
   const host = $("playStandingsCard");
   if (!host) return;
@@ -2407,6 +2508,7 @@ function renderPlayStandings() {
   }).join("");
 }
 
+/** Render play turn log. */
 function renderPlayTurnLog() {
   const host = $("playTurnLogCard");
   if (!host) return;
@@ -2430,16 +2532,19 @@ function renderPlayTurnLog() {
   `).join("");
 }
 
+/** Handle product name by id. */
 function productNameById(productId) {
   const product = state.playSession?.board?.products?.find((item) => Number(item.product_id) === Number(productId));
   return product?.name || `Product ${productId || "-"}`;
 }
 
+/** Format currency. */
 function formatCurrency(value) {
   const amount = Number(value || 0);
   return `${amount < 0 ? "-" : ""}€${Math.abs(Math.round(amount)).toLocaleString()}`;
 }
 
+/** Render play action buttons. */
 function renderPlayActionButtons(humanSeat) {
   const host = $("playActionButtonGrid");
   const select = $("playHumanActionSelect");
@@ -2483,19 +2588,23 @@ function renderPlayActionButtons(humanSeat) {
   });
 }
 
+/** Handle latest play turn. */
 function latestPlayTurn() {
   const rows = state.playSession?.turn_log || [];
   return rows.length ? rows[rows.length - 1] : null;
 }
 
+/** Show play dice overlay. */
 function showPlayDiceOverlay() {
   $("playDiceOverlay")?.classList.remove("hidden");
 }
 
+/** Hide play dice overlay. */
 function hidePlayDiceOverlay() {
   $("playDiceOverlay")?.classList.add("hidden");
 }
 
+/** Handle dice notation from turn dice. */
 function diceNotationFromTurnDice(dice) {
   const firstScrum = dice?.daily_scrums?.[0];
   const diceCount = Number(firstScrum?.dice_count || 0);
@@ -2505,6 +2614,7 @@ function diceNotationFromTurnDice(dice) {
   return `${diceCount * scrumCount}d${diceSides}`;
 }
 
+/** Handle ensure play dice box. */
 async function ensurePlayDiceBox() {
   if (state.playDiceBoxReady && state.playDiceBox) return state.playDiceBox;
   if (state.playDiceBoxInitPromise) return state.playDiceBoxInitPromise;
@@ -2538,6 +2648,7 @@ async function ensurePlayDiceBox() {
   return state.playDiceBoxInitPromise;
 }
 
+/** Render fallback dice. */
 function renderFallbackDice(dice) {
   const host = $("playDiceBox");
   if (!host) return;
@@ -2557,6 +2668,7 @@ function renderFallbackDice(dice) {
   `;
 }
 
+/** Roll play dice. */
 async function rollPlayDice(dice) {
   showPlayDiceOverlay();
   const slot = $("playDiceCard")?.querySelector(".dice-animation-slot");
@@ -2581,6 +2693,7 @@ async function rollPlayDice(dice) {
   window.setTimeout(() => slot?.classList.remove("is-rolling"), 650);
 }
 
+/** Render play dice preview. */
 function renderPlayDicePreview(humanSeat, actionId) {
   const host = $("playDiceCard");
   if (!host || !humanSeat) return;
@@ -2596,6 +2709,7 @@ function renderPlayDicePreview(humanSeat, actionId) {
   `;
 }
 
+/** Render play dice zone. */
 function renderPlayDiceZone() {
   const host = $("playDiceCard");
   if (!host) return;
@@ -2635,6 +2749,7 @@ function renderPlayDiceZone() {
   `;
 }
 
+/** Render play session. */
 function renderPlaySession() {
   const card = $("playSessionCard");
   const humanWrap = $("playHumanActionWrap");
@@ -2686,6 +2801,7 @@ function renderPlaySession() {
   renderPlayActionButtons(humanSeat);
 }
 
+/** Parse seed list. */
 function parseSeedList(value) {
   return String(value || "")
     .split(",")
@@ -2693,6 +2809,7 @@ function parseSeedList(value) {
     .filter((item) => Number.isFinite(item));
 }
 
+/** Render direct evaluation. */
 function renderDirectEvaluation() {
   const host = $("directEvaluationResult");
   const metricsHost = $("directEvaluationMetrics");
@@ -2792,6 +2909,7 @@ function renderDirectEvaluation() {
   );
 }
 
+/** Render checkpoint comparison. */
 function renderCheckpointComparison() {
   const host = $("checkpointCompareResult");
   const metricsHost = $("comparisonMetrics");
@@ -2905,6 +3023,7 @@ function renderCheckpointComparison() {
   );
 }
 
+/** Synchronize selectors. */
 function syncSelectors() {
   buildOptions("activeGameConfigSelect", state.gameConfigs);
   buildOptions("activeTrainingConfigSelect", state.trainingConfigs);
@@ -2927,6 +3046,7 @@ function syncSelectors() {
   $("activeCheckpointIncludeAllToggle").checked = state.includeCheckpointSelections;
 }
 
+/** Load active game config into editor. */
 async function loadActiveGameConfigIntoEditor() {
   if (!state.activeGameConfigId) {
     showMessage("Select a game config first.", "error");
@@ -2940,6 +3060,7 @@ async function loadActiveGameConfigIntoEditor() {
   renderVisualEditor();
 }
 
+/** Load active training config into editor. */
 async function loadActiveTrainingConfigIntoEditor() {
   if (!state.activeTrainingConfigId) {
     showMessage("Select a training config first.", "error");
@@ -2951,6 +3072,7 @@ async function loadActiveTrainingConfigIntoEditor() {
   $("trainingConfigFileNameInput").value = payload.id === "default_training_config" ? "my_training_config" : payload.id;
 }
 
+/** Save game config. */
 async function saveGameConfig(overwrite = false) {
   let config;
   try {
@@ -2977,6 +3099,7 @@ async function saveGameConfig(overwrite = false) {
   await validateGameConfigDraft(false).catch(() => {});
 }
 
+/** Save training config. */
 async function saveTrainingConfig(overwrite = false) {
   const config = parseJsonEditor("trainingConfigEditor");
   const body = {
@@ -2997,6 +3120,7 @@ async function saveTrainingConfig(overwrite = false) {
   await validateTrainingConfigDraft(false).catch(() => {});
 }
 
+/** Refresh jobs. */
 async function refreshJobs() {
   const payload = await apiRequest("/jobs");
   state.jobs = payload.items || [];
@@ -3009,6 +3133,7 @@ async function refreshJobs() {
   }
 }
 
+/** Fetch training progress. */
 async function fetchTrainingProgress(jobId, announce = false) {
   state.activeProgressJobId = Number(jobId);
   state.activeProgressRunId = null;
@@ -3019,6 +3144,7 @@ async function fetchTrainingProgress(jobId, announce = false) {
   }
 }
 
+/** Fetch run progress. */
 async function fetchRunProgress(runId, announce = false) {
   state.activeProgressRunId = runId;
   state.activeProgressJobId = null;
@@ -3029,6 +3155,7 @@ async function fetchRunProgress(runId, announce = false) {
   }
 }
 
+/** Refresh training preflight. */
 async function refreshTrainingPreflight() {
   const mode = currentTrainingMode();
   const checkpoint = selectedCheckpoint();
@@ -3053,6 +3180,7 @@ async function refreshTrainingPreflight() {
   renderTrainingPreflight();
 }
 
+/** Validate game config draft. */
 async function validateGameConfigDraft(showSuccess = false) {
   try {
     const config = readVisualEditorIntoState();
@@ -3076,6 +3204,7 @@ async function validateGameConfigDraft(showSuccess = false) {
   }
 }
 
+/** Validate training config draft. */
 async function validateTrainingConfigDraft(showSuccess = false) {
   try {
     const config = parseJsonEditor("trainingConfigEditor");
@@ -3098,6 +3227,7 @@ async function validateTrainingConfigDraft(showSuccess = false) {
   }
 }
 
+/** Refresh play session. */
 async function refreshPlaySession() {
   if (!state.playSession?.id) {
     renderPlaySession();
@@ -3107,6 +3237,7 @@ async function refreshPlaySession() {
   renderPlaySession();
 }
 
+/** Fetch run detail. */
 async function fetchRunDetail(runId, announce = false) {
   state.activeRunId = runId;
   state.runRating = null;
@@ -3122,6 +3253,7 @@ async function fetchRunDetail(runId, announce = false) {
   }
 }
 
+/** Fetch job detail. */
 async function fetchJobDetail(jobId, announce = false) {
   state.activeJobDetailId = Number(jobId);
   state.jobDetail = await apiRequest(`/jobs/${state.activeJobDetailId}`);
@@ -3137,6 +3269,7 @@ async function fetchJobDetail(jobId, announce = false) {
   }
 }
 
+/** Handle open inspect for run. */
 async function openInspectForRun(runId, announce = true) {
   await fetchRunDetail(runId, false);
   await fetchAutopilotData(runId).catch(() => {});
@@ -3165,6 +3298,7 @@ async function openInspectForRun(runId, announce = true) {
   }
 }
 
+/** Handle open inspect for job. */
 async function openInspectForJob(jobId, announce = true) {
   await fetchJobDetail(jobId, false);
   const job = state.jobDetail;
@@ -3188,6 +3322,7 @@ async function openInspectForJob(jobId, announce = true) {
   }
 }
 
+/** Refresh checkpoints. */
 async function refreshCheckpoints() {
   // Checkpoints load .pth files via torch and can be slow on first call.
   // Fetched separately so a slow response never blocks the connect flow.
@@ -3204,6 +3339,7 @@ async function refreshCheckpoints() {
   }
 }
 
+/** Refresh all. */
 async function refreshAll() {
   clearMessage();
   const [health, gameConfigs, trainingConfigs, runs, jobs] = await Promise.all([
@@ -3257,6 +3393,7 @@ async function refreshAll() {
   }
 }
 
+/** Run compatibility. */
 async function runCompatibility() {
   if (!state.activeCheckpointId || !state.activeGameConfigId) {
     showMessage("Select both a game config and a checkpoint first.", "error");
@@ -3268,6 +3405,7 @@ async function runCompatibility() {
   renderCompatibility();
 }
 
+/** Queue training job. */
 async function queueTrainingJob(event) {
   event.preventDefault();
   const mode = currentTrainingMode();
@@ -3329,6 +3467,7 @@ async function queueTrainingJob(event) {
   await refreshJobs();
 }
 
+/** Queue robustness job. */
 async function queueRobustnessJob(event) {
   event.preventDefault();
   const runId = $("robustnessRunSelect").value;
@@ -3349,6 +3488,7 @@ async function queueRobustnessJob(event) {
   await refreshJobs();
 }
 
+/** Create play session. */
 async function createPlaySession(event) {
   event.preventDefault();
   if (!state.activeGameConfigId) {
@@ -3387,6 +3527,7 @@ async function createPlaySession(event) {
   showMessage("Play session started.");
 }
 
+/** Advance play round. */
 async function advancePlayRound(humanAction = null) {
   if (!state.playSession?.id) {
     showMessage("Start a play session first.", "error");
@@ -3409,6 +3550,7 @@ async function advancePlayRound(humanAction = null) {
   }
 }
 
+/** Run direct evaluation. */
 async function runDirectEvaluation(event) {
   event.preventDefault();
   if (!state.activeCheckpointId || !state.activeGameConfigId) {
@@ -3426,6 +3568,7 @@ async function runDirectEvaluation(event) {
   renderDirectEvaluation();
 }
 
+/** Run checkpoint comparison. */
 async function runCheckpointComparison(event) {
   event.preventDefault();
   const rightCheckpointId = $("compareCheckpointSelect").value;
@@ -3445,6 +3588,7 @@ async function runCheckpointComparison(event) {
   renderCheckpointComparison();
 }
 
+/** Export direct evaluation json. */
 function exportDirectEvaluationJson() {
   if (!state.directEvaluation) {
     showMessage("Run a direct evaluation first.", "error");
@@ -3454,6 +3598,7 @@ function exportDirectEvaluationJson() {
   showMessage("Exported direct evaluation JSON.");
 }
 
+/** Export direct evaluation csv. */
 function exportDirectEvaluationCsv() {
   if (!state.directEvaluation) {
     showMessage("Run a direct evaluation first.", "error");
@@ -3476,6 +3621,7 @@ function exportDirectEvaluationCsv() {
   showMessage("Exported direct evaluation CSV.");
 }
 
+/** Export comparison json. */
 function exportComparisonJson() {
   if (!state.comparisonEvaluation) {
     showMessage("Run a checkpoint comparison first.", "error");
@@ -3485,6 +3631,7 @@ function exportComparisonJson() {
   showMessage("Exported checkpoint comparison JSON.");
 }
 
+/** Export comparison csv. */
 function exportComparisonCsv() {
   if (!state.comparisonEvaluation) {
     showMessage("Run a checkpoint comparison first.", "error");
@@ -3519,6 +3666,7 @@ const AUTO_CONNECT_URLS = [
   "http://127.0.0.1:8000",
 ];
 
+/** Show connected ui. */
 function _showConnectedUi() {
   const manual = $("backendManualConnect");
   const actions = $("backendConnectedActions");
@@ -3526,6 +3674,7 @@ function _showConnectedUi() {
   if (actions) actions.style.display = "";
 }
 
+/** Show manual connect ui. */
 function _showManualConnectUi() {
   const manual = $("backendManualConnect");
   const actions = $("backendConnectedActions");
@@ -3533,11 +3682,13 @@ function _showManualConnectUi() {
   if (actions) actions.style.display = "none";
 }
 
+/** Handle try connect. */
 async function _tryConnect(url) {
   state.apiBaseUrl = url.replace(/\/$/, "");
   await refreshAll();
 }
 
+/** Handle auto connect. */
 async function autoConnect() {
   for (const url of AUTO_CONNECT_URLS) {
     try {
@@ -3556,6 +3707,7 @@ async function autoConnect() {
   showMessage("Could not auto-connect. Enter the backend URL manually.", "error");
 }
 
+/** Attach events. */
 function attachEvents() {
   document.querySelectorAll(".nav-button").forEach((button) => {
     button.addEventListener("click", () => setPage(button.dataset.page));

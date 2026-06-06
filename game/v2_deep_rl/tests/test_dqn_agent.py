@@ -79,6 +79,7 @@ def _make_agent(state_dim: int = 4, num_actions: int = 3) -> DQNAgent:
     )
 
 
+# Handle dummy state.
 def _dummy_state(dim: int = 4) -> list[float]:
     return [0.1] * dim
 
@@ -88,10 +89,12 @@ def _dummy_state(dim: int = 4) -> list[float]:
 # ---------------------------------------------------------------------------
 
 class TestReplayBuffer:
+    # Verify initial length is zero.
     def test_initial_length_is_zero(self):
         buf = ReplayBuffer(capacity=10)
         assert len(buf) == 0
 
+    # Verify push increments length.
     def test_push_increments_length(self):
         buf = ReplayBuffer(capacity=10)
         buf.push([0.0], 0, 1.0, [1.0], False)
@@ -104,6 +107,7 @@ class TestReplayBuffer:
             buf.push([float(i)], i % 3, float(i), [float(i + 1)], False)
         assert len(buf) == 5
 
+    # Verify sample returns correct batch size.
     def test_sample_returns_correct_batch_size(self):
         buf = ReplayBuffer(capacity=50)
         for i in range(20):
@@ -115,12 +119,14 @@ class TestReplayBuffer:
         assert len(next_states) == 8
         assert len(dones) == 8
 
+    # Verify sample raises when buffer too small.
     def test_sample_raises_when_buffer_too_small(self):
         buf = ReplayBuffer(capacity=50)
         buf.push([0.0], 0, 0.0, [1.0], False)  # only 1 item
         with pytest.raises(ValueError):
             buf.sample(5)
 
+    # Verify state dict roundtrip preserves content.
     def test_state_dict_roundtrip_preserves_content(self):
         buf = ReplayBuffer(capacity=20)
         transitions = [
@@ -140,12 +146,14 @@ class TestReplayBuffer:
         assert buf2.buffer[0] == buf.buffer[0]
         assert buf2.buffer[-1] == buf.buffer[-1]
 
+    # Verify state dict preserves capacity.
     def test_state_dict_preserves_capacity(self):
         buf = ReplayBuffer(capacity=777)
         buf.push([1.0], 0, 0.5, [2.0], True)
         sd = buf.state_dict()
         assert sd["capacity"] == 777
 
+    # Verify load state dict empty buffer.
     def test_load_state_dict_empty_buffer(self):
         buf = ReplayBuffer(capacity=10)
         buf.load_state_dict({"capacity": 10, "buffer": []})
@@ -174,6 +182,7 @@ class TestDQNAgentChooseAction:
         # With epsilon=1 and 200 draws over 5 actions we should see >1 action
         assert len(actions) > 1, "epsilon=1.0 must produce random actions, not always the same one"
 
+    # Verify epsilon one action in valid range.
     def test_epsilon_one_action_in_valid_range(self):
         agent = _make_agent(state_dim=4, num_actions=3)
         state = _dummy_state(4)
@@ -193,6 +202,7 @@ class TestDQNAgentChooseAction:
                 "epsilon=0.0 must be deterministic (greedy)"
             )
 
+    # Verify epsilon zero action in valid range.
     def test_epsilon_zero_action_in_valid_range(self):
         agent = _make_agent(state_dim=6, num_actions=8)
         state = _dummy_state(6)
@@ -213,6 +223,7 @@ class TestDQNAgentChooseAction:
 # ---------------------------------------------------------------------------
 
 class TestDQNAgentTrainingStateDict:
+    # Verify state dict has required keys.
     def test_state_dict_has_required_keys(self):
         agent = _make_agent()
         sd = agent.training_state_dict()
@@ -220,6 +231,7 @@ class TestDQNAgentTrainingStateDict:
         assert "replay_buffer" in sd
         assert "training_steps" in sd
 
+    # Verify training steps roundtrip.
     def test_training_steps_roundtrip(self):
         agent = _make_agent()
         agent.training_steps = 12345
@@ -268,6 +280,7 @@ class TestDQNAgentTrainingStateDict:
         agent.load_training_state_dict({"training_steps": 99})
         assert agent.training_steps == 99
 
+    # Verify load ignores none optimizer state.
     def test_load_ignores_none_optimizer_state(self):
         agent = _make_agent()
         agent.load_training_state_dict({"optimizer_state_dict": None, "training_steps": 7})
@@ -289,22 +302,26 @@ class TestDQNAgentTrainingStateDict:
 # ---------------------------------------------------------------------------
 
 class TestDQNAgentGeneral:
+    # Verify initial training steps zero.
     def test_initial_training_steps_zero(self):
         agent = _make_agent()
         assert agent.training_steps == 0
 
+    # Verify store transition adds to buffer.
     def test_store_transition_adds_to_buffer(self):
         agent = _make_agent(state_dim=4, num_actions=3)
         assert len(agent.replay_buffer) == 0
         agent.store_transition([0.0] * 4, 1, 0.5, [1.0] * 4, False)
         assert len(agent.replay_buffer) == 1
 
+    # Verify train step returns none when buffer too small.
     def test_train_step_returns_none_when_buffer_too_small(self):
         agent = _make_agent(state_dim=4, num_actions=3)
         # batch_size=8, buffer empty → must return None
         result = agent.train_step()
         assert result is None
 
+    # Verify train step returns float loss when buffer full.
     def test_train_step_returns_float_loss_when_buffer_full(self):
         agent = _make_agent(state_dim=4, num_actions=3)
         for i in range(20):
@@ -319,6 +336,7 @@ class TestDQNAgentGeneral:
         assert isinstance(loss, float)
         assert loss >= 0.0
 
+    # Verify train step increments training steps.
     def test_train_step_increments_training_steps(self):
         agent = _make_agent(state_dim=4, num_actions=3)
         for i in range(20):

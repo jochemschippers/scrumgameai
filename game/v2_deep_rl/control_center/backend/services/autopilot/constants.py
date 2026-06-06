@@ -1,3 +1,5 @@
+"""Implement constants behavior for the autopilot package."""
+
 from __future__ import annotations
 
 import os

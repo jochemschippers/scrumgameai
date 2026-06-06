@@ -1,3 +1,16 @@
+"""
+Training Run Directory Catalog Scanner.
+
+This module provides data access functions to query and aggregate historical training run data on disk.
+It scans directory entries inside the main runs workspace, reads metadata sidecars (`run_metadata.json`),
+extracts final model metrics (`dqn_metrics.json`), parses model checkpoints, and streams historical
+training/evaluation log series (rolling rewards, bankruptcy rates, invalid action percentages) for graphs.
+
+Connections:
+  - Imports: Directory configurations from `services.app_paths` and helpers from `services.io_utils`.
+  - Exported functions: `list_runs`, `get_run`, and `get_run_progress`. Called by `api/routes_runs.py`.
+"""
+
 from __future__ import annotations
 
 from services.app_paths import RUNS_DIR
@@ -5,6 +18,7 @@ from services.io_utils import read_json_safe, safe_float, safe_int, tail_csv_row
 
 
 def list_runs() -> list[dict]:
+    """Scan and list metadata and metrics for all training runs."""
     runs = []
     if not RUNS_DIR.exists():
         return runs
@@ -37,6 +51,7 @@ def list_runs() -> list[dict]:
 
 
 def get_run(run_id: str) -> dict | None:
+    """Retrieve details, configurations, and checkpoint list for a specific run."""
     run_dir = RUNS_DIR / run_id
     if not run_dir.exists() or not run_dir.is_dir():
         return None
@@ -65,6 +80,7 @@ def get_run(run_id: str) -> dict | None:
 
 
 def get_run_progress(run_id: str) -> dict | None:
+    """Stream run progression ratios and tail-end log/evaluation series."""
     run_dir = RUNS_DIR / run_id
     if not run_dir.exists() or not run_dir.is_dir():
         return None

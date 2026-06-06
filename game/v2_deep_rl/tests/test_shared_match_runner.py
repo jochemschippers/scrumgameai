@@ -1,3 +1,5 @@
+"""Test shared match runner behavior."""
+
 from __future__ import annotations
 
 import sys
@@ -19,6 +21,7 @@ from play.shared_match_runner import (  # noqa: E402
 )
 
 
+# Verify shared match supports one to four seats.
 def test_shared_match_supports_one_to_four_seats():
     config = load_game_config()
     for count in range(1, 5):
@@ -34,6 +37,7 @@ def test_shared_match_supports_one_to_four_seats():
         ]
 
 
+# Verify sprint completion is private across seats.
 def test_sprint_completion_is_private_across_seats():
     config = load_game_config()
     match_state = start_shared_match(
@@ -51,6 +55,7 @@ def test_sprint_completion_is_private_across_seats():
     assert first_seat["state"]["current_money"] != match_state["seats"][1]["state"]["current_money"]
 
 
+# Verify incident draws once after all seats act.
 def test_incident_draws_once_after_all_seats_act():
     config = load_game_config()
     match_state = start_shared_match(
@@ -68,6 +73,7 @@ def test_incident_draws_once_after_all_seats_act():
     assert match_state["round_incidents"][0]["round"] == 1
 
 
+# Verify human round waits for human action.
 def test_human_round_waits_for_human_action():
     config = load_game_config()
     match_state = start_shared_match(
@@ -83,6 +89,7 @@ def test_human_round_waits_for_human_action():
     assert match_state["turn_log"] == []
 
 
+# Verify ai only round advances and standings render.
 def test_ai_only_round_advances_and_standings_render():
     config = load_game_config()
     match_state = start_shared_match(
@@ -100,6 +107,7 @@ def test_ai_only_round_advances_and_standings_render():
     assert not all_shared_seats_done(match_state)
 
 
+# Verify shared match rotates first actor each round.
 def test_shared_match_rotates_first_actor_each_round():
     config = load_game_config()
     match_state = start_shared_match(

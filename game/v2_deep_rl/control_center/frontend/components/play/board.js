@@ -1,9 +1,12 @@
+/** Implement board user-interface behavior. */
+
 import { state } from '../../state/store.js';
 import { $, showMessage, buildOptions } from '../../utils/helpers.js';
 import { escapeHtml, formatNumber, formatCurrency } from '../../utils/formatting.js';
 import { defaultSeatName, latestPlayTurn, productNameById } from './session.js';
 import { renderPlayDiceZone, renderPlayDicePreview } from './dice.js';
 
+/** Render play seat editor. */
 export function renderPlaySeatEditor() {
   const host = $("playSeatEditor");
   if (!host) return;
@@ -56,6 +59,7 @@ export function renderPlaySeatEditor() {
   });
 }
 
+/** Render play board. */
 export function renderPlayBoard() {
   const host = $("playBoardCard");
   const label = $("playBoardStatus");
@@ -126,6 +130,7 @@ export function renderPlayBoard() {
   `;
 }
 
+/** Render play topbar. */
 export function renderPlayTopbar() {
   const sessionCode = $("playSessionCode");
   const roundCode = $("playRoundCode");
@@ -158,6 +163,7 @@ export function renderPlayTopbar() {
   }
 }
 
+/** Render play standings. */
 export function renderPlayStandings() {
   const host = $("playStandingsCard");
   if (!host) return;
@@ -190,6 +196,7 @@ export function renderPlayStandings() {
   }).join("");
 }
 
+/** Render play turn log. */
 export function renderPlayTurnLog() {
   const host = $("playTurnLogCard");
   if (!host) return;
@@ -213,6 +220,7 @@ export function renderPlayTurnLog() {
   `).join("");
 }
 
+/** Render play action buttons. */
 export function renderPlayActionButtons(humanSeat) {
   const host = $("playActionButtonGrid");
   const select = $("playHumanActionSelect");
@@ -256,6 +264,7 @@ export function renderPlayActionButtons(humanSeat) {
   });
 }
 
+/** Render play session. */
 export function renderPlaySession() {
   const card = $("playSessionCard");
   const humanWrap = $("playHumanActionWrap");

@@ -1,3 +1,19 @@
+"""
+Checkpoint Management Route Controller.
+
+This module exposes endpoints for browsing, checking compatibility, and downloading trained
+PyTorch model checkpoint files (.pth). It supports both managed run checkpoints and legacy models.
+
+Key Endpoints:
+  - `GET /checkpoints`: Lists all scanned checkpoint paths, associated configuration hashes, and performance ratings.
+  - `GET /checkpoints/{checkpoint_id}/compatibility`: Evaluates whether a checkpoint is compatible with a given game configuration
+    (compares state space dimensions and action sizes).
+  - `GET /checkpoints/{checkpoint_id}/download`: Transmits the raw `.pth` binary file.
+
+Connections:
+  - Imports: Helper functions from `services.checkpoint_service`.
+"""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query

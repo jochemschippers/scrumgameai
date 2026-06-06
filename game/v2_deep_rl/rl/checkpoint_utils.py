@@ -1,3 +1,33 @@
+"""
+Checkpoint Persistence and Compatibility Utilities for RL Models.
+
+This module provides functions to save and load PyTorch model weights along with
+compatibility metadata (rules, hyperparameters, state dimension, action dimension).
+
+Three-File Checkpoint Scheme:
+  1. Main Checkpoint (`[name].pth`):
+     - Stores the full model state, target model state, optimizer state, training steps counter,
+       and the COMPLETE ReplayBuffer.
+     - Used for resumption of interrupted training runs. Very large due to replay buffer.
+  2. Sidecar Metadata (`[name].json`):
+     - Stores only the game configurations and signatures.
+     - Rationale: The FastAPI backend and dashboards read these JSON sidecars to populate
+       run catalog lists without incurring the heavy CPU/RAM overhead of parsing multi-megabyte
+       PyTorch checkpoint files.
+  3. Inference-Only Policy (`[name].policy.pth`):
+     - Stores only the model weights and basic config metadata (no optimizer/replay buffer).
+     - Rationale: Used for fast loading during game simulation/demos to minimize memory footprint.
+
+Rule Signatures and Invariants:
+  - GameConfig components are hashed to generate a unique `rule_signature`.
+  - When loading a checkpoint, we compare the signature of the model against the environment configuration.
+  - If they do not match, we raise a ValueError to prevent sizing issues in PyTorch linear layers.
+
+Connections:
+  - Imported by: `training.train_dqn.py` (saves model periodically and after evaluation)
+  - Imported by: `play.play_best_dqn_game.py` and backend play/eval routes to run trained agents.
+"""
+
 from __future__ import annotations
 
 import json
@@ -24,10 +54,19 @@ def build_agent_for_config(
     replay_capacity: int = 100000,
     batch_size: int = 128,
     target_update_frequency: int = 2000,
-    device=None,
-):
-    """Construct an agent whose network shape matches one game config."""
+    device: str | None = None,
+) -> tuple[DQNAgent, ScrumGameEnv]:
+    """
+    Construct a stateful DQNAgent and ScrumGameEnv whose network sizes match the game config.
+    
+    Args:
+        game_config: Rule configurations defining products and observation shapes.
+        
+    Returns:
+        tuple: (DQNAgent, ScrumGameEnv) properly configured.
+    """
     env = ScrumGameEnv(game_config=game_config)
+    # Determine input size dynamically by running environment reset and encoding the output dict
     state_dim = len(encode_state(env.reset(seed=42), env))
     agent = DQNAgent(
         state_dim=state_dim,
@@ -43,13 +82,20 @@ def build_agent_for_config(
 
 
 def save_checkpoint(
-    checkpoint_path,
-    agent,
+    checkpoint_path: str | Path,
+    agent: DQNAgent,
     game_config: GameConfig,
     training_config: TrainingConfig | None = None,
     extra_metadata: dict[str, Any] | None = None,
 ):
-    """Save a checkpoint bundle with model weights and compatibility metadata."""
+    """
+    Save the model, training state, replay buffers, and generate sidecar files.
+    
+    Creates:
+      - `[path].pth` (Full train checkpoint)
+      - `[path].json` (Fast sidecar metadata)
+      - `[path].policy.pth` (Compact inference-only weights)
+    """
     checkpoint_path = Path(checkpoint_path)
     metadata = {
         "format_version": 2,
@@ -68,6 +114,8 @@ def save_checkpoint(
 
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
     training_state = agent.training_state_dict()
+    
+    # 1. Save Full Checkpoint (for resuming training)
     torch.save(
         {
             "model_state_dict": agent.policy_network.state_dict(),
@@ -78,12 +126,12 @@ def save_checkpoint(
         checkpoint_path,
     )
 
-    # Write a lightweight sidecar so the UI can read metadata without loading
-    # the full .pth file (which includes the replay buffer and is slow to load).
+    # 2. Save JSON Sidecar (for UI/API query speed)
     sidecar_path = checkpoint_path.with_suffix(".json")
     with sidecar_path.open("w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2, default=str)
 
+    # 3. Save Policy-Only Checkpoint (for lightweight inference deployments)
     inference_path = checkpoint_path.with_suffix(".policy.pth")
     torch.save(
         {
@@ -96,10 +144,9 @@ def save_checkpoint(
 
 
 def backfill_checkpoint_sidecars(runs_dir: Path) -> int:
-    """Write missing sidecar .json files for all .pth checkpoints under runs_dir.
-
-    Safe to run while training is active — skips files that already have a sidecar.
-    Returns the number of sidecars written.
+    """
+    Scan directories for `.pth` files and generate matching `.json` sidecars if missing.
+    Useful for back-populating catalogs after server migrations.
     """
     written = 0
     for pth_path in sorted(runs_dir.rglob("*.pth")):
@@ -129,12 +176,16 @@ if __name__ == "__main__":
     print(f"Done — {n} sidecar(s) written.")
 
 
-def load_checkpoint_payload(checkpoint_path, map_location=None):
-    """Load a checkpoint and normalize legacy raw state-dict files."""
+def load_checkpoint_payload(checkpoint_path: str | Path, map_location=None) -> dict:
+    """
+    Load raw checkpoint weights and build a standardized dictionary format,
+    handling legacy file conversions gracefully.
+    """
     payload = torch.load(checkpoint_path, map_location=map_location, weights_only=False)
     if isinstance(payload, dict) and "model_state_dict" in payload:
         return payload
 
+    # Fallback structure for older versions that only saved weights
     return {
         "model_state_dict": payload,
         "metadata": {
@@ -150,8 +201,8 @@ def load_checkpoint_payload(checkpoint_path, map_location=None):
     }
 
 
-def checkpoint_game_config(payload, fallback_game_config: GameConfig | None = None) -> GameConfig:
-    """Resolve the game config embedded in a checkpoint or fall back to a provided/default one."""
+def checkpoint_game_config(payload: dict, fallback_game_config: GameConfig | None = None) -> GameConfig:
+    """Extract and validate the game config stored in the checkpoint's metadata."""
     metadata = payload.get("metadata", {})
     embedded_config = metadata.get("game_config")
     if embedded_config is not None:
@@ -162,11 +213,14 @@ def checkpoint_game_config(payload, fallback_game_config: GameConfig | None = No
 
 
 def validate_checkpoint_compatibility(
-    payload,
+    payload: dict,
     game_config: GameConfig,
     strict_signature: bool = True,
-):
-    """Validate that one checkpoint belongs to the requested ruleset."""
+) -> dict:
+    """
+    Ensure the checkpoint is physically compatible with the game's products and observation format.
+    Raises RuntimeError if signatures are mismatched to prevent loading invalid network sizes.
+    """
     metadata = payload.get("metadata", {})
     checkpoint_rule_signature = metadata.get("rule_signature")
     current_rule_signature = compute_rule_signature(game_config)
@@ -185,11 +239,13 @@ def validate_checkpoint_compatibility(
 
 
 def load_agent_from_checkpoint(
-    checkpoint_path,
+    checkpoint_path: str | Path,
     game_config: GameConfig | None = None,
     strict_signature: bool = True,
-):
-    """Load a checkpoint into a compatible agent and return agent, env, and metadata."""
+) -> tuple[DQNAgent, ScrumGameEnv, dict]:
+    """
+    Load a checkpoint file and instantiate a fully state-restored DQNAgent and ScrumGameEnv.
+    """
     checkpoint_path = Path(checkpoint_path)
     payload = load_checkpoint_payload(checkpoint_path)
     resolved_game_config = checkpoint_game_config(payload, fallback_game_config=game_config)
@@ -206,6 +262,7 @@ def load_agent_from_checkpoint(
         else None
     )
 
+    # Reconstruct the networks
     agent, env = build_agent_for_config(
         resolved_game_config,
         learning_rate=(
@@ -214,11 +271,15 @@ def load_agent_from_checkpoint(
         gamma=(training_config.gamma if training_config is not None else 0.85),
     )
 
+    # Load weights
     state_dict = payload["model_state_dict"]
     agent.policy_network.load_state_dict(state_dict)
     agent.target_network.load_state_dict(payload.get("target_model_state_dict", state_dict))
     agent.policy_network.eval()
     agent.target_network.eval()
+
+    # Load training counters (optimizer settings and replay buffer)
+    agent.load_training_state_dict(payload, include_replay=True)
 
     metadata = dict(payload.get("metadata", {}))
     metadata.update(compatibility)
@@ -229,15 +290,23 @@ def load_agent_from_checkpoint(
 
 
 def load_agent_for_inference(
-    checkpoint_path,
+    checkpoint_path: str | Path,
     game_config: GameConfig | None = None,
     strict_signature: bool = True,
-):
-    """Load only policy weights for play/evaluation when a compact copy exists."""
+) -> tuple[DQNAgent, ScrumGameEnv, dict]:
+    """
+    Lightweight checkpoint load function used exclusively for run simulation and evaluation.
+    
+    Sets `replay_capacity=1` and bypasses loading optimizer state and massive replay histories,
+    speeding up loading and minimizing RAM usage.
+    """
     checkpoint_path = Path(checkpoint_path)
     inference_path = checkpoint_path.with_suffix(".policy.pth")
+    # Prefer loading policy-only weights if available
     payload_path = inference_path if inference_path.exists() else checkpoint_path
     payload = load_checkpoint_payload(payload_path, map_location="cpu")
+    
+    # Auto-generate policy-only checkpoint if it does not exist
     if payload_path == checkpoint_path:
         try:
             torch.save(
@@ -254,6 +323,7 @@ def load_agent_for_inference(
             payload_path = inference_path
         except Exception:
             pass
+            
     resolved_game_config = checkpoint_game_config(payload, fallback_game_config=game_config)
     compatibility = validate_checkpoint_compatibility(
         payload,
@@ -268,6 +338,7 @@ def load_agent_for_inference(
         else None
     )
 
+    # Initialize agent with minimal replay capacity to conserve RAM
     agent, env = build_agent_for_config(
         resolved_game_config,
         learning_rate=(
@@ -290,3 +361,4 @@ def load_agent_for_inference(
     metadata["checkpoint_path"] = str(checkpoint_path)
     metadata["inference_checkpoint_path"] = str(payload_path)
     return agent, env, metadata
+

@@ -1,3 +1,20 @@
+"""
+Greedy Seeded Evaluation and Model Comparison Service.
+
+This service implements synchronous, deterministic evaluations of trained DQN policies.
+It resets environments under explicit seeds, runs episodes greedily (with epsilon=0.0 to disable
+exploration noise), and compiles detailed statistical summaries of performance metrics
+(average reward, ending cash balance, loan counts, bankruptcy rates, invalid action attempts).
+
+Key Capabilities:
+  - Seeded Evaluation: Evaluates a single model checkpoint over a collection of seeds.
+  - Side-by-Side Comparison: Evaluates two model checkpoints under identical seed batches to compare relative performance delta directly.
+
+Connections:
+  - Imports: `list_game_configs` and `get_checkpoint_by_id` from catalog services.
+  - Used by: `api/routes_testing.py` to handle test run requests.
+"""
+
 from __future__ import annotations
 
 import statistics
@@ -13,6 +30,7 @@ ensure_engine_import_path()
 
 
 def _resolve_game_config(game_config_id: str):
+    """Load and parse game rules config by ID or absolute file path."""
     from config.config_manager import load_game_config  # noqa: E402
     candidate_path = Path(game_config_id)
     if candidate_path.exists():
@@ -26,6 +44,7 @@ def _resolve_game_config(game_config_id: str):
 
 
 def _resolve_checkpoint(checkpoint_id: str) -> dict:
+    """Look up checkpoint details by ID from the catalog."""
     checkpoint = get_checkpoint_by_id(checkpoint_id)
     if checkpoint is None:
         raise ValueError(f"Checkpoint `{checkpoint_id}` was not found.")
@@ -33,6 +52,7 @@ def _resolve_checkpoint(checkpoint_id: str) -> dict:
 
 
 def _evaluate_one_seed(agent, game_config, seed: int) -> dict:
+    """Run a single deterministic greedy episode using the specified environment seed."""
     import random  # noqa: E402
     import torch  # noqa: E402
     from rl.dqn_agent import encode_state  # noqa: E402
@@ -70,6 +90,7 @@ def _evaluate_one_seed(agent, game_config, seed: int) -> dict:
 
 
 def _summarize_results(rows: list[dict]) -> dict:
+    """Aggregate individual episode statistics into a consolidated metrics summary."""
     rewards = [row["episode_reward"] for row in rows]
     ending_money = [row["ending_money"] for row in rows]
     turns_played = [row["turns_played"] for row in rows]
@@ -94,6 +115,7 @@ def _summarize_results(rows: list[dict]) -> dict:
 
 
 def evaluate_checkpoint(payload: dict) -> dict:
+    """Run batch evaluations on a single model checkpoint over a collection of seeds."""
     from rl.checkpoint_utils import load_agent_for_inference  # noqa: E402
     checkpoint = _resolve_checkpoint(payload["checkpoint_id"])
     game_config = _resolve_game_config(payload.get("game_config_id") or checkpoint["path"])
@@ -117,6 +139,7 @@ def evaluate_checkpoint(payload: dict) -> dict:
 
 
 def compare_checkpoints(payload: dict) -> dict:
+    """Compare performance metrics between two model checkpoints on matching seeds side-by-side."""
     left = evaluate_checkpoint(
         {
             "checkpoint_id": payload["left_checkpoint_id"],

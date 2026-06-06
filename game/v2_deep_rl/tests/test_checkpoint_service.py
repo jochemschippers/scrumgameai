@@ -39,6 +39,7 @@ def _make_checkpoint(checkpoints_dir: Path, name: str, metadata: dict | None = N
     return pth
 
 
+# Create run with best.
 def _make_run_with_best(runs_dir: Path, run_id: str, metadata: dict | None = None) -> Path:
     run_dir = runs_dir / run_id
     _make_checkpoint(run_dir / "checkpoints", "best_scrum_model.pth", metadata)
@@ -106,6 +107,7 @@ class TestListCheckpointsNoTorchLoad:
         assert len(items) == 1
         assert items[0]["compatibility_status"] == "deferred"
 
+    # Verify multiple runs all use sidecars.
     def test_multiple_runs_all_use_sidecars(self, _patch_runs_dir):
         runs_dir = _patch_runs_dir
         for i in range(5):
@@ -214,6 +216,7 @@ class TestCompatibilityNoTorchLoad:
 # ---------------------------------------------------------------------------
 
 class TestResolveCheckpointPath:
+    # Verify resolves tracked checkpoint id.
     def test_resolves_tracked_checkpoint_id(self, _patch_runs_dir):
         runs_dir = _patch_runs_dir
         checkpoint_path = _make_checkpoint(runs_dir / "run_001" / "checkpoints", "best_scrum_model.pth")
@@ -225,6 +228,7 @@ class TestResolveCheckpointPath:
 
         assert resolved == checkpoint_path.resolve()
 
+    # Verify rejects untracked path traversal id.
     def test_rejects_untracked_path_traversal_id(self, _patch_runs_dir):
         runs_dir = _patch_runs_dir
         _make_checkpoint(runs_dir / "run_001" / "checkpoints", "best_scrum_model.pth")
@@ -247,6 +251,7 @@ class TestSidecarWritten:
         # Mock torch.save so we don't need a real agent
         saved_payloads = {}
 
+        # Handle fake torch save.
         def fake_torch_save(obj, path):
             saved_payloads[str(path)] = obj
 
@@ -277,6 +282,7 @@ class TestSidecarWritten:
         continuation inherits best_average_reward correctly."""
         import rl.checkpoint_utils as checkpoint_utils
 
+        # Handle fake torch save.
         def fake_torch_save(obj, path):
             pass
 
@@ -306,11 +312,14 @@ class TestSidecarWritten:
 # ---------------------------------------------------------------------------
 
 class _FakeReplayBuffer:
+    # Handle state dict.
     def state_dict(self):
         return {}
 
 
+# Implement the fake agent's decision behavior.
 class _FakeAgent:
+    # Initialize the instance from the supplied configuration.
     def __init__(self, state_dim=30, num_actions=8):
         self.state_dim = state_dim
         self.num_actions = num_actions
@@ -318,6 +327,7 @@ class _FakeAgent:
         self.replay_buffer = _FakeReplayBuffer()
         self.training_steps = 0
 
+    # Handle training state dict.
     def training_state_dict(self):
         return {
             "optimizer_state_dict": {},
@@ -325,7 +335,9 @@ class _FakeAgent:
             "training_steps": 0,
         }
 
+    # Represent the fake network.
     class _FakeNetwork:
+        # Handle state dict.
         def state_dict(self):
             return {}
 
@@ -333,7 +345,9 @@ class _FakeAgent:
     target_network = _FakeNetwork()
 
 
+# Store and validate fake game settings.
 class _FakeGameConfig:
+    # Convert the instance to a serializable dictionary.
     def to_dict(self):
         return {}
 
@@ -349,6 +363,7 @@ _patch_training_sig = _mock.patch(
 )
 
 
+# Patch config manager.
 @pytest.fixture(autouse=True)
 def _patch_config_manager():
     with _patch_rule_sig, _patch_training_sig:

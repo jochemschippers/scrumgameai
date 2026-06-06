@@ -63,6 +63,7 @@ def _minimal_game_payload(**overrides) -> dict:
     return payload
 
 
+# Create game config.
 def _make_game_config(**overrides) -> cm.GameConfig:
     return cm.GameConfig.from_dict(_minimal_game_payload(**overrides))
 
@@ -72,32 +73,38 @@ def _make_game_config(**overrides) -> cm.GameConfig:
 # ---------------------------------------------------------------------------
 
 class TestDiceRuleConfig:
+    # Verify from dict roundtrip.
     def test_from_dict_roundtrip(self):
         d = {"min_features": 2, "max_features": 4, "dice_count": 3, "dice_sides": 6}
         rule = cm.DiceRuleConfig.from_dict(d)
         assert rule.to_dict() == d
 
+    # Verify max features none roundtrip.
     def test_max_features_none_roundtrip(self):
         d = {"min_features": 3, "max_features": None, "dice_count": 2, "dice_sides": 10}
         rule = cm.DiceRuleConfig.from_dict(d)
         assert rule.max_features is None
         assert rule.to_dict()["max_features"] is None
 
+    # Verify matches within range.
     def test_matches_within_range(self):
         rule = cm.DiceRuleConfig(min_features=2, max_features=4, dice_count=2, dice_sides=6)
         assert rule.matches(2)
         assert rule.matches(3)
         assert rule.matches(4)
 
+    # Verify matches unbounded upper.
     def test_matches_unbounded_upper(self):
         rule = cm.DiceRuleConfig(min_features=3, max_features=None, dice_count=2, dice_sides=6)
         assert rule.matches(3)
         assert rule.matches(100)
 
+    # Verify does not match below min.
     def test_does_not_match_below_min(self):
         rule = cm.DiceRuleConfig(min_features=2, max_features=4, dice_count=2, dice_sides=6)
         assert not rule.matches(1)
 
+    # Verify does not match above max.
     def test_does_not_match_above_max(self):
         rule = cm.DiceRuleConfig(min_features=2, max_features=4, dice_count=2, dice_sides=6)
         assert not rule.matches(5)
@@ -108,6 +115,7 @@ class TestDiceRuleConfig:
 # ---------------------------------------------------------------------------
 
 class TestRefinementRuleConfig:
+    # Verify from dict roundtrip.
     def test_from_dict_roundtrip(self):
         d = {
             "product_key": "blue",
@@ -122,6 +130,7 @@ class TestRefinementRuleConfig:
         assert rt["increase_rolls"] == [1, 2, 3]
         assert rt["decrease_rolls"] == [19, 20]
 
+    # Verify empty rolls default.
     def test_empty_rolls_default(self):
         d = {"product_key": "red", "increase_rolls": [], "decrease_rolls": []}
         rule = cm.RefinementRuleConfig.from_dict(d)
@@ -134,6 +143,7 @@ class TestRefinementRuleConfig:
 # ---------------------------------------------------------------------------
 
 class TestIncidentCardConfig:
+    # Verify from dict roundtrip.
     def test_from_dict_roundtrip(self):
         d = {
             "card_id": 401,
@@ -154,6 +164,7 @@ class TestIncidentCardConfig:
         assert rt["weight"] == 1.5
         assert rt["future_only"] is True
 
+    # Verify target sprint none roundtrip.
     def test_target_sprint_none_roundtrip(self):
         d = {
             "card_id": 402,
@@ -172,6 +183,7 @@ class TestIncidentCardConfig:
 # ---------------------------------------------------------------------------
 
 class TestGameConfig:
+    # Verify from dict roundtrip.
     def test_from_dict_roundtrip(self):
         payload = _minimal_game_payload()
         gc = cm.GameConfig.from_dict(payload)
@@ -183,24 +195,29 @@ class TestGameConfig:
         assert rt["max_turns"] == 6
         assert rt["board_ring_values"] == [[10000, 20000, 30000], [15000, 25000, 35000]]
 
+    # Verify to dict serializable to json.
     def test_to_dict_serializable_to_json(self):
         gc = _make_game_config()
         # Should not raise
         json.dumps(gc.to_dict())
 
+    # Verify products count property.
     def test_products_count_property(self):
         gc = _make_game_config()
         assert gc.products_count == 2
 
+    # Verify sprints per product property.
     def test_sprints_per_product_property(self):
         gc = _make_game_config()
         assert gc.sprints_per_product == 3
 
+    # Verify from dict preserves reserved fields.
     def test_from_dict_preserves_reserved_fields(self):
         payload = _minimal_game_payload(reserved_fields={"custom_key": "custom_value"})
         gc = cm.GameConfig.from_dict(payload)
         assert gc.reserved_fields["custom_key"] == "custom_value"
 
+    # Verify rule payload omits metadata fields.
     def test_rule_payload_omits_metadata_fields(self):
         gc = _make_game_config(config_name="NameThatShouldBeRemoved")
         rp = gc.rule_payload()
@@ -208,6 +225,7 @@ class TestGameConfig:
         assert "config_description" not in rp
         assert "reserved_fields" not in rp
 
+    # Verify rule payload retains rule fields.
     def test_rule_payload_retains_rule_fields(self):
         gc = _make_game_config()
         rp = gc.rule_payload()
@@ -222,16 +240,19 @@ class TestGameConfig:
         with pytest.raises(ValueError, match="at least one product"):
             cm.GameConfig.from_dict(payload)
 
+    # Verify players count zero raises.
     def test_players_count_zero_raises(self):
         payload = _minimal_game_payload(players_count=0)
         with pytest.raises(ValueError, match="players_count"):
             cm.GameConfig.from_dict(payload)
 
+    # Verify max turns zero raises.
     def test_max_turns_zero_raises(self):
         payload = _minimal_game_payload(max_turns=0)
         with pytest.raises(ValueError, match="max_turns"):
             cm.GameConfig.from_dict(payload)
 
+    # Verify mismatched board rows raises.
     def test_mismatched_board_rows_raises(self):
         # Three product names but only two board rows
         payload = _minimal_game_payload(
@@ -242,17 +263,20 @@ class TestGameConfig:
         with pytest.raises(ValueError):
             cm.GameConfig.from_dict(payload)
 
+    # Verify missing dice rules raises.
     def test_missing_dice_rules_raises(self):
         payload = _minimal_game_payload(dice_rules=[])
         with pytest.raises(ValueError, match="dice rule"):
             cm.GameConfig.from_dict(payload)
 
+    # Verify schema version defaults to 1 0.
     def test_schema_version_defaults_to_1_0(self):
         payload = _minimal_game_payload()
         del payload["schema_version"]
         gc = cm.GameConfig.from_dict(payload)
         assert gc.schema_version == "1.0"
 
+    # Verify config name defaults when missing.
     def test_config_name_defaults_when_missing(self):
         payload = _minimal_game_payload()
         del payload["config_name"]
@@ -265,6 +289,7 @@ class TestGameConfig:
 # ---------------------------------------------------------------------------
 
 class TestTrainingConfig:
+    # Verify from dict roundtrip.
     def test_from_dict_roundtrip(self):
         payload = {
             "episodes": 100000,
@@ -292,6 +317,7 @@ class TestTrainingConfig:
         rt = tc.to_dict()
         assert rt == payload
 
+    # Verify defaults when empty dict.
     def test_defaults_when_empty_dict(self):
         tc = cm.TrainingConfig.from_dict({})
         assert tc.episodes == 500000
@@ -305,21 +331,25 @@ class TestTrainingConfig:
         assert tc.rule_randomization_enabled is False
         assert tc.auto_continue_enabled is False
 
+    # Verify to dict serializable to json.
     def test_to_dict_serializable_to_json(self):
         tc = cm.TrainingConfig.from_dict({})
         json.dumps(tc.to_dict())
 
+    # Verify signature payload excludes run notes.
     def test_signature_payload_excludes_run_notes(self):
         tc = cm.TrainingConfig.from_dict({"run_notes": "should be excluded"})
         sp = tc.signature_payload()
         assert "run_notes" not in sp
 
+    # Verify signature payload retains hyperparams.
     def test_signature_payload_retains_hyperparams(self):
         tc = cm.TrainingConfig.from_dict({"learning_rate": 0.001})
         sp = tc.signature_payload()
         assert "learning_rate" in sp
         assert sp["learning_rate"] == 0.001
 
+    # Verify partial override keeps other defaults.
     def test_partial_override_keeps_other_defaults(self):
         tc = cm.TrainingConfig.from_dict({"episodes": 1000})
         assert tc.episodes == 1000
@@ -331,21 +361,25 @@ class TestTrainingConfig:
 # ---------------------------------------------------------------------------
 
 class TestComputeRuleSignature:
+    # Verify same config same signature.
     def test_same_config_same_signature(self):
         gc1 = _make_game_config()
         gc2 = _make_game_config()
         assert cm.compute_rule_signature(gc1) == cm.compute_rule_signature(gc2)
 
+    # Verify different ring value different signature.
     def test_different_ring_value_different_signature(self):
         gc1 = _make_game_config(ring_value=5000)
         gc2 = _make_game_config(ring_value=10000)
         assert cm.compute_rule_signature(gc1) != cm.compute_rule_signature(gc2)
 
+    # Verify different board values different signature.
     def test_different_board_values_different_signature(self):
         gc1 = _make_game_config(board_ring_values=[[1, 2, 3], [4, 5, 6]])
         gc2 = _make_game_config(board_ring_values=[[1, 2, 3], [4, 5, 7]])
         assert cm.compute_rule_signature(gc1) != cm.compute_rule_signature(gc2)
 
+    # Verify signature is hex string.
     def test_signature_is_hex_string(self):
         gc = _make_game_config()
         sig = cm.compute_rule_signature(gc)
@@ -359,6 +393,7 @@ class TestComputeRuleSignature:
         gc2 = _make_game_config(config_name="Version B")
         assert cm.compute_rule_signature(gc1) == cm.compute_rule_signature(gc2)
 
+    # Verify different max turns different signature.
     def test_different_max_turns_different_signature(self):
         gc1 = _make_game_config(max_turns=6)
         gc2 = _make_game_config(max_turns=8)
@@ -370,11 +405,13 @@ class TestComputeRuleSignature:
 # ---------------------------------------------------------------------------
 
 class TestComputeTrainingSignature:
+    # Verify same config same signature.
     def test_same_config_same_signature(self):
         tc1 = cm.TrainingConfig.from_dict({})
         tc2 = cm.TrainingConfig.from_dict({})
         assert cm.compute_training_signature(tc1) == cm.compute_training_signature(tc2)
 
+    # Verify different lr different signature.
     def test_different_lr_different_signature(self):
         tc1 = cm.TrainingConfig.from_dict({"learning_rate": 0.0005})
         tc2 = cm.TrainingConfig.from_dict({"learning_rate": 0.001})
@@ -386,6 +423,7 @@ class TestComputeTrainingSignature:
         tc2 = cm.TrainingConfig.from_dict({"run_notes": "run B"})
         assert cm.compute_training_signature(tc1) == cm.compute_training_signature(tc2)
 
+    # Verify signature is hex string.
     def test_signature_is_hex_string(self):
         tc = cm.TrainingConfig.from_dict({})
         sig = cm.compute_training_signature(tc)
@@ -393,11 +431,13 @@ class TestComputeTrainingSignature:
         assert len(sig) == 64
         int(sig, 16)
 
+    # Verify different gamma different signature.
     def test_different_gamma_different_signature(self):
         tc1 = cm.TrainingConfig.from_dict({"gamma": 0.85})
         tc2 = cm.TrainingConfig.from_dict({"gamma": 0.99})
         assert cm.compute_training_signature(tc1) != cm.compute_training_signature(tc2)
 
+    # Verify different seed different signature.
     def test_different_seed_different_signature(self):
         tc1 = cm.TrainingConfig.from_dict({"seed": 42})
         tc2 = cm.TrainingConfig.from_dict({"seed": 99})
@@ -409,17 +449,22 @@ class TestComputeTrainingSignature:
 # ---------------------------------------------------------------------------
 
 class TestNormalizeProductKey:
+    # Verify lowercase letters only.
     def test_lowercase_letters_only(self):
         assert cm.normalize_product_key("Blue") == "blue"
 
+    # Verify strips spaces.
     def test_strips_spaces(self):
         assert cm.normalize_product_key("  Red  ") == "red"
 
+    # Verify removes special chars.
     def test_removes_special_chars(self):
         assert cm.normalize_product_key("Hello World!") == "helloworld"
 
+    # Verify already normalized.
     def test_already_normalized(self):
         assert cm.normalize_product_key("orange") == "orange"
 
+    # Verify mixed case alphanumeric.
     def test_mixed_case_alphanumeric(self):
         assert cm.normalize_product_key("Product1") == "product1"

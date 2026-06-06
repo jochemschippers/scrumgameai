@@ -1,3 +1,5 @@
+/** Implement progress user-interface behavior. */
+
 import { state } from '../../state/store.js';
 import { $, showMessage, selectedProgressJob, selectedProgressRun, runLabelFromPath, checkpointByPath, buildOptions } from '../../utils/helpers.js';
 import { escapeHtml, formatNumber } from '../../utils/formatting.js';
@@ -6,6 +8,7 @@ import { apiRequest, isGuest } from '../../api/client.js';
 
 const RUNS_PER_PAGE = 5;
 
+/** Render runs. */
 export function renderRuns() {
   $("runCount").textContent = `${state.runs.length}`;
   buildOptions("robustnessRunSelect", state.runs);
@@ -104,6 +107,7 @@ export function renderRuns() {
   }
 }
 
+/** Render training progress. */
 export function renderTrainingProgress() {
   const progressLabel = $("trainingProgressJobLabel");
   const container = $("trainingProgressCard");
@@ -180,6 +184,7 @@ export function renderTrainingProgress() {
   );
 }
 
+/** Fetch training progress. */
 export async function fetchTrainingProgress(jobId, announce = false) {
   state.activeProgressJobId = Number(jobId);
   state.activeProgressRunId = null;
@@ -190,6 +195,7 @@ export async function fetchTrainingProgress(jobId, announce = false) {
   }
 }
 
+/** Fetch run progress. */
 export async function fetchRunProgress(runId, announce = false) {
   state.activeProgressRunId = runId;
   state.activeProgressJobId = null;
@@ -200,6 +206,7 @@ export async function fetchRunProgress(runId, announce = false) {
   }
 }
 
+/** Fetch run detail. */
 export async function fetchRunDetail(runId, announce = false) {
   state.activeRunId = runId;
   state.runRating = null;

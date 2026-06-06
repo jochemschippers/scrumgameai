@@ -1,45 +1,40 @@
 # Frontend
 
-This frontend now contains the first custom Control Center shell.
+This directory contains the browser client for the Control Center API.
 
-## Current scaffold
+## Entry Point
 
 - `index.html`
-- `app.js`
-- `styles/app.css`
+- `main.js`
 
-Pages currently wired in the shell:
+`main.js` owns application startup and event wiring. Feature code is split by
+responsibility:
 
-- `Rules`
-- `Models`
-- `Training`
-- `Testing`
-- `Play`
+- `api/` handles authentication tokens and HTTP requests.
+- `components/` contains page and feature behavior.
+- `constants/` contains shared immutable defaults.
+- `state/` owns the mutable browser state object.
+- `utils/` contains formatting, DOM, and chart helpers.
+- `styles/` contains shared and page-specific CSS.
 
-## What works now
+The monolithic `app.js` is retained as an inactive migration reference. The
+browser does not load it; `index.html` loads `main.js`.
 
-Once the backend API is running, the shell can:
+## Pages
 
-- load game configs
-- load training configs
-- load runs
-- load checkpoints
-- run checkpoint compatibility checks
-- queue training jobs
-- queue robustness jobs
-- list and stop jobs
+- Design: edit and validate game and training configs.
+- Train: queue jobs, follow progress, and manage campaigns or autopilot.
+- Inspect: review runs and checkpoints.
+- Evaluate: run direct or comparative evaluations.
+- Play: create and advance shared-board matches.
 
 ## Run
 
-Open [index.html](./index.html) in the browser after starting the backend API.
+Start the backend from `game/v2_deep_rl/control_center/backend`:
 
-Set the API base URL to the running backend, usually:
+```powershell
+py run_api.py
+```
 
-`http://127.0.0.1:8000`
-
-## Next frontend work
-
-- move the full rule editor into the `Rules` page
-- add run and checkpoint detail drawers
-- add testing result viewers
-- connect the `Play` page to play-session API routes
+Then open `http://127.0.0.1:8000/`. The backend serves these files, so opening
+`index.html` directly is not required.

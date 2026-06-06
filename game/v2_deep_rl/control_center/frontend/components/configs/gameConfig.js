@@ -1,9 +1,12 @@
+/** Implement game config user-interface behavior. */
+
 import { state } from '../../state/store.js';
 import { $, clone, showMessage, parseJsonEditor } from '../../utils/helpers.js';
 import { apiRequest } from '../../api/client.js';
 import { escapeHtml, formatJson } from '../../utils/formatting.js';
 import { readVisualEditorIntoState, renderVisualEditor } from './visualEditor.js';
 
+/** Render game configs. */
 export function renderGameConfigs() {
   $("gameConfigCount").textContent = `${state.gameConfigs.length}`;
   const container = $("gameConfigsList");
@@ -23,6 +26,7 @@ export function renderGameConfigs() {
   });
 }
 
+/** Render game config validation. */
 export function renderGameConfigValidation() {
   const container = $("gameConfigValidationCard");
   if (!state.gameConfigValidation) {
@@ -47,6 +51,7 @@ export function renderGameConfigValidation() {
   `;
 }
 
+/** Load active game config into editor. */
 export async function loadActiveGameConfigIntoEditor() {
   if (!state.activeGameConfigId) {
     showMessage("Select a game config first.", "error");
@@ -60,6 +65,7 @@ export async function loadActiveGameConfigIntoEditor() {
   renderVisualEditor();
 }
 
+/** Save game config. */
 export async function saveGameConfig(overwrite = false) {
   let config;
   try {
@@ -86,6 +92,7 @@ export async function saveGameConfig(overwrite = false) {
   await validateGameConfigDraft(false).catch(() => {});
 }
 
+/** Validate game config draft. */
 export async function validateGameConfigDraft(showSuccess = false) {
   try {
     const config = readVisualEditorIntoState();

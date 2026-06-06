@@ -1,7 +1,10 @@
+/** Implement session user-interface behavior. */
+
 import { state } from '../../state/store.js';
 import { $, showMessage } from '../../utils/helpers.js';
 import { apiRequest } from '../../api/client.js';
 
+/** Handle default seat name. */
 export function defaultSeatName(type, index) {
   if (type === "human") return "Player";
   if (type === "model-expert") return `AI Expert ${index}`;
@@ -11,6 +14,7 @@ export function defaultSeatName(type, index) {
   return `Random AI ${index}`;
 }
 
+/** Play seat payload. */
 export function playSeatPayload(draft, index) {
   const displayName = String(draft.display_name || "").trim() || defaultSeatName(draft.type, index + 1);
   if (draft.type === "human") return { type: "human", display_name: displayName };
@@ -27,16 +31,19 @@ export function playSeatPayload(draft, index) {
   return null;
 }
 
+/** Handle latest play turn. */
 export function latestPlayTurn() {
   const rows = state.playSession?.turn_log || [];
   return rows.length ? rows[rows.length - 1] : null;
 }
 
+/** Handle product name by id. */
 export function productNameById(productId) {
   const product = state.playSession?.board?.products?.find((item) => Number(item.product_id) === Number(productId));
   return product?.name || `Product ${productId || "-"}`;
 }
 
+/** Create play session. */
 export async function createPlaySession(event) {
   event.preventDefault();
   if (!state.activeGameConfigId) {
@@ -75,6 +82,7 @@ export async function createPlaySession(event) {
   showMessage("Play session started.");
 }
 
+/** Advance play round. */
 export async function advancePlayRound(humanAction = null) {
   if (!state.playSession?.id) {
     showMessage("Start a play session first.", "error");
@@ -92,6 +100,7 @@ export async function advancePlayRound(humanAction = null) {
   document.dispatchEvent(new CustomEvent("playSessionUpdated"));
 }
 
+/** Refresh play session. */
 export async function refreshPlaySession() {
   if (!state.playSession?.id) {
     document.dispatchEvent(new CustomEvent("playSessionUpdated"));

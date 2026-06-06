@@ -1,3 +1,22 @@
+"""
+Autopilot Routing Controller.
+
+This module exposes endpoints to manage and run the Training Autopilot.
+Autopilot evaluates DQN training run metrics to classify performance states (e.g. learning, plateaud,
+diverged) and automatically launches successive training runs with modified hyperparameters
+(epsilon decay, learning rate) until convergence or a manual stop request.
+
+Key Endpoints:
+  - `/autopilot/analyze/{run_id}`: Evaluates a run to recommend modifications without modifying state (dry-run).
+  - `/autopilot/run/{run_id}`: Executes the classification, saves decision logs, and schedules the next job.
+  - `/autopilot/settings`: Retrieves or updates system toggles (e.g. enabling heuristic logic vs LLM-based AI Advisor).
+  - `/autopilot/stop-after-cycle`: Issues or clears requests to stop further automation cycles.
+
+Connections:
+  - Imports: Service handlers from `services.training_autopilot`.
+  - Guards: Requires `require_admin` dependency for any write or execution operations.
+"""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -21,12 +40,15 @@ router = APIRouter(prefix="/autopilot", tags=["autopilot"])
 
 
 class AutopilotRunRequest(BaseModel):
+    """Payload representing an autopilot execution run request."""
     dry_run: bool = False
 
 
 class AutopilotSettingsPayload(BaseModel):
+    """Payload representing autopilot toggle settings."""
     logic_enabled: bool | None = None
     ai_enabled: bool | None = None
+
 
 
 @router.get("/analyze/{run_id}")

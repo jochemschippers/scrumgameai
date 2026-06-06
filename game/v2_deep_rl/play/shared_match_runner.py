@@ -1,3 +1,28 @@
+"""
+Shared Board Multiplayer Match Orchestrator.
+
+This module coordinates multiplayer matches where players share a single, unified
+board (Incident cards, Refinement progress, feature counts, incident overrides),
+but retain private financial reserves, sprint completions, and loans.
+
+Board Synchronization Pattern:
+  - Each seat owns a private ScrumGameEnv instance.
+  - A global dictionary (`board_state`) tracks shared board cells, refinements, and the incident deck.
+  - Synchronization Flow:
+    1. Before a seat acts, we copy the global `board_state` values into the acting seat's environment.
+    2. We execute the player's action *without* drawing an incident card immediately (`_step_without_incident`).
+    3. We extract the modified board state (incorporating any turn-based refinements) back into the global `board_state`.
+    4. Once all players have taken their turn in the round, a single, global incident card is drawn (if probability checks pass)
+       and applied to modify future cell values globally (`_apply_round_incident`).
+
+Actor Rotation:
+  - The starting actor rotates every round to balance first-mover advantages.
+
+Connections:
+  - Used by: FastAPI control center backend API to manage multiplayer and bot play sessions.
+  - Utilizes: `play.match_runner.Controller` and `game_runtime.scrum_game_env.ScrumGameEnv`.
+"""
+
 from __future__ import annotations
 
 from copy import deepcopy
@@ -9,6 +34,7 @@ from play.match_runner import Controller, valid_actions_for_state
 
 
 def _copy_board_from_env(env: ScrumGameEnv) -> dict[str, Any]:
+    """Capture the shared variables from an environment instance into a serializable board state."""
     return {
         "refinement_feature_deltas": deepcopy(env.refinement_feature_deltas),
         "incident_value_deltas": deepcopy(env.incident_value_deltas),
@@ -22,6 +48,7 @@ def _copy_board_from_env(env: ScrumGameEnv) -> dict[str, Any]:
 
 
 def _sync_board_into_env(env: ScrumGameEnv, board_state: dict[str, Any]) -> None:
+    """Inject the serialized shared board state variables back into a seat's environment."""
     env.refinement_feature_deltas = deepcopy(board_state["refinement_feature_deltas"])
     env.incident_value_deltas = deepcopy(board_state["incident_value_deltas"])
     env.incident_value_overrides = deepcopy(board_state["incident_value_overrides"])
@@ -34,14 +61,18 @@ def _sync_board_into_env(env: ScrumGameEnv, board_state: dict[str, Any]) -> None
 
 
 def _capture_board_after_turn(env: ScrumGameEnv, board_state: dict[str, Any]) -> dict[str, Any]:
+    """Capture the board status, keeping the active deck instance references intact."""
     updated = _copy_board_from_env(env)
-    # Keep the shared incident deck identity from the acting env because draw()
-    # mutates draw/discard piles.
+    # The incident deck is mutated (pop/discard) when drawn, so we preserve references
     updated["incident_deck"] = env.incident_deck or board_state.get("incident_deck")
     return updated
 
 
 def _step_without_incident(env: ScrumGameEnv, action: int):
+    """
+    Execute a turn step but temporarily disable the inline incident card draw.
+    In shared matches, incidents resolve globally once per round, not per seat turn.
+    """
     incidents_active = env.incidents_active
     env.incidents_active = False
     try:
@@ -51,21 +82,26 @@ def _step_without_incident(env: ScrumGameEnv, action: int):
 
 
 def _apply_round_incident(match_state: dict[str, Any]) -> None:
-    """Resolve the single Wait/Incident phase after all seats act."""
+    """
+    Evaluate and apply an incident card draw globally at the end of a round.
+    Temporary mocks are used to treat all cells as future cells.
+    """
     seats = match_state["seats"]
     if not seats:
         return
 
+    # Use the first seat's environment as the executor for the draw
     env = seats[0]["env"]
     private_progress = list(env.product_next_sprints)
     private_current_product = env.current_product
     _sync_board_into_env(env, match_state["board_state"])
 
     try:
-        # Incidents mutate the shared board, not one player's private progress.
-        # Treat all configured cells as globally future board cells.
+        # Mocks: Set progress to start (sprint 1) so all sprints appear as "future"
+        # for card effects that alter remaining sprints (e.g. Demand Collapse).
         env.product_next_sprints = [1] * env.products_count
         env.current_product = 1
+        
         if (
             env.incidents_active
             and env.incident_deck is not None
@@ -90,8 +126,11 @@ def _apply_round_incident(match_state: dict[str, Any]) -> None:
             env.current_incident_id = 0
             env.current_incident_name = "None"
             env.current_incident_scope = 0.0
+        
+        # Save modifications back to the shared board state
         match_state["board_state"] = _capture_board_after_turn(env, match_state["board_state"])
     finally:
+        # Restore the player's true private progress values
         env.product_next_sprints = private_progress
         env.current_product = private_current_product
         _sync_board_into_env(env, match_state["board_state"])
@@ -104,6 +143,7 @@ def _create_shared_seat(
     board_state: dict[str, Any],
     seed: int,
 ) -> dict[str, Any]:
+    """Create a single player seat synchronized to the initial shared board state."""
     env = ScrumGameEnv(game_config=game_config)
     env.reset(seed=seed)
     _sync_board_into_env(env, board_state)
@@ -121,7 +161,9 @@ def _create_shared_seat(
 
 
 def start_shared_match(game_config, controllers: list[Controller], base_seed: int = 42) -> dict[str, Any]:
-    """Create one shared-board match with private player finances."""
+    """
+    Initialize a shared-board match state with multiple seats.
+    """
     template_env = ScrumGameEnv(game_config=game_config)
     template_env.reset(seed=base_seed)
     board_state = _copy_board_from_env(template_env)
@@ -147,7 +189,8 @@ def start_shared_match(game_config, controllers: list[Controller], base_seed: in
     }
 
 
-def _record_shared_step(match_state: dict[str, Any], seat: dict[str, Any], action: int, reward, done, info) -> None:
+def _record_shared_step(match_state: dict[str, Any], seat: dict[str, Any], action: int, reward: float, done: bool, info: dict[str, Any]) -> None:
+    """Compile and record metrics for an individual player step in a shared match round."""
     daily_scrums = info.get("daily_scrums", []) or []
     total_rolled = sum(int(scrum.get("roll_total", 0)) for scrum in daily_scrums)
     target_total = 0
@@ -197,6 +240,7 @@ def _record_shared_step(match_state: dict[str, Any], seat: dict[str, Any], actio
 
 
 def _human_actions_by_seat(payload: dict[str, Any] | None) -> dict[str, int]:
+    """Helper to extract a mapping of seat_id -> action index from request payloads."""
     if not payload:
         return {}
     raw_actions = payload.get("human_actions")
@@ -208,6 +252,7 @@ def _human_actions_by_seat(payload: dict[str, Any] | None) -> dict[str, int]:
 
 
 def _seats_in_round_order(match_state: dict[str, Any]) -> list[dict[str, Any]]:
+    """Determine the action sequence for this round, rotating the start seat."""
     seats = match_state["seats"]
     if not seats:
         return []
@@ -216,7 +261,13 @@ def _seats_in_round_order(match_state: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def play_shared_round(match_state: dict[str, Any], payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Advance every active seat by one turn, rotating the first actor each round."""
+    """
+    Simulate one round of play.
+    - Synchronizes each player's env with the board.
+    - Executes their actions.
+    - Captures any resulting board adjustments.
+    - Applies a global incident card.
+    """
     human_actions = _human_actions_by_seat(payload)
     waiting_humans = [
         seat for seat in match_state["seats"]
@@ -226,12 +277,15 @@ def play_shared_round(match_state: dict[str, Any], payload: dict[str, Any] | Non
     if missing_humans:
         raise ValueError(f"Human action required for {', '.join(missing_humans)}.")
 
+    # 1. Resolve turns in rotated sequence
     for seat in _seats_in_round_order(match_state):
         if seat["done"]:
             continue
 
         env = seat["env"]
         controller = seat["controller"]
+        
+        # Pull global board data
         _sync_board_into_env(env, match_state["board_state"])
         state = env._get_state()
 
@@ -240,15 +294,21 @@ def play_shared_round(match_state: dict[str, Any], payload: dict[str, Any] | Non
         else:
             action = controller.choose_action(state, env)
 
+        # Step without inline incidents
         next_state, reward, done, info = _step_without_incident(env, action)
+        
+        # Save back to global board
         match_state["board_state"] = _capture_board_after_turn(env, match_state["board_state"])
         _sync_board_into_env(env, match_state["board_state"])
+        
         seat["state"] = next_state
         _record_shared_step(match_state, seat, action, reward, done, info)
 
+    # 2. Draw and apply a global incident card for the round
     if any(row["round"] == match_state["round_number"] for row in match_state["turn_log"]):
         _apply_round_incident(match_state)
 
+    # 3. Final synchronization for all active seats
     for seat in match_state["seats"]:
         if not seat["done"]:
             _sync_board_into_env(seat["env"], match_state["board_state"])
@@ -259,10 +319,12 @@ def play_shared_round(match_state: dict[str, Any], payload: dict[str, Any] | Non
 
 
 def all_shared_seats_done(match_state: dict[str, Any]) -> bool:
+    """Return True if all players have hit a terminal state."""
     return all(seat["done"] for seat in match_state["seats"])
 
 
 def standings(match_state: dict[str, Any]) -> list[dict[str, Any]]:
+    """Get the scoreboard sorted by ending money, then total reward."""
     rows = []
     for seat in match_state["seats"]:
         state = seat["state"]
@@ -282,6 +344,9 @@ def standings(match_state: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def board_payload(match_state: dict[str, Any]) -> dict[str, Any]:
+    """
+    Format and serialize the current global board state for web clients.
+    """
     env = match_state["seats"][0]["env"] if match_state["seats"] else ScrumGameEnv(game_config=match_state["game_config"])
     _sync_board_into_env(env, match_state["board_state"])
     seat_positions = {}
@@ -305,6 +370,8 @@ def board_payload(match_state: dict[str, Any]) -> dict[str, Any]:
             sprint_value = override if override is not None else base_value + incident_delta
             refinement_delta = env.refinement_feature_deltas[product_index][sprint_index]
             features_required = max(1, env.board_features[product_index][sprint_index] + refinement_delta)
+            
+            # Check if all seats have completed this sprint
             completed_for_all = bool(match_state["seats"]) and all(
                 seat["done"] or int(seat["state"]["target_next_sprints"][product_id - 1]) > sprint_id
                 for seat in match_state["seats"]
@@ -345,6 +412,9 @@ def board_payload(match_state: dict[str, Any]) -> dict[str, Any]:
 
 
 def seat_payload(seat: dict[str, Any]) -> dict[str, Any]:
+    """
+    Format and serialize an individual player's seat parameters for web clients.
+    """
     env = seat["env"]
     state = seat["state"]
     return {
@@ -381,3 +451,4 @@ def seat_payload(seat: dict[str, Any]) -> dict[str, Any]:
         ],
         "steps": seat["steps"],
     }
+

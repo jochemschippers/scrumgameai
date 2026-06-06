@@ -1,3 +1,17 @@
+"""
+Model Checkpoints Directory Scanner & Shape Inference.
+
+This helper module performs the low-level directory traversal to discover PyTorch model checkpoint files (.pth)
+across active training runs, current checkpoint artifacts, reference folders, and droplet runs.
+It also contains utilities to classify checkpoint types (e.g., best vs. intermediate), map source labels, and
+infer the neural network layer shape dimensions (input state dimension and output action count) from standard
+model state dictionary weights.
+
+Connections:
+  - Imports: Directory configurations from `services.app_paths`.
+  - Used by: `services/checkpoint_service.py` to compile checkpoint listings and verify compatibilities.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -14,16 +28,19 @@ from services.catalog_service import list_game_configs
 
 
 def _engine_imports():
+    """Import torch-dependent engine helpers dynamically to avoid startup overhead."""
     from rl.checkpoint_utils import build_agent_for_config, load_checkpoint_payload  # noqa: E402
     from config.config_manager import compute_rule_signature, load_game_config  # noqa: E402
     return build_agent_for_config, load_checkpoint_payload, compute_rule_signature, load_game_config
 
 
 def _checkpoint_id(checkpoint_path: Path) -> str:
+    """Generate a unique catalog identifier for a checkpoint file relative to the repo root."""
     return checkpoint_path.resolve().relative_to(REPO_ROOT.resolve()).as_posix()
 
 
 def _checkpoint_type(checkpoint_path: Path) -> str:
+    """Classify the checkpoint as 'best', 'latest', or an 'intermediate' model checkpoint."""
     if checkpoint_path.name == "best_scrum_model.pth" or checkpoint_path.name.startswith("best_scrum_model"):
         return "best"
     if checkpoint_path.name == "latest_scrum_model.pth" or checkpoint_path.name.startswith("latest_scrum_model"):
@@ -32,6 +49,7 @@ def _checkpoint_type(checkpoint_path: Path) -> str:
 
 
 def _source_label(source_type: str, source_run: str | None) -> str:
+    """Generate a readable string display label describing the checkpoint source."""
     if source_type == "run":
         return source_run or "run"
     if source_type == "current_artifacts":
@@ -46,6 +64,7 @@ def _source_label(source_type: str, source_run: str | None) -> str:
 
 
 def _infer_shape_from_state_dict(state_dict) -> tuple[int | None, int | None]:
+    """Inspect model weight tensors to deduce neural network input/output dimensions."""
     first_weight = state_dict.get("network.0.weight")
     final_weight = state_dict.get("network.6.weight")
     state_dim = int(first_weight.shape[1]) if first_weight is not None and len(first_weight.shape) == 2 else None
@@ -54,6 +73,7 @@ def _infer_shape_from_state_dict(state_dict) -> tuple[int | None, int | None]:
 
 
 def _checkpoint_catalog_paths() -> list[tuple[Path, str, str | None]]:
+    """Scan disk directories to compile a list of all existing checkpoint file paths and sources."""
     catalog = []
 
     if CURRENT_CHECKPOINT_DIR.exists():
@@ -94,6 +114,7 @@ def _checkpoint_catalog_paths() -> list[tuple[Path, str, str | None]]:
 
 
 def _resolve_game_config_reference(game_config_id: str):
+    """Locate and load a game configuration file by its ID or absolute path."""
     _, _, _, load_game_config = _engine_imports()
     candidate_path = Path(game_config_id)
     if candidate_path.exists():

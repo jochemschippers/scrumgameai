@@ -1,8 +1,11 @@
+/** Implement campaigns user-interface behavior. */
+
 import { state } from '../../state/store.js';
 import { $, showMessage } from '../../utils/helpers.js';
 import { escapeHtml } from '../../utils/formatting.js';
 import { apiRequest } from '../../api/client.js';
 
+/** Render campaign panel. */
 export function renderCampaignPanel() {
   const card = $("campaignCard");
   const label = $("campaignStatusLabel");
@@ -62,6 +65,7 @@ export function renderCampaignPanel() {
   escalateButton.style.display = display.status === "completed" ? "" : "none";
 }
 
+/** Refresh campaigns. */
 export async function refreshCampaigns() {
   try {
     state.campaigns = await apiRequest("/campaigns");

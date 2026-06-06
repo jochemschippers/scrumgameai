@@ -1,3 +1,17 @@
+"""
+OS Process Probe and Control Utilities.
+
+This helper module provides low-level OS operations for finding a suitable Python interpreter that supports PyTorch,
+and checking process liveness via PID queries across Windows and Unix platforms.
+
+Key Capabilities:
+  - Python Interpreter Probe: Scans candidate executables (`python`, `python3`, `py`) for PyTorch compatibility.
+  - OS-specific PID check: Sends signal 0 to PIDs and parses Windows errors (like WinError 87 vs 6) to verify if background workers are still running.
+
+Connections:
+  - Used by: `jobs/job_runner.py` and `jobs/queue_manager.py` to launch workers and check live job processes.
+"""
+
 from __future__ import annotations
 
 import os
@@ -50,6 +64,7 @@ def choose_python_command() -> str:
 
 
 def is_pid_running(pid: int | None) -> bool:
+    """Return True if the specified process ID is currently running on the host OS."""
     if not pid or pid <= 0:
         return False
     try:

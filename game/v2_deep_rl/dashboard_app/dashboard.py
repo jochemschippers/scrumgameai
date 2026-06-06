@@ -1,3 +1,27 @@
+"""
+Interactive Streamlit Dashboard for Scrum Game Deep RL Analysis.
+
+This module provides a rich, web-based dashboard using Streamlit to monitor training runs,
+visualize DQN policy strategies, evaluate model robustness, and run interactive or
+fully-automated test matches.
+
+Key Dashboard Features:
+  1. Live Training Tracker: Plots learning curves (rolling average reward, loss, buffer size)
+     using CSV logs from active or completed runs.
+  2. Action Frequency Heatmaps: Visualizes preferred action distributions (how often the agent
+     chooses to continue vs. switch products).
+  3. Interactive Playgrounds: Allows a user to play against Random, Heuristic, or Model AIs
+     on a shared board.
+  4. Policy Confidence Board: Generates a 7x4 grid heatmap showing what action the agent
+     prefers at every possible cell position and the confidence margin (Q_best - Q_second).
+  5. Autopilot & Background Job Control: Triggers or kills background training subprocesses.
+
+Connections:
+  - Entrypoint: Run via command `py -m streamlit run dashboard_app/dashboard.py`
+  - Imports: `rl.checkpoint_utils`, `play.match_runner`, `config.config_manager`, `game_runtime.scrum_game_env`.
+  - Spawns subprocesses running: `training.train_dqn` or `evaluation.evaluate_ddqn_robustness`.
+"""
+
 from __future__ import annotations
 
 import json

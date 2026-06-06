@@ -1,3 +1,21 @@
+"""
+Subprocess Job Execution Runner.
+
+This script executes a single background job (DQN training or robustness evaluation) in an isolated process.
+It retrieves a job from the SQLite database, checks Python environment capabilities (looking for PyTorch availability),
+translates database JSON payloads into CLI arguments for the target ML scripts, logs execution stdout/stderr to disk,
+records pass/fail status in the database, triggers Autopilot hooks upon completion, and dispatches the next queued job.
+
+Key Features:
+  - Command Builder: Maps keys (lr, episodes, decay, bounds) to `train_dqn.py` or `evaluate_ddqn_robustness.py` flags.
+  - Python Environment Probe: Finds a Python binary containing PyTorch to avoid imports failing under web-only virtual environments.
+  - Post-Job Actions: Automatically triggers subsequent Autopilot cycles or schedules auto-evaluation runs.
+
+Connections:
+  - Entrypoint: Spawned as a subprocess by `jobs/processes.py`.
+  - Imports: `get_job`/`update_job` from `storage.jobs_db`, and autopilot runners from `services.training_autopilot`.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -55,6 +73,7 @@ def _choose_python_command() -> str:
 
 
 def build_command(job: dict) -> list[str]:
+    """Compile CLI arguments for the target ML script matching the job type."""
     payload = job["payload"]
     python_command = _choose_python_command()
 
@@ -116,6 +135,7 @@ def build_command(job: dict) -> list[str]:
 
 
 def run_job(job_id: int) -> int:
+    """Execute a single job in a subprocess, log output, update database state, and dispatch next job."""
     init_db()
     job = get_job(job_id)
     if job is None:
@@ -202,6 +222,7 @@ def run_job(job_id: int) -> int:
 
 
 def parse_args():
+    """Parse command-line arguments for the job runner utility."""
     parser = argparse.ArgumentParser(description="Run one queued Control Center job.")
     parser.add_argument("--job-id", type=int, required=True)
     return parser.parse_args()

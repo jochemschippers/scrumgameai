@@ -1,3 +1,20 @@
+"""
+Campaign Config Mutation and Clamping Service.
+
+This service generates mutated game configuration variations for robustness campaigns.
+It queries an LLM to recommend changes targeting policy weaknesses (e.g. increasing/decreasing turn bounds, loans,
+starting cash, or incident rates) based on previous run metrics. It then clamps recommendations strictly
+against safety envelopes (Safe bounds vs. Escalation bounds) to ensure mutated configurations remain learnable.
+
+Key Features:
+  - Safety Clamping: Compares suggested mutations with percentage/delta/absolute bounds to prevent chaotic drift.
+  - Config Patching: Maps flat recommended keys (like `dice_rule_0_dice_sides`) to nested dictionary fields.
+  - Fallback Handling: Safely returns original configurations if LLM parsing or validation fails.
+
+Connections:
+  - Used by: `services/campaign_service.py` to produce config files for successive campaign iterations.
+"""
+
 from __future__ import annotations
 
 import copy
@@ -43,6 +60,7 @@ _ESCALATE_BOUNDS: dict[str, tuple] = {
 
 
 def _get_current(key: str, config_dict: dict) -> float | None:
+    """Retrieve the current value of a configuration key, handling nested keys and lists."""
     if key == "incident_draw_probability":
         return config_dict.get("incident", {}).get("draw_probability")
     if key == "incident_severity_multiplier":
@@ -61,6 +79,7 @@ def _get_current(key: str, config_dict: dict) -> float | None:
 
 
 def _clamp_one(value: float, current: float, bounds: tuple) -> float:
+    """Clamp a mutated value according to its scaling/boundary rules (percentage, delta, or absolute)."""
     btype = bounds[0]
     if btype == "pct":
         pct = bounds[1]
@@ -80,7 +99,7 @@ def _clamp_one(value: float, current: float, bounds: tuple) -> float:
 
 
 def clamp_diff(diff: dict, config_dict: dict, escalate: bool = False) -> dict:
-    """Return known diff keys clamped to safe campaign bounds."""
+    """Return supported changes clamped relative to the current configuration."""
     bounds_map = _ESCALATE_BOUNDS if escalate else _SAFE_BOUNDS
     result = {}
     for key, value in diff.items():
@@ -97,7 +116,7 @@ def clamp_diff(diff: dict, config_dict: dict, escalate: bool = False) -> dict:
 
 
 def apply_diff_to_config(config_dict: dict, diff: dict) -> dict:
-    """Apply flat campaign diff keys to a nested game config dict."""
+    """Apply the campaign API's flat change format to a copied nested config."""
     result = copy.deepcopy(config_dict)
     for key, value in diff.items():
         if key == "incident_draw_probability":
@@ -118,6 +137,7 @@ def apply_diff_to_config(config_dict: dict, diff: dict) -> dict:
 
 
 def _bounds_summary(escalate: bool) -> str:
+    """Return a human-readable summary description of the active safety bounds envelope."""
     if escalate:
         return (
             "starting_money +/-60%; max_turns 3-15; penalties +/-60%; "
@@ -133,6 +153,7 @@ def _bounds_summary(escalate: bool) -> str:
 
 
 def _build_prompt(config_dict: dict, metrics: dict, variation_index: int, escalate: bool) -> str:
+    """Construct the hyperparameter/rule tuning prompt detailing situation, bounds, and requirements."""
     return f"""You are a game-rules advisor for a Scrum board game RL training campaign.
 Suggest 1-3 bounded game config changes that create a meaningfully different but learnable
 environment for variation {variation_index}. Target observed weaknesses in the metrics.

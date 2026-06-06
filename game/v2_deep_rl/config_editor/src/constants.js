@@ -1,3 +1,15 @@
+/**
+ * Configuration Editor Constants.
+ * 
+ * This module exports the DEFAULT_CONFIG object which defines the baseline setup of game rules,
+ * including product configurations, initial finances, board layout, refinement rules, and incident decks.
+ * It is used to initialize the editor's active state and to reset the editor to a known default state.
+ * 
+ * Connections:
+ *   - Referenced by `state.js` to initialize the shared mutable state.
+ *   - Referenced by `actions.js` to reset the editor back to default settings.
+ */
+
 export const DEFAULT_CONFIG = {
   schema_version: "1.0",
   config_name: "Advanced Classical DDQN",

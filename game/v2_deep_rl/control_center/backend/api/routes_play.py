@@ -1,3 +1,20 @@
+"""
+Interactive Game Play Route Controller.
+
+This module exposes endpoints to manage in-memory interactive play sessions.
+It allows the frontend to run live simulations of the Scrum Game. Users can step through turns,
+make choices (e.g. continue or switch products), roll dice, draw incidents, and watch automated agents
+(model-based policy, random, or heuristic controllers) execute their steps.
+
+Key Endpoints:
+  - `POST /play/session`: Starts a new play session with specific seats (Human, Model, Heuristic, or Random AI).
+  - `GET /play/session/{session_id}`: Returns the current state, logs, and valid actions for a session.
+  - `POST /play/session/{session_id}/action`: Commits the human's action and advances the game board simulation.
+
+Connections:
+  - Imports: Session management routines from `services.play_service`.
+"""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
@@ -9,7 +26,9 @@ router = APIRouter(prefix="/play", tags=["play"])
 
 
 def _status_for_error(message: str) -> int:
+    """Return appropriate HTTP status code based on error message text."""
     return 404 if "was not found" in message else 400
+
 
 
 @router.get("/session")

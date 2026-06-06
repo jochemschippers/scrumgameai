@@ -24,6 +24,12 @@ The old top-level filenames still exist as thin compatibility wrappers, so exist
   Deployment profiles, parallel/shared match runners, and the saved-model demo CLI.
 - `dashboard_app/`
   Streamlit command center for training curves, action frequencies, switch-target heatmaps, and demo playback.
+- `control_center/`
+  FastAPI backend and browser UI for configs, jobs, campaigns, evaluation, and shared play.
+- `config_editor/`
+  Standalone browser editor for game configuration JSON.
+- `docs/codebase_guide.md`
+  Architecture, runtime flows, state ownership, and guidance for new contributors.
 
 ## Run Order
 

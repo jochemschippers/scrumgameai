@@ -1,3 +1,5 @@
+"""Test rule randomization behavior."""
+
 from __future__ import annotations
 
 import random
@@ -6,6 +8,7 @@ from config.config_manager import load_game_config
 from game_rules.rule_randomization import sample_game_config
 
 
+# Verify sample game config keeps model dimensions stable.
 def test_sample_game_config_keeps_model_dimensions_stable():
     base = load_game_config()
     sampled = sample_game_config(base, random.Random(123))
@@ -16,6 +19,7 @@ def test_sample_game_config_keeps_model_dimensions_stable():
     assert sampled.product_names == base.product_names
 
 
+# Verify sample game config obeys overridden bounds.
 def test_sample_game_config_obeys_overridden_bounds():
     base = load_game_config()
     sampled = sample_game_config(
@@ -39,6 +43,7 @@ def test_sample_game_config_obeys_overridden_bounds():
     assert {rule.dice_count for rule in sampled.dice_rules} == {2}
 
 
+# Verify sample game config is deterministic for seed.
 def test_sample_game_config_is_deterministic_for_seed():
     base = load_game_config()
     left = sample_game_config(base, random.Random(999)).to_dict()

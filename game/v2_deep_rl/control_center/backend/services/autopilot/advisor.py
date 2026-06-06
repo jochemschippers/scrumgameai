@@ -1,3 +1,21 @@
+"""
+AI Hyperparameter Tuning Advisor Service.
+
+This module implements the LLM-based advisory controller for the Training Autopilot.
+When the deterministic logic decides to stop a training run because it has hit a plateau, this module
+can query an external NVIDIA-hosted OpenAI-compatible model to suggest fine-tuning adjustments (learning rate,
+epsilon decay, episode counts) or confirm convergence and halt.
+
+Key Steps:
+  - Prompt Construction: Outlines game rules, training goals, current metrics, and hyperparameters.
+  - JSON Parsing: Extracts recommendation parameters securely from model response blocks.
+  - Value Bounds Protection: Restricts LLM-suggested rates/episodes to safe, hardcoded operational bounds.
+
+Connections:
+  - Imports: System constants from `services.autopilot.constants`.
+  - Used by: `services/autopilot/runner.py` during autopilot decision-making.
+"""
+
 from __future__ import annotations
 
 import json
@@ -127,7 +145,7 @@ Do not suggest rule changes or anything outside these two hyperparameters."""
             "advisor": "ai",
         }
 
-    # Extract the JSON block from the response
+    # Providers sometimes wrap otherwise valid JSON in prose or a code fence.
     try:
         start = raw.index("{")
         end = raw.rindex("}") + 1
@@ -151,7 +169,7 @@ Do not suggest rule changes or anything outside these two hyperparameters."""
             "advisor": "ai",
         }
 
-    # Clamp values to safe bounds
+    # Treat model output as untrusted input even when the JSON shape is valid.
     new_lr = current_config["learning_rate"]
     if "learning_rate" in suggestion:
         new_lr = max(LR_MIN, min(LR_MAX, float(suggestion["learning_rate"])))

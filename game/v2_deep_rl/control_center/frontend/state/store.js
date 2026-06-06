@@ -1,3 +1,14 @@
+/**
+ * Frontend State Store.
+ * 
+ * This module exports a single shared state object representing the global client-side cache and session states
+ * (active tab page, selected config assets, loaded run directories, job list, autopilot states, evaluation parameters,
+ * and live game sessions).
+ * 
+ * Connections:
+ *   - Imported by: `main.js` and almost all component and utility files to read/write shared interface state.
+ */
+
 export const state = {
   apiBaseUrl: window.location.protocol.startsWith("http")
     ? window.location.origin

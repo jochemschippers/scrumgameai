@@ -1,3 +1,20 @@
+"""
+FastAPI Server Launcher with Automated Liveness Checks.
+
+This script boots up the FastAPI backend application via `uvicorn`. To ensure robustness,
+it runs the existing pytest suite in an isolated subprocess before launching the server
+and searches for an available port starting from 8000 to prevent port collisions.
+
+Key Steps:
+  1. Isolated Test Exec: Runs pytest in a separate python process to isolate torch imports and verify stability.
+  2. Free Port Scan: Checks binding availability on a range of TCP ports to find a free port automatically.
+  3. Uvicorn Boot: Spawns the uvicorn worker running the main app on the resolved port.
+
+Connections:
+  - Entrypoint: Invoked via `python control_center/backend/run_api.py`
+  - Imports: `app` from `app.py`.
+"""
+
 from __future__ import annotations
 
 import socket
@@ -19,6 +36,7 @@ _TESTS_DIR = Path(__file__).resolve().parents[2] / "tests"
 
 
 def _run_startup_tests() -> None:
+    """Run the pytest test suite in a subprocess during server startup to verify stability."""
     if not _TESTS_DIR.exists():
         print(f"[startup] tests directory not found at {_TESTS_DIR}, skipping.", flush=True)
         return

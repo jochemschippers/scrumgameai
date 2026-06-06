@@ -1,3 +1,20 @@
+"""
+Configuration Catalog Assets Service.
+
+This module provides data access functions for the configuration catalog (game rules and training hyperparameters).
+It manages file discovery, saves custom config uploads, validates configurations, and provides computed rule/training
+signatures (MD5 hashes representing unique config states) to prevent execution discrepancies.
+
+Key Features:
+  - Game Configuration Catalog: Load, save, delete, list, and validate `GameConfig` assets (under `configs/custom/`).
+  - Training Configuration Catalog: Load, save, delete, list, and validate `TrainingConfig` assets (under `configs/training/`).
+  - Path Resolution: Maps client configuration IDs (e.g. "default_game_config" or custom file stems) to physical paths.
+
+Connections:
+  - Imports: `GameConfig`, `TrainingConfig`, `compute_rule_signature`, `save_game_config`, etc. from `config.config_manager`.
+  - Exported functions: Used directly by `api/routes_configs.py`.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -27,11 +44,13 @@ from config.config_manager import (  # noqa: E402
 
 
 def _slugify_name(value: str, fallback: str) -> str:
+    """Convert a display label into a stable lowercase snake_case identifier."""
     slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", str(value or "")).strip("_").lower()
     return slug or fallback
 
 
 def _resolve_game_config_path(config_id_or_path: str) -> Path:
+    """Resolve a game configuration ID or file path to its absolute Path location."""
     candidate_path = Path(config_id_or_path)
     if candidate_path.exists():
         return candidate_path.resolve()
@@ -47,6 +66,7 @@ def _resolve_game_config_path(config_id_or_path: str) -> Path:
 
 
 def _resolve_training_config_path(config_id_or_path: str) -> Path:
+    """Resolve a training configuration ID or file path to its absolute Path location."""
     candidate_path = Path(config_id_or_path)
     if candidate_path.exists():
         return candidate_path.resolve()
@@ -62,6 +82,7 @@ def _resolve_training_config_path(config_id_or_path: str) -> Path:
 
 
 def list_game_configs() -> list[dict]:
+    """Retrieve summaries for all default and custom game configs in the library."""
     configs = []
     default_config = load_game_config(DEFAULT_GAME_CONFIG_PATH)
     configs.append(
@@ -99,6 +120,7 @@ def list_game_configs() -> list[dict]:
 
 
 def get_game_config(config_id_or_path: str) -> dict:
+    """Retrieve details and the raw dictionary configuration for a specific game config."""
     config_path = _resolve_game_config_path(config_id_or_path)
     config = load_game_config(config_path)
     return {
@@ -112,6 +134,7 @@ def get_game_config(config_id_or_path: str) -> dict:
 
 
 def list_training_configs() -> list[dict]:
+    """Retrieve summaries for all default and custom training configs in the library."""
     configs = []
     default_config = load_training_config(DEFAULT_TRAINING_CONFIG_PATH)
     configs.append(
@@ -148,6 +171,7 @@ def list_training_configs() -> list[dict]:
 
 
 def get_training_config(config_id_or_path: str) -> dict:
+    """Retrieve details and the raw dictionary configuration for a specific training config."""
     config_path = _resolve_training_config_path(config_id_or_path)
     config = load_training_config(config_path)
     return {
@@ -161,6 +185,7 @@ def get_training_config(config_id_or_path: str) -> dict:
 
 
 def save_game_config_asset(payload: dict) -> dict:
+    """Create or overwrite a custom game config asset on disk."""
     config_payload = payload.get("config")
     if not isinstance(config_payload, dict):
         raise ValueError("Game config payload must include a `config` object.")
@@ -185,6 +210,7 @@ def save_game_config_asset(payload: dict) -> dict:
 
 
 def delete_game_config_asset(config_id_or_path: str) -> dict:
+    """Delete a custom game config asset from disk."""
     target_path = _resolve_game_config_path(config_id_or_path)
     if target_path.resolve() == DEFAULT_GAME_CONFIG_PATH.resolve():
         raise ValueError("Bundled default game config cannot be deleted.")
@@ -197,6 +223,7 @@ def delete_game_config_asset(config_id_or_path: str) -> dict:
 
 
 def validate_game_config_asset(payload: dict) -> dict:
+    """Validate a game config payload structure and return derived dimensions."""
     config_payload = payload.get("config")
     if not isinstance(config_payload, dict):
         raise ValueError("Game config payload must include a `config` object.")
@@ -213,6 +240,7 @@ def validate_game_config_asset(payload: dict) -> dict:
 
 
 def save_training_config_asset(payload: dict) -> dict:
+    """Create or overwrite a custom training config asset on disk."""
     config_payload = payload.get("config")
     if not isinstance(config_payload, dict):
         raise ValueError("Training config payload must include a `config` object.")
@@ -237,6 +265,7 @@ def save_training_config_asset(payload: dict) -> dict:
 
 
 def delete_training_config_asset(config_id_or_path: str) -> dict:
+    """Delete a custom training config asset from disk."""
     target_path = _resolve_training_config_path(config_id_or_path)
     if target_path.resolve() == DEFAULT_TRAINING_CONFIG_PATH.resolve():
         raise ValueError("Bundled default training config cannot be deleted.")
@@ -249,6 +278,7 @@ def delete_training_config_asset(config_id_or_path: str) -> dict:
 
 
 def validate_training_config_asset(payload: dict) -> dict:
+    """Validate a training config payload structure and return derived properties."""
     config_payload = payload.get("config")
     if not isinstance(config_payload, dict):
         raise ValueError("Training config payload must include a `config` object.")
@@ -261,3 +291,4 @@ def validate_training_config_asset(payload: dict) -> dict:
         "gamma": training_config.gamma,
         "batch_size": training_config.batch_size,
     }
+

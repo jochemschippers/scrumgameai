@@ -83,14 +83,17 @@ resolve_training_config = _train_dqn.resolve_training_config
 # ---------------------------------------------------------------------------
 
 class TestEpsilonByEpisode:
+    # Verify episode zero returns epsilon start.
     def test_episode_zero_returns_epsilon_start(self):
         result = epsilon_by_episode(0, epsilon_start=1.0, epsilon_min=0.05, epsilon_decay_episodes=1000)
         assert result == pytest.approx(1.0)
 
+    # Verify episode at decay returns epsilon min.
     def test_episode_at_decay_returns_epsilon_min(self):
         result = epsilon_by_episode(1000, epsilon_start=1.0, epsilon_min=0.05, epsilon_decay_episodes=1000)
         assert result == pytest.approx(0.05)
 
+    # Verify episode beyond decay clamps to epsilon min.
     def test_episode_beyond_decay_clamps_to_epsilon_min(self):
         result = epsilon_by_episode(999999, epsilon_start=1.0, epsilon_min=0.05, epsilon_decay_episodes=1000)
         assert result == pytest.approx(0.05)
@@ -116,6 +119,7 @@ class TestEpsilonByEpisode:
         assert result > 0.05
         assert result < 1.0
 
+    # Verify custom start and min.
     def test_custom_start_and_min(self):
         result = epsilon_by_episode(0, epsilon_start=0.8, epsilon_min=0.1, epsilon_decay_episodes=200)
         assert result == pytest.approx(0.8)
@@ -127,6 +131,7 @@ class TestEpsilonByEpisode:
         assert epsilon_by_episode(0) == pytest.approx(1.0)
         assert epsilon_by_episode(450000) == pytest.approx(0.05)
 
+    # Verify result always between min and start.
     @pytest.mark.parametrize("episode", [0, 1, 100, 1000, 9999])
     def test_result_always_between_min_and_start(self, episode):
         result = epsilon_by_episode(episode, epsilon_start=1.0, epsilon_min=0.05, epsilon_decay_episodes=10000)
@@ -138,21 +143,27 @@ class TestEpsilonByEpisode:
 # ---------------------------------------------------------------------------
 
 class TestSlugifyRunName:
+    # Verify none returns empty string.
     def test_none_returns_empty_string(self):
         assert _slugify_run_name(None) == ""
 
+    # Verify empty string returns empty string.
     def test_empty_string_returns_empty_string(self):
         assert _slugify_run_name("") == ""
 
+    # Verify whitespace only returns empty string.
     def test_whitespace_only_returns_empty_string(self):
         assert _slugify_run_name("   ") == ""
 
+    # Verify simple alpha lowercased.
     def test_simple_alpha_lowercased(self):
         assert _slugify_run_name("HelloWorld") == "helloworld"
 
+    # Verify spaces become underscores.
     def test_spaces_become_underscores(self):
         assert _slugify_run_name("my run name") == "my_run_name"
 
+    # Verify special chars become underscores.
     def test_special_chars_become_underscores(self):
         result = _slugify_run_name("run-name.v2!")
         assert result == "run_name_v2"
@@ -162,32 +173,39 @@ class TestSlugifyRunName:
         result = _slugify_run_name("run  --  name")
         assert result == "run_name"
 
+    # Verify leading and trailing special chars stripped.
     def test_leading_and_trailing_special_chars_stripped(self):
         result = _slugify_run_name("---test---")
         assert result == "test"
 
+    # Verify numbers preserved.
     def test_numbers_preserved(self):
         result = _slugify_run_name("run123")
         assert result == "run123"
 
+    # Verify mixed alphanumeric and special.
     def test_mixed_alphanumeric_and_special(self):
         result = _slugify_run_name("Autopilot Run v2.0")
         assert result == "autopilot_run_v20"
 
+    # Verify length truncated to 48.
     def test_length_truncated_to_48(self):
         long_name = "a" * 100
         result = _slugify_run_name(long_name)
         assert len(result) <= 48
 
+    # Verify exactly 48 chars not truncated.
     def test_exactly_48_chars_not_truncated(self):
         name = "a" * 48
         assert _slugify_run_name(name) == name
 
+    # Verify 49 chars truncated.
     def test_49_chars_truncated(self):
         name = "a" * 49
         result = _slugify_run_name(name)
         assert len(result) == 48
 
+    # Verify unicode non alnum becomes underscore.
     def test_unicode_non_alnum_becomes_underscore(self):
         result = _slugify_run_name("naïve résumé")
         # ï, é are non-alphanumeric in isalnum but letters; actual behaviour
@@ -195,6 +213,7 @@ class TestSlugifyRunName:
         # At minimum the function should not crash.
         assert isinstance(result, str)
 
+    # Verify all special chars returns empty.
     def test_all_special_chars_returns_empty(self):
         result = _slugify_run_name("!@#$%^&*()")
         assert result == ""
@@ -229,52 +248,62 @@ class TestResolveTrainingConfig:
         defaults.update(kwargs)
         return cm.TrainingConfig.from_dict(defaults)
 
+    # Verify no overrides returns base unchanged.
     def test_no_overrides_returns_base_unchanged(self):
         base = self._base_tc()
         result = resolve_training_config(training_config=base)
         assert result.episodes == 50000
         assert result.learning_rate == pytest.approx(0.0005)
 
+    # Verify num episodes override.
     def test_num_episodes_override(self):
         base = self._base_tc()
         result = resolve_training_config(training_config=base, num_episodes=99999)
         assert result.episodes == 99999
 
+    # Verify learning rate override.
     def test_learning_rate_override(self):
         base = self._base_tc()
         result = resolve_training_config(training_config=base, learning_rate=0.001)
         assert result.learning_rate == pytest.approx(0.001)
 
+    # Verify gamma override.
     def test_gamma_override(self):
         base = self._base_tc()
         result = resolve_training_config(training_config=base, gamma=0.99)
         assert result.gamma == pytest.approx(0.99)
 
+    # Verify seed override.
     def test_seed_override(self):
         base = self._base_tc()
         result = resolve_training_config(training_config=base, seed=123)
         assert result.seed == 123
 
+    # Verify checkpoint interval override.
     def test_checkpoint_interval_override(self):
         base = self._base_tc()
         result = resolve_training_config(training_config=base, checkpoint_interval=500)
         assert result.checkpoint_interval == 500
 
+    # Verify evaluation interval override.
     def test_evaluation_interval_override(self):
         base = self._base_tc()
         result = resolve_training_config(training_config=base, evaluation_interval=2500)
         assert result.evaluation_interval == 2500
 
+    # Verify evaluation episodes override.
     def test_evaluation_episodes_override(self):
         base = self._base_tc()
         result = resolve_training_config(training_config=base, evaluation_episodes=50)
         assert result.evaluation_episodes == 50
 
+    # Verify epsilon decay override.
     def test_epsilon_decay_override(self):
         base = self._base_tc()
         result = resolve_training_config(training_config=base, epsilon_decay_episodes=10000)
         assert result.epsilon_decay_episodes == 10000
 
+    # Verify run notes override.
     def test_run_notes_override(self):
         base = self._base_tc()
         result = resolve_training_config(training_config=base, run_notes="my notes")
@@ -294,6 +323,7 @@ class TestResolveTrainingConfig:
         assert result.learning_rate == pytest.approx(0.0003)
         assert result.gamma == pytest.approx(0.92)
 
+    # Verify multiple overrides applied simultaneously.
     def test_multiple_overrides_applied_simultaneously(self):
         base = self._base_tc()
         result = resolve_training_config(
@@ -306,6 +336,7 @@ class TestResolveTrainingConfig:
         assert result.learning_rate == pytest.approx(0.002)
         assert result.seed == 7
 
+    # Verify returns training config instance.
     def test_returns_training_config_instance(self):
         import config.config_manager as cm
         base = self._base_tc()

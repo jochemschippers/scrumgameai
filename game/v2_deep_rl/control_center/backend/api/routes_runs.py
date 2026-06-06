@@ -1,3 +1,21 @@
+"""
+Training Run Catalog Route Controller.
+
+This module exposes endpoints to view and analyze historical and active DQN Training Runs.
+A training run is a structured folder generated on disk containing training parameters, CSV metrics,
+log output, and saved checkpoints. This controller provides summaries, chart progress, and computes
+performance ratings.
+
+Key Endpoints:
+  - `GET /runs`: Lists all completed or active training run directories on disk.
+  - `GET /runs/{run_id}`: Fetches configurations, metrics, and associated checkpoints for a single run.
+  - `GET /runs/{run_id}/progress`: Extracts historical CSV lines to render learning curves in the UI.
+  - `GET /runs/{run_id}/rating`: Analyzes evaluation logs to assign a quality score and letter grade (A-F).
+
+Connections:
+  - Imports: Catalog operations from `services.catalog_service` and autopilot analyzer from `services.training_autopilot`.
+"""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException

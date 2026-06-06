@@ -1,3 +1,5 @@
+"""Implement catalog service behavior for the services package."""
+
 from __future__ import annotations
 
 from .catalog.config_assets import (
