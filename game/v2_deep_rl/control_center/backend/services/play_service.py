@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from functools import lru_cache
+import random
 import uuid
 
 from .catalog_service import list_game_configs
@@ -204,7 +205,7 @@ def create_session(payload: dict) -> dict:
         match_state = start_parallel_match(
             game_config=game_config,
             controllers=controllers,
-            base_seed=int(payload.get("base_seed", 42)),
+            base_seed=int(payload.get("base_seed", random.randint(0, 1000000))),
         )
         match_state["mode"] = "parallel"
     elif mode == "shared":
@@ -212,7 +213,7 @@ def create_session(payload: dict) -> dict:
         match_state = start_shared_match(
             game_config=game_config,
             controllers=controllers,
-            base_seed=int(payload.get("base_seed", 42)),
+            base_seed=int(payload.get("base_seed", random.randint(0, 1000000))),
         )
     else:
         raise ValueError(f"Unknown play mode: {mode}")

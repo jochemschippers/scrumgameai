@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import random
 import signal
 import shutil
 import subprocess
@@ -795,7 +796,7 @@ def find_best_demo_seed(agent, game_config, search_count=20):
 
 def clear_match_state():
     """Drop any existing interactive match state from the Streamlit session."""
-    for key in ("parallel_match_state", "parallel_match_key"):
+    for key in ("parallel_match_state", "parallel_match_key", "parallel_match_seed_val", "parallel_match_seed"):
         if key in st.session_state:
             del st.session_state[key]
 
@@ -822,8 +823,16 @@ def render_play_match_section(agent, game_config, checkpoint_identifier):
         "This match mode runs one seat per controller on the same ruleset. "
         "Each seat plays its own copy of the board, which keeps the current single-player DDQN usable."
     )
+    if "parallel_match_seed_val" not in st.session_state:
+        st.session_state["parallel_match_seed_val"] = random.randint(0, 1000000)
 
-    match_seed = st.number_input("Match seed", min_value=0, value=42, step=1, key="parallel_match_seed")
+    match_seed = st.number_input(
+        "Match seed",
+        min_value=0,
+        value=st.session_state["parallel_match_seed_val"],
+        step=1,
+        key="parallel_match_seed"
+    )
     include_human = st.checkbox("Include Human Seat", value=True, key="parallel_match_human")
     opponent_labels = st.multiselect(
         "Opponents",
